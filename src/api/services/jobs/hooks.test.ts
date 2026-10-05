@@ -27,6 +27,7 @@ vi.mock("./action", () => ({
   postCustomerAnswer: vi.fn().mockResolvedValue(undefined),
   updateJobAttachments: vi.fn().mockResolvedValue(undefined),
   postRepairApproval2: vi.fn().mockResolvedValue(undefined),
+  postPurchaseDate: vi.fn().mockResolvedValue(undefined),
 }));
 
 import {
@@ -51,6 +52,7 @@ import {
   usePostCreateCostEstimate,
   usePostCustomerAnswer,
   useUpdateJobAttachments,
+  usePostPurchaseDate,
 } from "./hooks";
 import {
   fetchJobs,
@@ -72,6 +74,7 @@ import {
   postCreateCostEstimate,
   postCustomerAnswer,
   updateJobAttachments,
+  postPurchaseDate,
 } from "./action";
 
 function makeWrapper() {
@@ -290,5 +293,57 @@ describe("useUpdateJobAttachments", () => {
     const { result } = renderHook(() => useUpdateJobAttachments(), { wrapper: makeWrapper() });
     result.current.mutate({ jobId: "j1", attachments: [] });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  });
+});
+
+describe("usePostCustomerData", () => {
+  it("calls postCustomerData with orderId and payload on mutate", async () => {
+    vi.mocked(postCustomerData).mockResolvedValue(undefined);
+    const { result } = renderHook(() => usePostCustomerData(), { wrapper: makeWrapper() });
+    result.current.mutate({ orderId: "o1", payload: { name: "John" } });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(postCustomerData).toHaveBeenCalledWith("o1", { name: "John" });
+  });
+
+  it("surfaces errors and forwards options", async () => {
+    vi.mocked(postCustomerData).mockRejectedValue(new Error("boom"));
+    const onError = vi.fn();
+    const { result } = renderHook(() => usePostCustomerData({ onError }), {
+      wrapper: makeWrapper(),
+    });
+    result.current.mutate({ orderId: "o1", payload: {} });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(onError).toHaveBeenCalled();
+  });
+});
+
+describe("usePostDiagnostic payload forwarding", () => {
+  it("calls postDiagnostic with jobId and payload", async () => {
+    vi.mocked(postDiagnostic).mockResolvedValue(undefined);
+    const { result } = renderHook(() => usePostDiagnostic(), { wrapper: makeWrapper() });
+    result.current.mutate({ jobId: "j1", payload: { a: 1 } });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(postDiagnostic).toHaveBeenCalledWith("j1", { a: 1 });
+  });
+});
+
+describe("usePostPurchaseDate", () => {
+  it("calls postPurchaseDate with jobId and purchaseDate on mutate", async () => {
+    vi.mocked(postPurchaseDate).mockResolvedValue(undefined);
+    const { result } = renderHook(() => usePostPurchaseDate(), { wrapper: makeWrapper() });
+    result.current.mutate({ jobId: "j1", purchaseDate: "2024-01-15" });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(postPurchaseDate).toHaveBeenCalledWith("j1", "2024-01-15");
+  });
+
+  it("surfaces errors and forwards options", async () => {
+    vi.mocked(postPurchaseDate).mockRejectedValue(new Error("boom"));
+    const onError = vi.fn();
+    const { result } = renderHook(() => usePostPurchaseDate({ onError }), {
+      wrapper: makeWrapper(),
+    });
+    result.current.mutate({ jobId: "j1", purchaseDate: "2024-01-15" });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(onError).toHaveBeenCalled();
   });
 });
