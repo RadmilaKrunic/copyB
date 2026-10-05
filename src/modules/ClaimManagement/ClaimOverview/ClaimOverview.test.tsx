@@ -132,8 +132,10 @@ const queryClientMock = {
   invalidateQueries: h.invalidateQueries,
 };
 
-vi.mock("@tanstack/react-query", () => ({
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-query")>()),
   useQueryClient: () => queryClientMock,
+  useQuery: () => ({ data: undefined, isLoading: false, error: null }),
   useMutation: (options: { onSuccess?: () => void; onError?: (error: unknown) => void }) => {
     h.mutationOptions = options;
     return { mutate: h.postMessageMutate, mutateAsync: vi.fn(), isPending: false };
