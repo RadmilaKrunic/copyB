@@ -1,0 +1,43 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+coverage
+.vite
+docs
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.claude
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+IMPLEMENTATION_CONSISTENCY_SUMMARY.md
+CLAUDE.md
+catalog.json
+specs/*
+
+# Configuration files
+.npmrc
+
+# Env files
+.env.local
+
+# Generated reports
+oss-bundle.json
+
+spikes/
