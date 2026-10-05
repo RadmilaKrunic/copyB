@@ -105,24 +105,25 @@ const ACTION_NAMES = [
   "unmappedAction",
 ];
 
+const uiConfiguration = () => ({
+  forms: [
+    {
+      name: "ClaimOverview",
+      actions: [...ACTION_NAMES.map((name) => ({ name, onAction: name })), { name: "noOnAction" }],
+      sections: [],
+    },
+  ],
+});
+
+const isUiConfigKey = (key: unknown) => Array.isArray(key) && key[0] === "UIConfiguration";
+
 const queryClientMock = {
   getQueryData: vi.fn((key: unknown) => {
     if (Array.isArray(key) && key[0] === "user") {
       return { countryCode: h.userCountry, permissions: [], roles: [] };
     }
-    if (Array.isArray(key) && key[0] === "UIConfiguration") {
-      return {
-        forms: [
-          {
-            name: "ClaimOverview",
-            actions: [
-              ...ACTION_NAMES.map((name) => ({ name, onAction: name })),
-              { name: "noOnAction" },
-            ],
-            sections: [],
-          },
-        ],
-      };
+    if (isUiConfigKey(key)) {
+      return uiConfiguration();
     }
     if (Array.isArray(key) && key[0] === "claim") {
       return h.claimInCache;
@@ -135,7 +136,23 @@ const queryClientMock = {
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-query")>()),
   useQueryClient: () => queryClientMock,
-  useQuery: () => ({ data: undefined, isLoading: false, error: null }),
+  // Components/hooks that resolve the UI configuration through react-query get the claim form.
+  useQuery: (options?: { queryKey?: unknown }) => ({
+    data: isUiConfigKey(options?.queryKey) ? uiConfiguration() : undefined,
+    isLoading: false,
+    isPending: false,
+    isError: false,
+    isSuccess: true,
+    error: null,
+  }),
+  useQueries: (options?: { queries?: Array<{ queryKey?: unknown }> }) =>
+    (options?.queries ?? []).map((query) => ({
+      data: isUiConfigKey(query.queryKey) ? uiConfiguration() : undefined,
+      isLoading: false,
+      isError: false,
+      isSuccess: true,
+      error: null,
+    })),
   useMutation: (options: { onSuccess?: () => void; onError?: (error: unknown) => void }) => {
     h.mutationOptions = options;
     return { mutate: h.postMessageMutate, mutateAsync: vi.fn(), isPending: false };
@@ -1374,10 +1391,10 @@ describe("ClaimOverview form data mapping", () => {
 
     renderClaim();
 
-    expect(h.convertAPIDataToFormValues).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "C-1" }),
-      h.formInit.allFields,
-    );
+    expect(h.convertAPIDataToFormValues).toHaveBeenCalled();
+    const [mappedClaim, mappedFields] = h.convertAPIDataToFormValues.mock.calls[0];
+    expect(mappedClaim).toEqual(expect.objectContaining({ id: "C-1" }));
+    expect(mappedFields).toBe(h.formInit.allFields);
     expect(h.setInitialFormValues).toHaveBeenCalledWith(
       expect.objectContaining({
         faultCodeDropdown: "F-1",
