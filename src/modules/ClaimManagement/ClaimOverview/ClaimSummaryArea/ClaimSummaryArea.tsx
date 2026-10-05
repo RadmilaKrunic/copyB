@@ -7,28 +7,16 @@ import {
 } from "modules/JobManagement/JobOverview/DiagnosticsContext";
 import { useClaimContext } from "../ClaimContext";
 
-/**
- * Bridges ClaimContext → DiagnosticsContext so that SummaryArea (which calls
- * useDiagnosticsContext internally) works correctly inside the claims tab without
- * depending on the job-level DiagnosticsContext.Provider.
- *
- * Only the 4 values that SummaryArea actually reads from context are wired;
- * everything else is a no-op stub.
- */
 function ClaimSummaryArea({ area }: Readonly<{ area: Area }>) {
-  const {
-    isDistributingRef,
-    hasPricesPopulated,
-    setSummaryTypeOptions,
-    discountBase,
-    materials,
-    setMaterials,
-  } = useClaimContext();
+  const { hasPricesPopulated, setSummaryTypeOptions, discountBase, materials, setMaterials } =
+    useClaimContext();
 
   const bridgedContextValue = useMemo<DiagnosticsContextValue>(
     () => ({
       materials,
       setMaterials,
+      priceSummaryDetailedByJobType: [],
+      setPriceSummaryDetailedByJobType: () => {},
       onAddRow: () => {},
       onAddMaterials: () => {},
       onDeleteRow: () => {},
@@ -37,8 +25,6 @@ function ClaimSummaryArea({ area }: Readonly<{ area: Area }>) {
       positionDropdownOptions: [],
       allowedPositions: [],
       getExistingPartNumbers: () => new Set(),
-      isDistributingRef,
-      isResyncingRef: { current: false },
       arePricesValidated: false,
       setArePricesValidated: () => {},
       hasPricesPopulated,
@@ -50,7 +36,6 @@ function ClaimSummaryArea({ area }: Readonly<{ area: Area }>) {
       isArchivedExpanded: false,
       setIsArchivedExpanded: () => {},
       canArchiveOnDelete: false,
-      resyncMaterialsFromAPI: () => {},
       jobStatus: "",
       discountBase,
       automaticRows: [],
@@ -59,14 +44,7 @@ function ClaimSummaryArea({ area }: Readonly<{ area: Area }>) {
       hasExistingDiagnostic: false,
       isValidating: false,
     }),
-    [
-      materials,
-      setMaterials,
-      isDistributingRef,
-      hasPricesPopulated,
-      setSummaryTypeOptions,
-      discountBase,
-    ],
+    [materials, setMaterials, hasPricesPopulated, setSummaryTypeOptions, discountBase],
   );
 
   return (

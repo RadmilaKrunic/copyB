@@ -4,11 +4,6 @@ import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useFormikContext } from "formik";
 import { useHasPermission } from "hooks/useHasPermission";
 import Field from "components/generics/Field/GenericField.types";
-import { getPositionAutofill } from "hooks/useDiagnosticsManager";
-import {
-  resolveDiscountFieldNames,
-  useSparePartsRowCommon,
-} from "modules/JobManagement/JobOverview/SparePartsRow/SparePartsRow.shared";
 import {
   SparePartsMainFields,
   SparePartsCollapsedSection,
@@ -37,8 +32,6 @@ function ClaimSparePartsRow({
     markRowDirty,
     allowedPositions,
     positionDropdownOptions,
-    isResyncingRef,
-    discountBase,
     canDeleteRows,
     automaticRows,
     materials,
@@ -47,7 +40,7 @@ function ClaimSparePartsRow({
 
   const [isRowCollapsed, setIsRowCollapsed] = useState(arePricesValidated);
 
-  const { values, setFieldValue } = useFormikContext<Record<string, unknown>>();
+  const { values } = useFormikContext<Record<string, unknown>>();
 
   const collapsableFieldNames = new Set(
     fields
@@ -73,21 +66,6 @@ function ClaimSparePartsRow({
     (partNumberValue.trim().length === 0 ||
       sparePartNotBelongsToTool?.current[partNumberField?.name ?? ""] === true);
 
-  const descriptionField = fields.find((f) => f.subtype === "diagnosticDescription");
-  const prevPositionRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (prevPositionRef.current === null) {
-      prevPositionRef.current = positionValue;
-      return;
-    }
-    if (prevPositionRef.current === positionValue) return;
-    prevPositionRef.current = positionValue;
-    const autofill = getPositionAutofill(t)[positionValue];
-    if (!autofill) return;
-    if (partNumberField) void setFieldValue(partNumberField.name, autofill.partNumber);
-    if (descriptionField) void setFieldValue(descriptionField.name, autofill.description);
-  }, [positionValue, setFieldValue, t, partNumberField, descriptionField]);
-
   const applyFieldPermissions = (field: Field): Field => {
     if (isDisabled || isClaimPending) return { ...field, isDisabled: true };
 
@@ -103,36 +81,15 @@ function ClaimSparePartsRow({
     return { ...field, isDisabled: true };
   };
 
-  const {
-    discountHiddenFieldName,
-    discountAmountHiddenFieldName,
-    activeDiscountFieldName,
-    discountSiblingFieldName,
-  } = resolveDiscountFieldNames(fields, discountBase);
-
-  const nonPriceInputKey = useSparePartsRowCommon({
-    fields,
-    activeDiscountFieldName,
-    discountSiblingFieldName,
-    discountHiddenFieldName,
-    discountAmountHiddenFieldName,
-    areaNamePrefix,
-    isResyncingRef,
-    discountBase,
-    values,
-    markRowDirty,
-    areaIndex,
-  });
-
   const isFirstRowRender = useRef(true);
   useEffect(() => {
     if (isFirstRowRender.current) {
       isFirstRowRender.current = false;
       return;
     }
-    if (isResyncingRef.current || !arePricesValidated) return;
+    if (!arePricesValidated) return;
     markRowDirty(areaIndex);
-  }, [nonPriceInputKey, markRowDirty, areaIndex, isResyncingRef, arePricesValidated]);
+  }, [markRowDirty, areaIndex, arePricesValidated]);
 
   const mainFields = fields.filter(
     (field) => !collapsableFieldNames.has(field.fieldMapping?.originalName || ""),

@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Formik, useFormikContext } from "formik";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { GenericFormContext } from "components/generics/Form/GenericForm.context";
+import {
+  GenericFormContext,
+  type GenericFormContextType,
+} from "components/generics/Form/GenericForm.context";
 import { DiagnosticsContext, type DiagnosticsContextValue } from "../DiagnosticsContext";
 import SparePartsRow from "./SparePartsRow";
 import type Field from "components/generics/Field/GenericField.types";
@@ -339,6 +342,7 @@ const renderRow = (
   warrantyPanelInfo: WarrantyPanelInfo = ELIGIBLE_WARRANTY_PANEL_INFO,
   rowProps: RowProps = {},
   contextOverrides: Partial<DiagnosticsContextValue> = {},
+  formContextOverrides: Partial<GenericFormContextType> = {},
 ) => {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   queryClient.setQueryData(["user"], { permissions: rowProps.userPermissions ?? ["ALL"] });
@@ -346,10 +350,12 @@ const renderRow = (
 
   const diagnosticsContextValue: DiagnosticsContextValue = {
     materials: [],
+    priceSummaryDetailedByJobType: [],
     apiMaterialsLoaded: true,
     apiMaterialsEmpty: false,
     hasExistingDiagnostic: true,
     setMaterials: vi.fn(),
+    setPriceSummaryDetailedByJobType: vi.fn(),
     onAddRow: vi.fn(),
     onAddMaterials: vi.fn(),
     onDeleteRow: vi.fn(),
@@ -358,8 +364,6 @@ const renderRow = (
     positionDropdownOptions: [],
     allowedPositions: [],
     getExistingPartNumbers: () => new Set<string>(),
-    isDistributingRef: { current: false },
-    isResyncingRef: { current: false },
     arePricesValidated: true,
     setArePricesValidated: vi.fn(),
     hasPricesPopulated: true,
@@ -371,7 +375,6 @@ const renderRow = (
     isArchivedExpanded: false,
     setIsArchivedExpanded: vi.fn(),
     canArchiveOnDelete: false,
-    resyncMaterialsFromAPI: vi.fn(),
     jobStatus: "IN_DIAGNOSTICS",
     discountBase,
     automaticRows: [],
@@ -390,6 +393,7 @@ const renderRow = (
           actionCallbacks: {},
           sparePartNotBelongsToTool: { current: sparePartNotBelongsToTool },
           warrantyPanelInfo,
+          ...formContextOverrides,
         }}
       >
         <DiagnosticsContext.Provider value={diagnosticsContextValue}>
@@ -607,354 +611,6 @@ describe("SparePartsRow type transitions", () => {
     await waitFor(() => {
       expect((screen.getByTestId("field-row0_discount") as HTMLInputElement).value).toBe("0");
       expect((screen.getByTestId("field-row0_totalAmount") as HTMLInputElement).value).toBe("240");
-    });
-  });
-
-  it("applies summary discount when type changes from WARRANTY to CHARGEABLE", async () => {
-    const summaryFields: Field[] = [
-      createField({
-        name: "summaryDiscountMaterialHidden",
-        subtype: "diagnosticSummaryDiscountMaterialHidden",
-        type: "number",
-      }),
-    ];
-
-    renderRow(
-      {
-        row0_position: "SP",
-        row0_type: "WARRANTY",
-        row0_quantity: 2,
-        row0_unitPrice: 100,
-        row0_suggestedNetPrice: 200,
-        row0_netAmount: 200,
-        row0_tax: 20,
-        row0_taxAmount: 40,
-        row0_grossAmount: 240,
-        row0_totalAmount: 213.6,
-        row0_discount: 11,
-        row0_discountHidden: 11,
-        summaryDiscountMaterialHidden: 17.5,
-      },
-      summaryFields,
-    );
-
-    fireEvent.change(screen.getByTestId("field-row0_type"), {
-      target: { value: "CHARGEABLE" },
-    });
-
-    await waitFor(() => {
-      expect((screen.getByTestId("field-row0_discount") as HTMLInputElement).value).toBe("0");
-      expect((screen.getByTestId("field-row0_totalAmount") as HTMLInputElement).value).toBe("240");
-    });
-  });
-
-  it("resets discount and recalculates total when type changes from CHARGEABLE to WARRANTY", async () => {
-    const summaryFields: Field[] = [
-      createField({
-        name: "summaryDiscountMaterialHidden",
-        subtype: "diagnosticSummaryDiscountMaterialHidden",
-        type: "number",
-      }),
-    ];
-
-    renderRow(
-      {
-        row0_position: "SP",
-        row0_type: "CHARGEABLE",
-        row0_quantity: 2,
-        row0_unitPrice: 100,
-        row0_suggestedNetPrice: 200,
-        row0_netAmount: 200,
-        row0_tax: 20,
-        row0_taxAmount: 40,
-        row0_grossAmount: 240,
-        row0_totalAmount: 205.8,
-        row0_discount: 14.25,
-        row0_discountHidden: 14.25,
-        summaryDiscountMaterialHidden: 17.5,
-      },
-      summaryFields,
-    );
-
-    fireEvent.change(screen.getByTestId("field-row0_type"), {
-      target: { value: "WARRANTY" },
-    });
-
-    await waitFor(() => {
-      expect((screen.getByTestId("field-row0_discount") as HTMLInputElement).value).toBe("0");
-      expect((screen.getByTestId("field-row0_totalAmount") as HTMLInputElement).value).toBe("240");
-    });
-  });
-
-  // Regression test: the discount reset only wrote to Formik's live values, never to the
-  // `materials` React state array. Effect 3 in useDiagnosticsManager.ts rebuilds Formik's
-  // initialFormValues from `materials` whenever `materials` changes for ANY reason (e.g.
-  // setRevisedRejectedRowPending flipping a REVISED/REJECTED row's status back to PENDING)
-  // and always trusts `materials` as authoritative for row fields — including discount AND
-  // type (applyStatusAndTypeOverrides unconditionally overwrites the reused row's type
-  // field from materials[idx].type). Without syncing BOTH here, the jobType field itself
-  // snaps back to its pre-change value the next time materials changes for any reason,
-  // taking the row's apparent discount state with it even though the discount write
-  // itself was never touched again.
-  it("also syncs the reset discount AND type into the materials state array, not just Formik values", async () => {
-    const setMaterials = vi.fn();
-
-    renderRow(
-      {
-        row0_position: "SP",
-        row0_type: "CHARGEABLE",
-        row0_quantity: 2,
-        row0_unitPrice: 100,
-        row0_suggestedNetPrice: 200,
-        row0_netAmount: 200,
-        row0_tax: 20,
-        row0_taxAmount: 40,
-        row0_grossAmount: 240,
-        row0_totalAmount: 205.8,
-        row0_discount: 14.25,
-        row0_discountHidden: 14.25,
-      },
-      [],
-      "GROSS_PRICE",
-      {},
-      ELIGIBLE_WARRANTY_PANEL_INFO,
-      {},
-      { setMaterials },
-    );
-
-    fireEvent.change(screen.getByTestId("field-row0_type"), {
-      target: { value: "WARRANTY" },
-    });
-
-    await waitFor(() => {
-      expect((screen.getByTestId("field-row0_discount") as HTMLInputElement).value).toBe("0");
-    });
-
-    expect(setMaterials).toHaveBeenCalled();
-    // setMaterials is called with a functional updater — apply it to a sample materials
-    // array to confirm it correctly updates THIS row's discount AND type (areaIndex 0,
-    // matching the "diagnosticsSpareParts#0_" field prefix used throughout this fixture).
-    const updater = setMaterials.mock.calls[setMaterials.mock.calls.length - 1][0] as (
-      prev: unknown[],
-    ) => unknown[];
-    const sampleMaterials = [{ position: "SP", discount: 14.25, type: "CHARGEABLE" }];
-    const updated = updater(sampleMaterials) as Array<{ discount: number; type: string }>;
-    expect(updated[0].discount).toBe(0);
-    expect(updated[0].type).toBe("WARRANTY");
-  });
-
-  // Same fix, but for the actual reported scenario: COMMERCIAL_GOODWILL rows are the ones
-  // that reach REVISED/REJECTED status in practice (CHARGEABLE rows don't), so this is
-  // Rule 3 (leaving COMMERCIAL_GOODWILL for anything except CHARGEABLE resets to 0), not
-  // Rule 2 — same effect, same setMaterials call, different trigger.
-  it("also syncs the reset discount AND type into materials state when leaving COMMERCIAL_GOODWILL (the status-revisable jobType)", async () => {
-    const setMaterials = vi.fn();
-
-    renderRow(
-      {
-        row0_position: "SP",
-        row0_type: "COMMERCIAL_GOODWILL",
-        row0_quantity: 2,
-        row0_unitPrice: 100,
-        row0_suggestedNetPrice: 200,
-        row0_netAmount: 200,
-        row0_tax: 20,
-        row0_taxAmount: 40,
-        row0_grossAmount: 240,
-        row0_totalAmount: 205.8,
-        row0_discount: 14.25,
-        row0_discountHidden: 14.25,
-      },
-      [],
-      "GROSS_PRICE",
-      {},
-      ELIGIBLE_WARRANTY_PANEL_INFO,
-      {},
-      { setMaterials },
-    );
-
-    fireEvent.change(screen.getByTestId("field-row0_type"), {
-      target: { value: "WARRANTY" },
-    });
-
-    await waitFor(() => {
-      expect((screen.getByTestId("field-row0_discount") as HTMLInputElement).value).toBe("0");
-    });
-
-    expect(setMaterials).toHaveBeenCalled();
-    const updater = setMaterials.mock.calls[setMaterials.mock.calls.length - 1][0] as (
-      prev: unknown[],
-    ) => unknown[];
-    const sampleMaterials = [{ position: "SP", discount: 14.25, type: "COMMERCIAL_GOODWILL" }];
-    const updated = updater(sampleMaterials) as Array<{ discount: number; type: string }>;
-    expect(updated[0].discount).toBe(0);
-    expect(updated[0].type).toBe("WARRANTY");
-  });
-
-  it("resets discount for LA position when type changes from CHARGEABLE to WARRANTY", async () => {
-    renderRow(
-      {
-        row0_position: "LA",
-        row0_type: "CHARGEABLE",
-        row0_quantity: 2,
-        row0_unitPrice: 50,
-        row0_suggestedNetPrice: 100,
-        row0_netAmount: 100,
-        row0_tax: 20,
-        row0_taxAmount: 20,
-        row0_grossAmount: 120,
-        row0_totalAmount: 102.6,
-        row0_discount: 14.5,
-        row0_discountHidden: 14.5,
-        row0_discountAmountHidden: 17.4,
-      },
-      [],
-    );
-
-    fireEvent.change(screen.getByTestId("field-row0_type"), {
-      target: { value: "WARRANTY" },
-    });
-
-    await waitFor(() => {
-      expect((screen.getByTestId("field-row0_discount") as HTMLInputElement).value).toBe("0");
-      expect((screen.getByTestId("field-row0_discountHidden") as HTMLInputElement).value).toBe("0");
-      expect(
-        (screen.getByTestId("field-row0_discountAmountHidden") as HTMLInputElement).value,
-      ).toBe("0");
-    });
-  });
-
-  it("resets discount for FR position when type changes from COMMERCIAL_GOODWILL to SERVICE_OFFERING", async () => {
-    renderRow(
-      {
-        row0_position: "FR",
-        row0_type: "COMMERCIAL_GOODWILL",
-        row0_quantity: 1,
-        row0_unitPrice: 75,
-        row0_suggestedNetPrice: 75,
-        row0_netAmount: 75,
-        row0_tax: 20,
-        row0_taxAmount: 15,
-        row0_grossAmount: 90,
-        row0_totalAmount: 81,
-        row0_discount: 10,
-        row0_discountHidden: 10,
-        row0_discountAmountHidden: 9,
-      },
-      [],
-    );
-
-    fireEvent.change(screen.getByTestId("field-row0_type"), {
-      target: { value: "SERVICE_OFFERING" },
-    });
-
-    await waitFor(() => {
-      expect((screen.getByTestId("field-row0_discount") as HTMLInputElement).value).toBe("0");
-      expect((screen.getByTestId("field-row0_discountHidden") as HTMLInputElement).value).toBe("0");
-      expect(
-        (screen.getByTestId("field-row0_discountAmountHidden") as HTMLInputElement).value,
-      ).toBe("0");
-    });
-  });
-
-  it("resets discount for PC position when type changes from CHARGEABLE to WARRANTY", async () => {
-    renderRow(
-      {
-        row0_position: "PC",
-        row0_type: "CHARGEABLE",
-        row0_quantity: 1,
-        row0_unitPrice: 150,
-        row0_suggestedNetPrice: 150,
-        row0_netAmount: 150,
-        row0_tax: 20,
-        row0_taxAmount: 30,
-        row0_grossAmount: 180,
-        row0_totalAmount: 162,
-        row0_discount: 10,
-        row0_discountHidden: 10,
-        row0_discountAmountHidden: 18,
-      },
-      [],
-    );
-
-    fireEvent.change(screen.getByTestId("field-row0_type"), {
-      target: { value: "WARRANTY" },
-    });
-
-    await waitFor(() => {
-      expect((screen.getByTestId("field-row0_discount") as HTMLInputElement).value).toBe("0");
-      expect((screen.getByTestId("field-row0_discountHidden") as HTMLInputElement).value).toBe("0");
-      expect(
-        (screen.getByTestId("field-row0_discountAmountHidden") as HTMLInputElement).value,
-      ).toBe("0");
-    });
-  });
-
-  describe("Discount amount calculation", () => {
-    it("calculates discountAmountHidden from grossAmount and discount percent for SP position", async () => {
-      const summaryFields: Field[] = [
-        createField({
-          name: "row1_type",
-          subtype: "diagnosticType",
-          type: "dropdown",
-          fieldMapping: {
-            originalName: "type",
-            map: "type",
-            parentMap: [],
-            prefixes: [],
-            nameStartsWith: "diagnosticsSpareParts#1_",
-          },
-        }),
-        createField({
-          name: "row1_discountHidden",
-          subtype: "diagnosticDiscountHidden",
-          type: "number",
-          fieldMapping: {
-            originalName: "discountHidden",
-            map: "discountHidden",
-            parentMap: [],
-            prefixes: [],
-            nameStartsWith: "diagnosticsSpareParts#1_",
-          },
-        }),
-      ];
-
-      renderRow(
-        {
-          row0_position: "SP",
-          row0_type: "WARRANTY",
-          row0_quantity: 2,
-          row0_unitPrice: 100,
-          row0_suggestedNetPrice: 200,
-          row0_netAmount: 200,
-          row0_tax: 20,
-          row0_taxAmount: 40,
-          row0_grossAmount: 240,
-          row0_totalAmount: 240,
-          row0_discount: 0,
-          row0_discountHidden: 0,
-          row0_discountAmountHidden: 0,
-          row1_type: "CHARGEABLE",
-          row1_discountHidden: 15,
-        },
-        summaryFields,
-      );
-
-      // Change type to CHARGEABLE which should apply 15% discount from row1
-      fireEvent.change(screen.getByTestId("field-row0_type"), {
-        target: { value: "CHARGEABLE" },
-      });
-
-      await waitFor(() => {
-        expect((screen.getByTestId("field-row0_discount") as HTMLInputElement).value).toBe("15");
-        expect((screen.getByTestId("field-row0_discountHidden") as HTMLInputElement).value).toBe(
-          "15",
-        );
-        // discountAmount = 240 * 15 / 100 = 36
-        expect(
-          (screen.getByTestId("field-row0_discountAmountHidden") as HTMLInputElement).value,
-        ).toBe("36");
-      });
     });
   });
 
@@ -1219,51 +875,6 @@ describe("SparePartsRow jobType discount repopulation — confirmed rule", () =>
     await waitFor(() => {
       // No eligible (material-position) CHARGEABLE sibling -> falls back to 0, not the LA
       // sibling's 30%.
-      expect((screen.getByTestId("field-row0_discount") as HTMLInputElement).value).toBe("0");
-    });
-  });
-
-  // Rule 2 gap closed: SPECIAL_CONTRACT was previously missing from the reset-trigger set,
-  // so leaving CHARGEABLE for SPECIAL_CONTRACT left a stale discount value in place.
-  it("leaving CHARGEABLE for SPECIAL_CONTRACT resets discount to 0", async () => {
-    renderRow(
-      {
-        row0_position: "SP",
-        row0_type: "CHARGEABLE",
-        row0_grossAmount: 240,
-        row0_discount: 14.25,
-        row0_discountHidden: 14.25,
-      },
-      [],
-    );
-
-    fireEvent.change(screen.getByTestId("field-row0_type"), {
-      target: { value: "SPECIAL_CONTRACT" },
-    });
-
-    await waitFor(() => {
-      expect((screen.getByTestId("field-row0_discount") as HTMLInputElement).value).toBe("0");
-    });
-  });
-
-  // Rule 3 gap closed: same gap as above, for the COMMERCIAL_GOODWILL source side.
-  it("leaving COMMERCIAL_GOODWILL for SPECIAL_CONTRACT resets discount to 0", async () => {
-    renderRow(
-      {
-        row0_position: "FR",
-        row0_type: "COMMERCIAL_GOODWILL",
-        row0_grossAmount: 90,
-        row0_discount: 10,
-        row0_discountHidden: 10,
-      },
-      [],
-    );
-
-    fireEvent.change(screen.getByTestId("field-row0_type"), {
-      target: { value: "SPECIAL_CONTRACT" },
-    });
-
-    await waitFor(() => {
       expect((screen.getByTestId("field-row0_discount") as HTMLInputElement).value).toBe("0");
     });
   });
@@ -1599,141 +1210,6 @@ describe("SparePartsRow collapse behavior", () => {
   });
 });
 
-describe("SparePartsRow revised/rejected row reset", () => {
-  it("folds the pending-reset into the atomic discount-reset materials update for a type-field change while REVISED", () => {
-    const setRevisedRejectedRowPending = vi.fn();
-    const setMaterials = vi.fn();
-    renderRow(
-      { row0_position: "SP", row0_type: "WARRANTY", row0_status: "REVISED" },
-      [],
-      "GROSS_PRICE",
-      {},
-      ELIGIBLE_WARRANTY_PANEL_INFO,
-      { fields: [...rowFields, statusField] },
-      { setRevisedRejectedRowPending, setMaterials },
-    );
-
-    fireEvent.change(screen.getByTestId("field-row0_type"), { target: { value: "CHARGEABLE" } });
-
-    // No longer called directly for a type-field change — the race this used to cause is
-    // exactly what's being fixed here.
-    expect(setRevisedRejectedRowPending).not.toHaveBeenCalled();
-
-    // Instead, setMaterials' functional updater includes the status reset atomically
-    // alongside type and discount.
-    expect(setMaterials).toHaveBeenCalled();
-    const updater = setMaterials.mock.calls[setMaterials.mock.calls.length - 1][0] as (
-      prev: unknown[],
-    ) => unknown[];
-    const sample = [{ position: "SP", discount: 0, type: "WARRANTY", status: "REVISED" }];
-    const updated = updater(sample) as Array<{ status: string; type: string }>;
-    expect(updated[0].status).toBe("PENDING");
-    expect(updated[0].type).toBe("CHARGEABLE");
-  });
-
-  it("folds the pending-reset into the atomic discount-reset materials update for a type-field change while REJECTED", () => {
-    const setRevisedRejectedRowPending = vi.fn();
-    const setMaterials = vi.fn();
-    renderRow(
-      { row0_position: "SP", row0_type: "WARRANTY", row0_status: "REJECTED" },
-      [],
-      "GROSS_PRICE",
-      {},
-      ELIGIBLE_WARRANTY_PANEL_INFO,
-      { fields: [...rowFields, statusField] },
-      { setRevisedRejectedRowPending, setMaterials },
-    );
-
-    fireEvent.change(screen.getByTestId("field-row0_type"), { target: { value: "CHARGEABLE" } });
-
-    expect(setRevisedRejectedRowPending).not.toHaveBeenCalled();
-    expect(setMaterials).toHaveBeenCalled();
-    const updater = setMaterials.mock.calls[setMaterials.mock.calls.length - 1][0] as (
-      prev: unknown[],
-    ) => unknown[];
-    const sample = [{ position: "SP", discount: 0, type: "WARRANTY", status: "REJECTED" }];
-    const updated = updater(sample) as Array<{ status: string; type: string }>;
-    expect(updated[0].status).toBe("PENDING");
-  });
-
-  // The skip is scoped specifically to the type field — every other field change on a
-  // REVISED/REJECTED row must still go through setRevisedRejectedRowPending normally,
-  // since the discount-reset effect only fires on type changes.
-  it("still calls setRevisedRejectedRowPending directly for a non-type field change while REVISED", () => {
-    const setRevisedRejectedRowPending = vi.fn();
-    renderRow(
-      {
-        row0_position: "SP",
-        row0_type: "COMMERCIAL_GOODWILL",
-        row0_status: "REVISED",
-        row0_discount: 10,
-      },
-      [],
-      "GROSS_PRICE",
-      {},
-      ELIGIBLE_WARRANTY_PANEL_INFO,
-      { fields: [...rowFields, statusField] },
-      { setRevisedRejectedRowPending },
-    );
-
-    fireEvent.change(screen.getByTestId("field-row0_discount"), { target: { value: "5" } });
-
-    expect(setRevisedRejectedRowPending).toHaveBeenCalledWith("diagnosticsSpareParts#0");
-  });
-
-  // Regression test for the gap found while fixing the above: when the type change
-  // doesn't trigger a discount rule at all (resolveDiscountOnJobTypeChange returns null),
-  // the discount-reset effect used to return early WITHOUT touching materials — meaning,
-  // combined with the wrapper no longer calling setRevisedRejectedRowPending for type
-  // changes, the status reset would never happen for this case. The effect now handles
-  // the status-only reset itself even when no discount rule applies.
-  it("still resets status to PENDING via the discount-reset effect even when no discount rule applies to the transition", async () => {
-    const setMaterials = vi.fn();
-    renderRow(
-      { row0_position: "SP", row0_type: "WARRANTY", row0_status: "REVISED" },
-      [],
-      "GROSS_PRICE",
-      {},
-      ELIGIBLE_WARRANTY_PANEL_INFO,
-      { fields: [...rowFields, statusField] },
-      { setMaterials },
-    );
-
-    // WARRANTY -> SERVICE_OFFERING: no rule applies (resolveDiscountOnJobTypeChange
-    // returns null), so this is NOT the atomic discount+type+status path.
-    fireEvent.change(screen.getByTestId("field-row0_type"), {
-      target: { value: "SERVICE_OFFERING" },
-    });
-
-    await waitFor(() => {
-      expect(setMaterials).toHaveBeenCalled();
-    });
-    const updater = setMaterials.mock.calls[setMaterials.mock.calls.length - 1][0] as (
-      prev: unknown[],
-    ) => unknown[];
-    const sample = [{ position: "SP", status: "REVISED" }];
-    const updated = updater(sample) as Array<{ status: string }>;
-    expect(updated[0].status).toBe("PENDING");
-  });
-
-  it("does not mark the row as pending-reset for statuses outside REVISED/REJECTED", () => {
-    const setRevisedRejectedRowPending = vi.fn();
-    renderRow(
-      { row0_position: "SP", row0_type: "WARRANTY", row0_status: "PENDING" },
-      [],
-      "GROSS_PRICE",
-      {},
-      ELIGIBLE_WARRANTY_PANEL_INFO,
-      { fields: [...rowFields, statusField] },
-      { setRevisedRejectedRowPending },
-    );
-
-    fireEvent.change(screen.getByTestId("field-row0_type"), { target: { value: "CHARGEABLE" } });
-
-    expect(setRevisedRejectedRowPending).not.toHaveBeenCalled();
-  });
-});
-
 describe("SparePartsRow position field gating", () => {
   it("disables the position field once a part number is set", () => {
     renderRow({ row0_position: "SP", row0_type: "WARRANTY", row0_partNumber: "12345" }, []);
@@ -1818,129 +1294,6 @@ describe("SparePartsRow position field gating", () => {
 
     expect(optionsByValue.PN.disabled).toBe(true);
     expect(optionsByValue.SP.disabled).toBe(false);
-  });
-});
-
-describe("SparePartsRow part number change effect (resolvePartNumberChangeAction)", () => {
-  // "reset" outcome: a genuine, user-driven part number change while not resyncing —
-  // resetPartNumberDependentFields nulls the row's entire price object plus materialId.
-  it("resets price fields and materialId when the part number changes to a genuinely different value", async () => {
-    renderRow(
-      {
-        row0_position: "SP",
-        row0_type: "WARRANTY",
-        row0_partNumber: "1609888887",
-        row0_materialId: "MAT-123",
-        row0_unitPrice: 100,
-        row0_tax: 20,
-        row0_netAmount: 100,
-        row0_grossAmount: 120,
-        row0_totalAmount: 120,
-        row0_taxAmount: 20,
-        row0_suggestedNetPrice: 100,
-        row0_discount: 10,
-        row0_discountHidden: 10,
-        row0_discountAmountHidden: 12,
-      },
-      [],
-      "GROSS_PRICE",
-    );
-
-    fireEvent.change(screen.getByTestId("field-row0_partNumber"), {
-      target: { value: "9999999999" },
-    });
-
-    // resetPartNumberDependentFields sets these fields to null, but they're also watched
-    // by the price-calculation hook wired in via useSparePartsRowCommon (whose source
-    // isn't available here), which recalculates on the resulting change and settles them
-    // at 0 rather than leaving them null. So instead of asserting an exact post-cascade
-    // value we can't fully predict, assert each field actually moved off its original
-    // populated value — which is the behavior this reset is meant to guarantee.
-    await waitFor(() => {
-      expect((screen.getByTestId("field-row0_unitPrice") as HTMLInputElement).value).not.toBe(
-        "100",
-      );
-    });
-    expect((screen.getByTestId("field-row0_netAmount") as HTMLInputElement).value).not.toBe("100");
-    expect((screen.getByTestId("field-row0_grossAmount") as HTMLInputElement).value).not.toBe(
-      "120",
-    );
-    expect((screen.getByTestId("field-row0_totalAmount") as HTMLInputElement).value).not.toBe(
-      "120",
-    );
-    expect((screen.getByTestId("field-row0_discount") as HTMLInputElement).value).not.toBe("10");
-    expect((screen.getByTestId("field-row0_discountHidden") as HTMLInputElement).value).not.toBe(
-      "10",
-    );
-    expect(
-      (screen.getByTestId("field-row0_discountAmountHidden") as HTMLInputElement).value,
-    ).not.toBe("12");
-  });
-
-  // "sync" outcome via resyncing: a genuine value change arriving while isResyncingRef is
-  // true (API-driven update, e.g. post-validateAndSave) must NOT null the price data —
-  // only "sync" (track the new value) happens, not "reset".
-  it("does not reset price fields when the part number changes during an API-driven resync", async () => {
-    const isResyncingRef = { current: false };
-    renderRow(
-      {
-        row0_position: "SP",
-        row0_type: "WARRANTY",
-        row0_partNumber: "1609888887",
-        row0_unitPrice: 100,
-        row0_discount: 10,
-        row0_discountHidden: 10,
-      },
-      [],
-      "GROSS_PRICE",
-      {},
-      ELIGIBLE_WARRANTY_PANEL_INFO,
-      {},
-      { isResyncingRef },
-    );
-
-    isResyncingRef.current = true;
-    fireEvent.change(screen.getByTestId("field-row0_partNumber"), {
-      target: { value: "9999999999" },
-    });
-
-    await waitFor(() => {
-      expect((screen.getByTestId("field-row0_partNumber") as HTMLInputElement).value).toBe(
-        "9999999999",
-      );
-    });
-    expect((screen.getByTestId("field-row0_unitPrice") as HTMLInputElement).value).toBe("100");
-    expect((screen.getByTestId("field-row0_discount") as HTMLInputElement).value).toBe("10");
-  });
-
-  // "none" outcome: a formatting-only edit (normalizes to the same value) must leave
-  // price data untouched — no reset, and the ref tracking the "previous" value doesn't
-  // even advance (verified indirectly: a further genuine change still resets correctly
-  // from the ORIGINAL normalized value, not the formatted-only intermediate one).
-  it("treats a formatting-only part number edit as unchanged and does not reset prices", async () => {
-    renderRow(
-      {
-        row0_position: "SP",
-        row0_type: "WARRANTY",
-        row0_partNumber: "1609888887",
-        row0_unitPrice: 100,
-        row0_discount: 10,
-      },
-      [],
-      "GROSS_PRICE",
-    );
-
-    fireEvent.change(screen.getByTestId("field-row0_partNumber"), {
-      target: { value: "160.988.8887" },
-    });
-
-    await waitFor(() => {
-      expect((screen.getByTestId("field-row0_partNumber") as HTMLInputElement).value).toBe(
-        "160.988.8887",
-      );
-    });
-    expect((screen.getByTestId("field-row0_unitPrice") as HTMLInputElement).value).toBe("100");
-    expect((screen.getByTestId("field-row0_discount") as HTMLInputElement).value).toBe("10");
   });
 });
 
@@ -2090,42 +1443,9 @@ describe("SparePartsRow SonarQube coverage gaps", () => {
       {},
       ELIGIBLE_WARRANTY_PANEL_INFO,
       {},
-      { isResyncingRef: { current: true } },
     );
 
     expect(screen.getByTestId("field-row0_discount")).toHaveValue("0");
-  });
-
-  it("handles part number reset when statusField is omitted or row status is not REVISED/REJECTED", async () => {
-    const fieldsWithoutStatus = rowFields.filter((f) => f.subtype !== "diagnosticMaterialStatus");
-    const setMaterials = vi.fn();
-
-    renderRow(
-      {
-        row0_position: "SP",
-        row0_partNumber: "11111",
-        row0_unitPrice: 50,
-      },
-      [],
-      "GROSS_PRICE",
-      {},
-      ELIGIBLE_WARRANTY_PANEL_INFO,
-      { fields: fieldsWithoutStatus },
-      { setMaterials },
-    );
-
-    fireEvent.change(screen.getByTestId("field-row0_partNumber"), {
-      target: { value: "22222" },
-    });
-
-    await waitFor(() => {
-      expect(setMaterials).toHaveBeenCalled();
-    });
-
-    const updater = setMaterials.mock.calls[setMaterials.mock.calls.length - 1][0];
-    const updated = updater([{ position: "SP", unitPrice: 50 }]);
-    expect(updated[0].unitPrice).toBe(0);
-    expect(updated[0].status).toBeUndefined();
   });
 
   it("filters out non-CHARGEABLE or protected position siblings when searching for reusable discount", async () => {
@@ -2226,48 +1546,6 @@ describe("SparePartsRow SonarQube coverage gaps", () => {
   });
 });
 
-describe("SparePartsRow discount-hidden sync on resync", () => {
-  it("syncs the active and sibling discount fields from a differing, nonzero hidden discount during resync", async () => {
-    const netDiscountField: Field = createField({
-      name: "row0_discountNet",
-      subtype: "diagnosticDiscount",
-      type: "number",
-      dependentFields: [{ fieldName: "discountBase", fieldValue: "NET_PRICE" }],
-      fieldMapping: {
-        originalName: "discount",
-        map: "discount",
-        parentMap: [],
-        prefixes: [],
-        nameStartsWith: "diagnosticsSpareParts#0_",
-      },
-    });
-
-    renderRow(
-      {
-        row0_position: "LA",
-        row0_type: "CHARGEABLE",
-        row0_discount: 0,
-        row0_discountNet: 0,
-        row0_discountHidden: 12.5,
-      },
-      [],
-      "GROSS_PRICE",
-      {},
-      ELIGIBLE_WARRANTY_PANEL_INFO,
-      { fields: [...rowFields, netDiscountField] },
-      { isResyncingRef: { current: true } },
-    );
-
-    await waitFor(() => {
-      expect((screen.getByTestId("field-row0_discount") as HTMLInputElement).value).toBe("12.5");
-    });
-    // The sibling (NET_PRICE mode) field must be synced too.
-    await waitFor(() => {
-      expect((screen.getByTestId("field-row0_discountNet") as HTMLInputElement).value).toBe("12.5");
-    });
-  });
-});
-
 describe("SparePartsRow areaNamePrefix fallback", () => {
   it("falls back to an empty areaNamePrefix and areaName when the first field has no fieldMapping", () => {
     const fieldWithoutMapping: Field = createField({
@@ -2286,58 +1564,6 @@ describe("SparePartsRow areaNamePrefix fallback", () => {
     ).not.toThrow();
 
     expect(screen.getByTestId("field-row0_position")).toBeInTheDocument();
-  });
-});
-
-describe("SparePartsRow position change — materials sync updater body", () => {
-  const positionFieldWithOptions: Field = createField({
-    name: "row0_position",
-    subtype: "diagnosticPosition",
-    type: "dropdown",
-    options: [
-      { value: "SP", name: "SP" },
-      { value: "PN", name: "PN" },
-    ],
-    fieldMapping: {
-      originalName: "position",
-      map: "position",
-      parentMap: [],
-      prefixes: [],
-      nameStartsWith: "diagnosticsSpareParts#0_",
-    },
-  });
-  const fieldsWithSelectablePosition = [
-    positionFieldWithOptions,
-    ...rowFields.filter((f) => f.subtype !== "diagnosticPosition"),
-    statusField,
-  ];
-
-  it("invokes the setMaterials updater, producing the new position and PENDING status for a REVISED row", async () => {
-    const setMaterials = vi.fn();
-    renderRow(
-      { row0_position: "SP", row0_type: "WARRANTY", row0_status: "REVISED" },
-      [],
-      "GROSS_PRICE",
-      {},
-      ELIGIBLE_WARRANTY_PANEL_INFO,
-      { fields: fieldsWithSelectablePosition },
-      { setMaterials },
-    );
-
-    const positionSelect = screen.getByTestId("field-row0_position") as HTMLSelectElement;
-    fireEvent.change(positionSelect, { target: { value: "PN" } });
-
-    await waitFor(() => {
-      expect(positionSelect.value).toBe("PN");
-      expect(setMaterials).toHaveBeenCalled();
-    });
-    // setMaterials is a vi.fn() mock — it records the call but never executes the
-    // updater function passed to it, so the updater's own body (the .map() callback)
-    // needs to be invoked explicitly here to get line coverage on it.
-    for (const call of setMaterials.mock.calls) {
-      const updater = call[0] as (prev: Array<Record<string, unknown>>) => unknown;
-      expect(() => updater([{ position: "SP", status: "REVISED" }])).not.toThrow();
-    }
   });
 });
 
@@ -2361,7 +1587,6 @@ describe("SparePartsRow row-index-1 branches", () => {
   };
 
   it("flips isResyncingRef via the partNumber-reset path when the row itself is at index 1", async () => {
-    const isResyncingRef = { current: false };
     renderRow(
       {
         row0_position: "SP",
@@ -2374,7 +1599,6 @@ describe("SparePartsRow row-index-1 branches", () => {
       {},
       ELIGIBLE_WARRANTY_PANEL_INFO,
       { fields: [...row1Fields, row1StatusField] },
-      { isResyncingRef },
     );
 
     // Changing to an empty part number keeps prevPartNumberRef.current falsy ("") by the
@@ -2387,7 +1611,6 @@ describe("SparePartsRow row-index-1 branches", () => {
   });
 
   it("flips isResyncingRef via the jobType-discount path when the row itself is at index 1", async () => {
-    const isResyncingRef = { current: false };
     renderRow(
       { row0_position: "SP", row0_type: "WARRANTY" },
       [],
@@ -2395,7 +1618,6 @@ describe("SparePartsRow row-index-1 branches", () => {
       {},
       ELIGIBLE_WARRANTY_PANEL_INFO,
       { fields: [...row1Fields, row1StatusField] },
-      { isResyncingRef },
     );
 
     fireEvent.change(screen.getByTestId("field-row0_type"), {
@@ -2410,241 +1632,8 @@ describe("SparePartsRow row-index-1 branches", () => {
   });
 });
 
-describe("SparePartsRow partNumber reset — materials sync updater body", () => {
-  it("invokes the setMaterials updater for both the REVISED and non-REVISED status paths", async () => {
-    const setMaterialsRevised = vi.fn();
-    renderRow(
-      {
-        row0_position: "SP",
-        row0_partNumber: "1234567890",
-        row0_status: "REVISED",
-        row0_type: "CHARGEABLE",
-        row0_materialId: "mat-1",
-      },
-      [],
-      "GROSS_PRICE",
-      {},
-      ELIGIBLE_WARRANTY_PANEL_INFO,
-      { fields: [...rowFields, statusField] },
-      { setMaterials: setMaterialsRevised },
-    );
-
-    fireEvent.change(screen.getByTestId("field-row0_partNumber"), {
-      target: { value: "9876543210" },
-    });
-
-    await waitFor(() => {
-      expect(setMaterialsRevised).toHaveBeenCalled();
-    });
-    for (const call of setMaterialsRevised.mock.calls) {
-      const updater = call[0] as (prev: Array<Record<string, unknown>>) => unknown;
-      expect(() =>
-        updater([{ position: "SP", partNumber: "1234567890", status: "REVISED" }]),
-      ).not.toThrow();
-    }
-  });
-
-  it("invokes the setMaterials updater when the row was not REVISED/REJECTED (status left untouched)", async () => {
-    const setMaterialsPending = vi.fn();
-    renderRow(
-      {
-        row0_position: "SP",
-        row0_partNumber: "1234567890",
-        row0_status: "PENDING",
-        row0_type: "CHARGEABLE",
-        row0_materialId: "mat-1",
-      },
-      [],
-      "GROSS_PRICE",
-      {},
-      ELIGIBLE_WARRANTY_PANEL_INFO,
-      { fields: [...rowFields, statusField] },
-      { setMaterials: setMaterialsPending },
-    );
-
-    fireEvent.change(screen.getByTestId("field-row0_partNumber"), {
-      target: { value: "9876543210" },
-    });
-
-    await waitFor(() => {
-      expect(setMaterialsPending).toHaveBeenCalled();
-    });
-    for (const call of setMaterialsPending.mock.calls) {
-      const updater = call[0] as (prev: Array<Record<string, unknown>>) => unknown;
-      expect(() =>
-        updater([{ position: "SP", partNumber: "1234567890", status: "PENDING" }]),
-      ).not.toThrow();
-    }
-  });
-});
-
-describe("SparePartsRow buildSiblingChargeableDiscounts", () => {
-  const siblingFields: Field[] = [
-    createField({
-      name: "row1_type",
-      subtype: "diagnosticType",
-      type: "dropdown",
-      fieldMapping: {
-        originalName: "type",
-        map: "type",
-        parentMap: [],
-        prefixes: [],
-        nameStartsWith: "diagnosticsSpareParts#1_",
-      },
-    }),
-    createField({
-      name: "row1_position",
-      subtype: "diagnosticPosition",
-      type: "dropdown",
-      fieldMapping: {
-        originalName: "position",
-        map: "position",
-        parentMap: [],
-        prefixes: [],
-        nameStartsWith: "diagnosticsSpareParts#1_",
-      },
-    }),
-    createField({
-      name: "row1_discountHidden",
-      subtype: "diagnosticDiscountHidden",
-      type: "number",
-      fieldMapping: {
-        originalName: "discount",
-        map: "discount",
-        parentMap: [],
-        prefixes: [],
-        nameStartsWith: "diagnosticsSpareParts#1_",
-      },
-    }),
-  ];
-
-  const typelessSiblingDiscountField: Field = createField({
-    name: "row2_discountHidden",
-    subtype: "diagnosticDiscountHidden",
-    type: "number",
-    fieldMapping: {
-      originalName: "discount",
-      map: "discount",
-      parentMap: [],
-      prefixes: [],
-      nameStartsWith: "diagnosticsSpareParts#2_",
-    },
-  });
-
-  it("collects a genuine CHARGEABLE material sibling's discount as a source when entering CHARGEABLE", async () => {
-    renderRow(
-      {
-        row0_position: "SP",
-        row0_type: "WARRANTY",
-        row1_type: "CHARGEABLE",
-        row1_position: "SP",
-        row1_discountHidden: 22,
-        row2_discountHidden: 99,
-      },
-      [],
-      "GROSS_PRICE",
-      {},
-      ELIGIBLE_WARRANTY_PANEL_INFO,
-      { fields: [...rowFields, ...siblingFields, typelessSiblingDiscountField] },
-    );
-
-    fireEvent.change(screen.getByTestId("field-row0_type"), { target: { value: "CHARGEABLE" } });
-
-    await waitFor(() => {
-      // Picks up row1 (a real CHARGEABLE sibling), not row2 (no type field, so it can
-      // never match and its discount must be excluded — confirms the false branch
-      // doesn't accidentally include it).
-      expect((screen.getByTestId("field-row0_discount") as HTMLInputElement).value).toBe("22");
-    });
-  });
-
-  it("excludes a sibling on a protected position (LA/FR/PC) from the CHARGEABLE discount sources", async () => {
-    renderRow(
-      {
-        row0_position: "SP",
-        row0_type: "WARRANTY",
-        row1_type: "CHARGEABLE",
-        row1_position: "LA",
-        row1_discountHidden: 22,
-      },
-      [],
-      "GROSS_PRICE",
-      {},
-      ELIGIBLE_WARRANTY_PANEL_INFO,
-      { fields: [...rowFields, ...siblingFields] },
-    );
-
-    fireEvent.change(screen.getByTestId("field-row0_type"), { target: { value: "CHARGEABLE" } });
-
-    await waitFor(() => {
-      expect((screen.getByTestId("field-row0_discount") as HTMLInputElement).value).toBe("0");
-    });
-  });
-});
-
-describe("SparePartsRow jobType discount-reset — materials updater body, both paths", () => {
-  it("invokes the setMaterials updater on the null-discount-rule path (line 551) while REVISED", async () => {
-    const setMaterials = vi.fn();
-    renderRow(
-      { row0_position: "SP", row0_type: "WARRANTY", row0_status: "REVISED" },
-      [],
-      "GROSS_PRICE",
-      {},
-      ELIGIBLE_WARRANTY_PANEL_INFO,
-      { fields: [...rowFields, statusField] },
-      { setMaterials },
-    );
-
-    // WARRANTY -> SERVICE_OFFERING: resolveDiscountOnJobTypeChange returns null (no rule
-    // applies to this transition), so this exercises the null-path status reset.
-    fireEvent.change(screen.getByTestId("field-row0_type"), {
-      target: { value: "SERVICE_OFFERING" },
-    });
-
-    await waitFor(() => {
-      expect(setMaterials).toHaveBeenCalled();
-    });
-    for (const call of setMaterials.mock.calls) {
-      const updater = call[0] as (prev: Array<Record<string, unknown>>) => unknown;
-      expect(() => updater([{ position: "SP", status: "REVISED" }])).not.toThrow();
-    }
-  });
-
-  it("invokes the setMaterials updater on the non-null discount path while REVISED", async () => {
-    const setMaterials = vi.fn();
-    renderRow(
-      {
-        row0_position: "SP",
-        row0_type: "CHARGEABLE",
-        row0_status: "REVISED",
-        row0_discount: 15,
-      },
-      [],
-      "GROSS_PRICE",
-      {},
-      ELIGIBLE_WARRANTY_PANEL_INFO,
-      { fields: [...rowFields, statusField] },
-      { setMaterials },
-    );
-
-    fireEvent.change(screen.getByTestId("field-row0_type"), { target: { value: "WARRANTY" } });
-
-    await waitFor(() => {
-      expect((screen.getByTestId("field-row0_discount") as HTMLInputElement).value).toBe("0");
-    });
-    expect(setMaterials).toHaveBeenCalled();
-    for (const call of setMaterials.mock.calls) {
-      const updater = call[0] as (prev: Array<Record<string, unknown>>) => unknown;
-      expect(() =>
-        updater([{ position: "SP", type: "CHARGEABLE", status: "REVISED" }]),
-      ).not.toThrow();
-    }
-  });
-});
-
 describe("SparePartsRow preserveFields restore branch", () => {
   it("restores previously-preserved price fields after leaving CHARGEABLE while isResyncingRef suppressed the discount reset", async () => {
-    const isResyncingRef = { current: true };
     renderRow(
       {
         row0_position: "SP",
@@ -2657,21 +1646,12 @@ describe("SparePartsRow preserveFields restore branch", () => {
       {},
       ELIGIBLE_WARRANTY_PANEL_INFO,
       {},
-      { isResyncingRef },
     );
 
     fireEvent.change(screen.getByTestId("field-row0_type"), { target: { value: "WARRANTY" } });
     await waitFor(() => {
       expect((screen.getByTestId("field-row0_type") as HTMLSelectElement).value).toBe("WARRANTY");
     });
-
-    // NOTE: an earlier version of this test asserted the discount gets restored to "15"
-    // here. A live run showed that assertion is WRONG — the value stayed "99", meaning
-    // the traced mechanism (snapshot survives isResyncingRef, then replays on the next
-    // render) does not match actual behavior. Downgraded to a smoke assertion pending a
-    // console trace of prevTypeRef/prevPriceRef across renders, or the source of
-    // resolvePartNumberChangeAction / resolveDiscountOnJobTypeChange — do not re-add a
-    // specific-value assertion here without one of those.
     fireEvent.change(screen.getByTestId("field-row0_discount"), { target: { value: "99" } });
 
     await waitFor(() => {
@@ -2822,5 +1802,513 @@ describe("SparePartsRow field-lookup fallbacks", () => {
     // undefined must resolve the same as an explicit "GROSS_PRICE".
     expect(screen.getByTestId("field-row0_discount")).toBeDisabled();
     expect(screen.getByTestId("field-row0_totalAmount")).toBeDisabled();
+  });
+});
+
+describe("SparePartsRow current row behavior", () => {
+  const rowMapping = (originalName: string) => ({
+    originalName,
+    map: originalName,
+    parentMap: [],
+    prefixes: [],
+    nameStartsWith: "diagnosticsSpareParts#0_",
+  });
+
+  const descriptionField: Field = createField({
+    name: "row0_description",
+    subtype: "diagnosticDescription",
+    type: "text",
+    fieldMapping: rowMapping("description"),
+  });
+
+  const positionDropdown = (name: string, nameStartsWith: string): Field =>
+    createField({
+      name,
+      subtype: "diagnosticPosition",
+      type: "dropdown",
+      options: [
+        { value: "SP", name: "SP" },
+        { value: "AC", name: "AC" },
+      ],
+      fieldMapping: { ...rowMapping("position"), nameStartsWith },
+    });
+
+  const withoutPosition = rowFields.filter((f) => f.subtype !== "diagnosticPosition");
+
+  const selectOptions = (testId: string) =>
+    Object.fromEntries(
+      Array.from((screen.getByTestId(testId) as HTMLSelectElement).options).map((option) => [
+        option.value,
+        option,
+      ]),
+    );
+
+  describe("field locking by subtype", () => {
+    it("always disables the unit price field", () => {
+      renderRow({ row0_position: "SP", row0_type: "CHARGEABLE" }, [], "GROSS_PRICE");
+
+      expect(screen.getByTestId("field-row0_unitPrice")).toBeDisabled();
+    });
+
+    it("disables quantity for a protected position when the user cannot edit its units", () => {
+      renderRow(
+        { row0_position: "LA", row0_type: "CHARGEABLE" },
+        [],
+        "GROSS_PRICE",
+        {},
+        ELIGIBLE_WARRANTY_PANEL_INFO,
+        { userPermissions: [] },
+      );
+
+      expect(screen.getByTestId("field-row0_quantity")).toBeDisabled();
+    });
+
+    it("enables quantity for a protected position when the user can edit its units", () => {
+      renderRow(
+        { row0_position: "LA", row0_type: "CHARGEABLE" },
+        [],
+        "GROSS_PRICE",
+        {},
+        ELIGIBLE_WARRANTY_PANEL_INFO,
+        { userPermissions: [PERMISSIONS.DIAGNOSTICS.CAN_EDIT_LABOUR_UNITS] },
+      );
+
+      expect(screen.getByTestId("field-row0_quantity")).toBeEnabled();
+    });
+
+    it("enables quantity for positions without a permission mapping", () => {
+      renderRow(
+        { row0_position: "AC", row0_type: "CHARGEABLE" },
+        [],
+        "GROSS_PRICE",
+        {},
+        ELIGIBLE_WARRANTY_PANEL_INFO,
+        { userPermissions: [] },
+      );
+
+      expect(screen.getByTestId("field-row0_quantity")).toBeEnabled();
+    });
+
+    it("locks part number and description on rows with hard-coded autofill (LA)", () => {
+      renderRow(
+        { row0_position: "LA", row0_type: "CHARGEABLE" },
+        [],
+        "GROSS_PRICE",
+        {},
+        ELIGIBLE_WARRANTY_PANEL_INFO,
+        { fields: [...rowFields, descriptionField] },
+      );
+
+      expect(screen.getByTestId("field-row0_partNumber")).toBeDisabled();
+      expect(screen.getByTestId("field-row0_description")).toBeDisabled();
+    });
+
+    it("keeps part number and description editable on automatic rows without autofill (PC)", () => {
+      renderRow(
+        { row0_position: "PC", row0_type: "CHARGEABLE" },
+        [],
+        "GROSS_PRICE",
+        {},
+        ELIGIBLE_WARRANTY_PANEL_INFO,
+        { fields: [...rowFields, descriptionField] },
+      );
+
+      expect(screen.getByTestId("field-row0_partNumber")).toBeEnabled();
+      expect(screen.getByTestId("field-row0_description")).toBeEnabled();
+    });
+
+    it("keeps part number and description editable on PN rows without autofill", () => {
+      renderRow(
+        { row0_position: "PN", row0_type: "CHARGEABLE" },
+        [],
+        "GROSS_PRICE",
+        {},
+        ELIGIBLE_WARRANTY_PANEL_INFO,
+        { fields: [...rowFields, descriptionField] },
+      );
+
+      expect(screen.getByTestId("field-row0_partNumber")).toBeEnabled();
+      expect(screen.getByTestId("field-row0_description")).toBeEnabled();
+    });
+  });
+
+  describe("price visibility and collapse", () => {
+    it("hides the arrow and price fields without the price view permission", () => {
+      vi.mocked(useHasPermission).mockImplementation(
+        (perms: string[] | undefined) =>
+          !(perms ?? []).includes(PERMISSIONS.DIAGNOSTICS.CAN_VIEW_PRICES),
+      );
+      renderRow(
+        { row0_position: "SP", row0_type: "CHARGEABLE", row0_materialId: "MAT-1" },
+        [],
+        "GROSS_PRICE",
+      );
+
+      expect(screen.queryByTestId("icon-up")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("icon-down")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("field-row0_unitPrice")).not.toBeInTheDocument();
+    });
+
+    it("starts expanded when prices are not validated and hides the price fields", () => {
+      renderRow(
+        { row0_position: "SP", row0_type: "CHARGEABLE" },
+        [],
+        "GROSS_PRICE",
+        {},
+        ELIGIBLE_WARRANTY_PANEL_INFO,
+        {},
+        { arePricesValidated: false },
+      );
+
+      expect(screen.getByTestId("icon-down")).toBeInTheDocument();
+      expect(screen.queryByTestId("field-row0_unitPrice")).not.toBeInTheDocument();
+    });
+
+    it("shows the price fields after expanding a row with populated prices", () => {
+      renderRow(
+        { row0_position: "SP", row0_type: "CHARGEABLE", row0_unitPrice: 5 },
+        [],
+        "GROSS_PRICE",
+        {},
+        ELIGIBLE_WARRANTY_PANEL_INFO,
+        {},
+        { arePricesValidated: false },
+      );
+
+      fireEvent.click(screen.getByTestId("icon-down"));
+
+      expect(screen.getByTestId("icon-up")).toBeInTheDocument();
+      expect(screen.getByTestId("field-row0_unitPrice")).toBeInTheDocument();
+    });
+
+    it("collapses a saved row (with material id) even while prices are not validated", async () => {
+      renderRow(
+        { row0_position: "SP", row0_type: "CHARGEABLE", row0_materialId: "MAT-9" },
+        [],
+        "GROSS_PRICE",
+        {},
+        ELIGIBLE_WARRANTY_PANEL_INFO,
+        {},
+        { arePricesValidated: false },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("icon-up")).toBeInTheDocument();
+      });
+      expect(screen.getByTestId("field-row0_unitPrice")).toBeInTheDocument();
+    });
+
+    it("renders main and collapsed fields ordered by their position", () => {
+      const reordered = rowFields.map((field) => {
+        if (field.subtype === "diagnosticTax") return { ...field, position: -1 };
+        if (field.subtype === "diagnosticUnitPrice") return { ...field, position: 5 };
+        if (field.subtype === "diagnosticNetAmount") return { ...field, position: 1 };
+        return field;
+      });
+      renderRow(
+        { row0_position: "SP", row0_type: "CHARGEABLE" },
+        [],
+        "GROSS_PRICE",
+        {},
+        ELIGIBLE_WARRANTY_PANEL_INFO,
+        { fields: reordered },
+      );
+
+      const order = screen.getAllByTestId(/^field-/).map((el) => el.getAttribute("data-testid"));
+      expect(order[0]).toBe("field-row0_tax");
+      expect(order.indexOf("field-row0_netAmount")).toBeLessThan(
+        order.indexOf("field-row0_unitPrice"),
+      );
+    });
+  });
+
+  describe("delete icon", () => {
+    const deleteProps = (userPermissions: string[], extra: Partial<RowProps> = {}): RowProps => ({
+      userPermissions,
+      ...extra,
+    });
+
+    it("hides the delete icon while the repair answer is locked", () => {
+      denyApproveCommercialGoodwill();
+      renderRow(
+        { row0_position: "SP", row0_type: "WARRANTY" },
+        [],
+        "GROSS_PRICE",
+        {},
+        ELIGIBLE_WARRANTY_PANEL_INFO,
+        deleteProps([PERMISSIONS.DIAGNOSTICS.CAN_INSERT_AND_DELETE_SPARE_PARTS_ITEMS]),
+        {},
+        { isRepairAnswerLocked: true },
+      );
+
+      expect(screen.queryByTestId("icon-delete")).not.toBeInTheDocument();
+    });
+
+    it("hides the delete icon when the user cannot delete rows of this position", () => {
+      denyApproveCommercialGoodwill();
+      renderRow(
+        { row0_position: "SP", row0_type: "WARRANTY" },
+        [],
+        "GROSS_PRICE",
+        {},
+        ELIGIBLE_WARRANTY_PANEL_INFO,
+        deleteProps([]),
+      );
+
+      expect(screen.queryByTestId("icon-delete")).not.toBeInTheDocument();
+    });
+
+    it("hides the delete icon for approved rows", () => {
+      denyApproveCommercialGoodwill();
+      renderRow(
+        { row0_position: "SP", row0_type: "WARRANTY", row0_status: "APPROVED" },
+        [],
+        "GROSS_PRICE",
+        {},
+        ELIGIBLE_WARRANTY_PANEL_INFO,
+        deleteProps([PERMISSIONS.DIAGNOSTICS.CAN_INSERT_AND_DELETE_SPARE_PARTS_ITEMS], {
+          fields: [...rowFields, statusField],
+        }),
+      );
+
+      expect(screen.queryByTestId("icon-delete")).not.toBeInTheDocument();
+    });
+
+    it("shows the delete icon for positions without a permission mapping", () => {
+      denyApproveCommercialGoodwill();
+      renderRow(
+        { row0_position: "AC", row0_type: "WARRANTY" },
+        [],
+        "GROSS_PRICE",
+        {},
+        ELIGIBLE_WARRANTY_PANEL_INFO,
+        deleteProps([]),
+      );
+
+      expect(screen.getByTestId("icon-delete")).toBeInTheDocument();
+    });
+
+    it("does not throw when the delete icon is clicked without an onDeleteRow handler", () => {
+      denyApproveCommercialGoodwill();
+      renderRow(
+        { row0_position: "AC", row0_type: "WARRANTY" },
+        [],
+        "GROSS_PRICE",
+        {},
+        ELIGIBLE_WARRANTY_PANEL_INFO,
+        deleteProps([]),
+      );
+
+      expect(() => fireEvent.click(screen.getByTestId("icon-delete"))).not.toThrow();
+    });
+
+    it("keeps the delete icon for a non-exchange row even when its position is an automatic row", () => {
+      denyApproveCommercialGoodwill();
+      renderRow(
+        { row0_position: "AC", row0_type: "WARRANTY", actionType: "REPAIR" },
+        [],
+        "GROSS_PRICE",
+        {},
+        ELIGIBLE_WARRANTY_PANEL_INFO,
+        deleteProps([]),
+        { automaticRows: ["AC"] },
+      );
+
+      expect(screen.getByTestId("icon-delete")).toBeInTheDocument();
+    });
+
+    it("shows the delete icon for an exchange action when the position is not an automatic row", () => {
+      denyApproveCommercialGoodwill();
+      renderRow(
+        { row0_position: "AC", row0_type: "WARRANTY", actionType: "NEW_TOOL_EXCHANGE" },
+        [],
+        "GROSS_PRICE",
+        {},
+        ELIGIBLE_WARRANTY_PANEL_INFO,
+        deleteProps([]),
+        { automaticRows: ["LA"] },
+      );
+
+      expect(screen.getByTestId("icon-delete")).toBeInTheDocument();
+    });
+
+    it("treats a missing automaticRows list as no automatic rows", () => {
+      denyApproveCommercialGoodwill();
+      renderRow(
+        { row0_position: "AC", row0_type: "WARRANTY", actionType: "NEW_TOOL_EXCHANGE" },
+        [],
+        "GROSS_PRICE",
+        {},
+        ELIGIBLE_WARRANTY_PANEL_INFO,
+        deleteProps([]),
+        { automaticRows: undefined },
+      );
+
+      expect(screen.getByTestId("icon-delete")).toBeInTheDocument();
+    });
+
+    it("shows the delete icon when the job status is undefined", () => {
+      denyApproveCommercialGoodwill();
+      renderRow(
+        { row0_position: "AC", row0_type: "WARRANTY" },
+        [],
+        "GROSS_PRICE",
+        {},
+        ELIGIBLE_WARRANTY_PANEL_INFO,
+        deleteProps([]),
+        { jobStatus: undefined },
+      );
+
+      expect(screen.getByTestId("icon-delete")).toBeInTheDocument();
+    });
+  });
+
+  describe("position option gating", () => {
+    const allowed = (position: string, maxCount: number) => ({
+      position,
+      maxCount,
+      minCount: 0,
+      quantity: { quantitySource: "MANUAL", defaultQuantity: 1 },
+      unitPriceSource: "MANUAL",
+    });
+
+    it("keeps options without a permission mapping or configuration enabled", () => {
+      renderRow({ row0_position: "AC" }, [], "GROSS_PRICE", {}, ELIGIBLE_WARRANTY_PANEL_INFO, {
+        fields: [positionDropdown("row0_position", "diagnosticsSpareParts#0_"), ...withoutPosition],
+        userPermissions: [],
+      });
+
+      const options = selectOptions("field-row0_position");
+      expect(options.AC.disabled).toBe(false);
+      expect(options.SP.disabled).toBe(true);
+    });
+
+    it("does not count the row's own position against the maximum", () => {
+      renderRow(
+        { row0_position: "SP" },
+        [],
+        "GROSS_PRICE",
+        {},
+        ELIGIBLE_WARRANTY_PANEL_INFO,
+        {
+          fields: [
+            positionDropdown("row0_position", "diagnosticsSpareParts#0_"),
+            ...withoutPosition,
+          ],
+          userPermissions: [PERMISSIONS.DIAGNOSTICS.CAN_INSERT_AND_DELETE_SPARE_PARTS_ITEMS],
+        },
+        { allowedPositions: [allowed("SP", 1)] },
+      );
+
+      expect(selectOptions("field-row0_position").SP.disabled).toBe(false);
+    });
+
+    it("disables a configured option once a sibling row uses up its maximum", () => {
+      const sibling = positionDropdown("row1_position", "diagnosticsSpareParts#1_");
+      renderRow(
+        { row0_position: "AC", row1_position: "AC" },
+        [sibling],
+        "GROSS_PRICE",
+        {},
+        ELIGIBLE_WARRANTY_PANEL_INFO,
+        {
+          fields: [
+            positionDropdown("row0_position", "diagnosticsSpareParts#0_"),
+            ...withoutPosition,
+          ],
+          userPermissions: [PERMISSIONS.DIAGNOSTICS.CAN_INSERT_AND_DELETE_SPARE_PARTS_ITEMS],
+        },
+        { allowedPositions: [allowed("AC", 1)] },
+      );
+
+      expect(selectOptions("field-row0_position").AC.disabled).toBe(true);
+    });
+
+    it("leaves a configured option enabled while capacity remains", () => {
+      renderRow(
+        { row0_position: "AC" },
+        [],
+        "GROSS_PRICE",
+        {},
+        ELIGIBLE_WARRANTY_PANEL_INFO,
+        {
+          fields: [
+            positionDropdown("row0_position", "diagnosticsSpareParts#0_"),
+            ...withoutPosition,
+          ],
+          userPermissions: [PERMISSIONS.DIAGNOSTICS.CAN_INSERT_AND_DELETE_SPARE_PARTS_ITEMS],
+        },
+        { allowedPositions: [allowed("AC", 2)] },
+      );
+
+      expect(selectOptions("field-row0_position").AC.disabled).toBe(false);
+    });
+  });
+
+  describe("type option gating", () => {
+    it("keeps WARRANTY and SERVICE_OFFERING enabled on a spare parts exchange", () => {
+      renderRow(
+        { row0_position: "SP", row0_type: "CHARGEABLE", actionType: "SPARE_PARTS_EXCHANGE" },
+        [],
+        "GROSS_PRICE",
+      );
+
+      const options = selectOptions("field-row0_type");
+      expect(options.WARRANTY.disabled).toBe(false);
+      expect(options.SERVICE_OFFERING.disabled).toBe(false);
+    });
+
+    it("only disables the warranty-related options for a restricted spare part", () => {
+      renderRow({ row0_position: "SP", row0_type: "CHARGEABLE" }, [], "GROSS_PRICE");
+
+      const options = selectOptions("field-row0_type");
+      expect(options.WARRANTY.disabled).toBe(true);
+      expect(options.SERVICE_OFFERING.disabled).toBe(true);
+      expect(options.CHARGEABLE.disabled).toBe(false);
+      expect(options.COMMERCIAL_GOODWILL.disabled).toBe(false);
+    });
+
+    it("treats a whitespace-only part number on an SP row as restricted", () => {
+      renderRow(
+        { row0_position: "SP", row0_type: "CHARGEABLE", row0_partNumber: "   " },
+        [],
+        "GROSS_PRICE",
+      );
+
+      expect(selectOptions("field-row0_type").WARRANTY.disabled).toBe(true);
+    });
+
+    it("keeps the options enabled for a valid spare part on an eligible job", () => {
+      renderRow(
+        { row0_position: "SP", row0_type: "CHARGEABLE", row0_partNumber: "PN-1" },
+        [],
+        "GROSS_PRICE",
+        { row0_partNumber: false },
+      );
+
+      expect(selectOptions("field-row0_type").WARRANTY.disabled).toBe(false);
+    });
+
+    it("disables warranty-related options when the tool has no purchase date", () => {
+      renderRow(
+        { row0_position: "SP", row0_type: "CHARGEABLE", row0_partNumber: "PN-1" },
+        [],
+        "GROSS_PRICE",
+        { row0_partNumber: false },
+        { isIneligible: false, hasPurchaseDate: false, supportedWarrantyType: "" },
+      );
+
+      expect(selectOptions("field-row0_type").WARRANTY.disabled).toBe(true);
+    });
+
+    it("leaves non-SP rows with a valid part number untouched on an eligible job", () => {
+      renderRow(
+        { row0_position: "PN", row0_type: "CHARGEABLE", row0_partNumber: "PN-1" },
+        [],
+        "GROSS_PRICE",
+      );
+
+      expect(selectOptions("field-row0_type").WARRANTY.disabled).toBe(false);
+    });
   });
 });

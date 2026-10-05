@@ -1,19 +1,23 @@
 import { createContext, useContext } from "react";
-import type { RefObject, Dispatch, SetStateAction } from "react";
+import type { /*RefObject, */ Dispatch, SetStateAction } from "react";
 import type {
   AllowedPosition,
   discountBase,
 } from "api/services/countryConfiguration/countryConfiguration";
 import type { GenericOptionProps } from "components/generics/Field/GenericField.types";
 import type { MaterialItem, ImportedMaterial } from "hooks/useDiagnosticsManager";
+import type { SummaryDetail } from "modules/JobManagement/JobList/JobList.types";
 
 export interface DiagnosticsContextValue {
   /** Source-of-truth list of spare-part rows */
   materials: MaterialItem[];
+  /** Last synced price breakdown by job type (chargeable/warranty/...), same source as materials */
+  priceSummaryDetailedByJobType: SummaryDetail[];
   apiMaterialsLoaded: boolean;
   apiMaterialsEmpty: boolean;
   hasExistingDiagnostic: boolean;
   setMaterials: Dispatch<SetStateAction<MaterialItem[]>>;
+  setPriceSummaryDetailedByJobType: Dispatch<SetStateAction<SummaryDetail[]>>;
   /** Add a single empty row (triggered by "Add Row" button) */
   onAddRow: (formValues: Record<string, unknown>) => void;
   /** Add one or more rows from external material sources (explosion diagram / special materials) */
@@ -33,10 +37,7 @@ export interface DiagnosticsContextValue {
   allowedPositions: AllowedPosition[];
   /** Returns the set of part numbers already present in the form */
   getExistingPartNumbers: (formValues: Record<string, unknown>) => Set<string>;
-
-  isDistributingRef: RefObject<boolean>;
-
-  isResyncingRef: RefObject<boolean>;
+  // isResyncingRef: RefObject<boolean>;
   /** Set to true after the onValidate action callback completes successfully */
   arePricesValidated: boolean;
   setArePricesValidated: Dispatch<SetStateAction<boolean>>;
@@ -57,7 +58,7 @@ export interface DiagnosticsContextValue {
   /** True when deleting a row moves it to archived instead of permanently removing it. */
   canArchiveOnDelete: boolean;
   /** Resets the API-sync flag so the next diagnosticData update re-applies to the form */
-  resyncMaterialsFromAPI: () => void;
+  // resyncMaterialsFromAPI: () => void;
   /** Current job status (e.g., "IN_DIAGNOSTICS", "REPAIR_DONE", etc.) */
   jobStatus?: string;
   /** Country-level price calculation mode: GROSS (discount on gross) or NET (discount on total net). */
@@ -72,14 +73,14 @@ const DEFAULT_SUMMARY_TYPE_OPTIONS = [{ value: "totalSummary", label: "totalSumm
 
 const noop = () => {};
 
-const createDefaultRef = (): RefObject<boolean> => ({ current: false });
-
 const defaultDiagnosticsContextValue: DiagnosticsContextValue = {
   materials: [],
+  priceSummaryDetailedByJobType: [],
   apiMaterialsLoaded: false,
   apiMaterialsEmpty: false,
   hasExistingDiagnostic: false,
   setMaterials: noop,
+  setPriceSummaryDetailedByJobType: noop,
   onAddRow: noop,
   onAddMaterials: noop,
   onDeleteRow: noop,
@@ -88,8 +89,8 @@ const defaultDiagnosticsContextValue: DiagnosticsContextValue = {
   positionDropdownOptions: [],
   allowedPositions: [],
   getExistingPartNumbers: () => new Set(),
-  isDistributingRef: createDefaultRef(),
-  isResyncingRef: createDefaultRef(),
+  //isDistributingRef: createDefaultRef(),
+  // isResyncingRef: createDefaultRef(),
   arePricesValidated: false,
   setArePricesValidated: noop,
   hasPricesPopulated: false,
@@ -101,7 +102,7 @@ const defaultDiagnosticsContextValue: DiagnosticsContextValue = {
   isArchivedExpanded: false,
   setIsArchivedExpanded: noop,
   canArchiveOnDelete: false,
-  resyncMaterialsFromAPI: noop,
+  // resyncMaterialsFromAPI: noop,
   jobStatus: "",
   discountBase: "GROSS_PRICE",
   automaticRows: [],

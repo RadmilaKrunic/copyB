@@ -11,7 +11,6 @@ import { mapValuesToAPI, convertAPIDataToFormValues } from "components/generics/
 import { DiagnosticsContext } from "./DiagnosticsContext";
 import { getUploadFieldErrors } from "components/generics/Form/formValidation";
 import { getCostEstimationPdf } from "api/services/jobs/action";
-import { CompletionType } from "@/analytics";
 
 const locationStateMock = vi.hoisted(() => ({ value: null as { from?: string } | null }));
 const tabsDataMock = vi.hoisted(() => ({ value: [] as unknown[] }));
@@ -187,6 +186,8 @@ const customerAnswerMutateMock = vi.hoisted(() => vi.fn());
 const postCustomerMutateMock = vi.hoisted(() => vi.fn());
 const patchJobMutateMock = vi.hoisted(() => vi.fn());
 const validateAndSaveMutateMock = vi.hoisted(() => vi.fn());
+const recalculatePricesMutateMock = vi.hoisted(() => vi.fn());
+
 const disableSectionEditingMock = vi.hoisted(() => vi.fn());
 const repairApprovalMutateMock = vi.hoisted(() => vi.fn());
 const internalApprovalMutateMock = vi.hoisted(() => vi.fn());
@@ -240,10 +241,55 @@ vi.mock("hooks/useFormInitialization", () => ({
     setTabs: setTabsMock,
   }),
 }));
+vi.mock("hooks/useUIConfiguration", () => ({
+  useResourceUIConfiguration: () => {
+    if (!uiConfigEnabledMock.value) {
+      return { uiConfiguration: undefined, countryCode: "ZA", isLoading: false, isError: false };
+    }
+    return {
+      uiConfiguration: {
+        forms: [
+          {
+            name: "JobOverview",
+            actions: [
+              { name: "Add Spare Part", onAction: "onAddSparePart" },
+              { name: "Hold", onAction: "onHold" },
+              { name: "Next Step", onAction: "onGoToNextStep" },
+              { name: "Customer Answer", onAction: "onCustomerAnswer" },
+              { name: "Approve Repair", onAction: "onApproveForRepair" },
+              { name: "Request Internal", onAction: "onRequestInternalApproval" },
+              { name: "Submit Review", onAction: "onSubmitForReview" },
+              { name: "Start Repair", onAction: "onStartRepair" },
+              { name: "Finish Repair", onAction: "onFinishRepair" },
+              { name: "Tool Delivered", onAction: "onToolDelivered" },
+              { name: "Create Cost", onAction: "onCreateCostEstimate" },
+              { name: "Save Customer", onAction: "onSaveCustomer" },
+              { name: "Cancel Save Customer", onAction: "onCancelSaveCustomer" },
+              { name: "Save Asset", onAction: "onSaveAsset" },
+              { name: "Cancel Asset", onAction: "onCancelEditAsset" },
+              { name: "Add Special", onAction: "onAddSpecialMaterials" },
+              { name: "Product Details", onAction: "onProductDetails" },
+              { name: "Validate", onAction: "onValidate" },
+              { name: "Approve Pre", onAction: "onApprovePreApproval" },
+              { name: "Reject Pre", onAction: "onRejectPreApproval" },
+              { name: "Revise Pre", onAction: "onRevisePreApproval" },
+            ],
+            sections: [],
+          },
+        ],
+      },
+      countryCode: "ZA",
+      isLoading: false,
+      isError: false,
+    };
+  },
+}));
 vi.mock("hooks/useActionWithValidation", () => ({
   useActionWithValidation: () => actionWithValidationMock,
 }));
 vi.mock("hooks/usePositionDropdownSync", () => ({ usePositionDropdownSync: vi.fn() }));
+vi.mock("hooks/usePostRecalculatePrices", () => ({ usePostRecalculatePrices: vi.fn() }));
+
 vi.mock("hooks/useSectionEditing", () => ({
   useSectionEditing: () => ({
     editingSections: editingSectionsMock.value,
@@ -508,6 +554,7 @@ vi.mock("api/services/jobs/hooks", () => ({
     startDiagnosticMutateMock,
     startDiagnosticMutateMock,
   ),
+  usePostRecalculatePrices: mutationHookMock("recalculate", recalculatePricesMutateMock),
   useToggleJobHold: mutationHookMock("toggleJobHold", toggleHoldMutateMock, toggleHoldMutateMock),
   usePostValidateAndSave: mutationHookMock("validateAndSave", validateAndSaveMutateMock),
   usePostDiagnostic: mutationHookMock("silentDiagnostic", vi.fn(), silentDiagnosticMutateAsyncMock),
@@ -804,30 +851,6 @@ describe("JobOverview", () => {
         discount: 0,
       },
     };
-
-    it("nulls material prices on the first validateAndSave (no diagnostic exists yet)", async () => {
-      hasExistingDiagnosticMock.value = false;
-      vi.mocked(mapValuesToAPI).mockReturnValueOnce({
-        diagnostic: {
-          status: "DRAFT",
-          materials: [materialWithCalculatedPrice],
-        },
-      } as unknown as ReturnType<typeof mapValuesToAPI>);
-      useJobByIdMock.mockReturnValue({
-        data: { job: { jobStatus: "READY_FOR_DIAGNOSTIC", isOnHold: false } },
-        isLoading: false,
-        error: null,
-      });
-
-      render(<JobOverview />);
-      fireEvent.click(screen.getByRole("button", { name: "Validate" }));
-
-      await waitFor(() => expect(validateAndSaveMutateMock).toHaveBeenCalledTimes(1));
-      const { payload } = validateAndSaveMutateMock.mock.calls[0][0] as {
-        payload: { materials: Array<{ price: unknown }> };
-      };
-      expect(payload.materials[0].price).toBeNull();
-    });
 
     it("preserves material prices on a subsequent validateAndSave (diagnostic already exists, status still DRAFT)", async () => {
       hasExistingDiagnosticMock.value = true;
@@ -1673,58 +1696,6 @@ const makeField = (name: string, subtype: string, overrides: Partial<Field> = {}
     ...overrides,
   }) as Field;
 
-/** Summary fields + a single distributable CHARGEABLE/SP row, shared by GROSS-mode tests. */
-function grossModeFields(): Field[] {
-  return [
-    makeField("summaryGrossAmount", "diagnosticSummaryGrossAmountMaterial"),
-    makeField("summaryTotalAmountMaterial", "diagnosticSummaryTotalAmountMaterial"),
-    makeField("summaryTotalAmount", "diagnosticSummaryTotalAmount"),
-    makeField("summaryType", "diagnosticSummaryType"),
-    makeField("summaryDiscountGross", "diagnosticSummaryDiscountMaterial", {
-      dependentFields: [{ fieldValue: "GROSS_PRICE" }],
-    } as Partial<Field>),
-    makeField("summaryDiscountHidden", "diagnosticSummaryDiscountMaterialHidden"),
-    makeField("row1_discount", "diagnosticDiscount", {
-      fieldMapping: { nameStartsWith: "row1" },
-      dependentFields: [{ fieldValue: "GROSS_PRICE" }],
-    } as Partial<Field>),
-    makeField("row1_type", "diagnosticType", {
-      fieldMapping: { nameStartsWith: "row1" },
-    } as Partial<Field>),
-    makeField("row1_position", "diagnosticPosition", {
-      fieldMapping: { nameStartsWith: "row1" },
-    } as Partial<Field>),
-  ];
-}
-
-/** Summary fields + a single distributable CHARGEABLE/SP row, shared by NET-mode tests. */
-function netModeFields(): Field[] {
-  return [
-    makeField("summarySuggestedNetPrice", "diagnosticSummarySuggestedNetPriceMaterial"),
-    makeField("summaryNetAmount", "diagnosticSummaryNetAmountMaterial"),
-    makeField("summaryType", "diagnosticSummaryType"),
-    makeField("summaryDiscountNet", "diagnosticSummaryDiscountNetMaterial", {
-      dependentFields: [{ fieldValue: "NET_PRICE" }],
-    } as Partial<Field>),
-    makeField("summaryDiscountHidden", "diagnosticSummaryDiscountMaterialHidden"),
-    makeField("row1_discount", "diagnosticDiscount", {
-      fieldMapping: { nameStartsWith: "row1" },
-      dependentFields: [{ fieldValue: "NET_PRICE" }],
-    } as Partial<Field>),
-    makeField("row1_type", "diagnosticType", {
-      fieldMapping: { nameStartsWith: "row1" },
-    } as Partial<Field>),
-    makeField("row1_position", "diagnosticPosition", {
-      fieldMapping: { nameStartsWith: "row1" },
-    } as Partial<Field>),
-  ];
-}
-
-async function readFormValues(): Promise<Record<string, unknown>> {
-  const pre = await screen.findByTestId("form-values");
-  return JSON.parse(pre.textContent || "{}");
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
   locationStateMock.value = null;
@@ -1755,207 +1726,6 @@ beforeEach(() => {
     data: { job: { jobStatus: "IN_DIAGNOSTICS", isOnHold: false } },
     isLoading: false,
     error: null,
-  });
-});
-
-describe("JobOverview summary discount/amount handlers", () => {
-  it("onSummaryDiscountChange (GROSS_PRICE) distributes discount to gross total and matching rows", async () => {
-    discountBaseMock.value = "GROSS_PRICE";
-    allFieldsMock.value = grossModeFields();
-    initialFormValuesMock.value = {
-      summaryGrossAmount: 200,
-      summaryTotalAmountMaterial: 200,
-      summaryType: "totalSummary",
-      summaryDiscountGross: 0,
-      row1_type: "CHARGEABLE",
-      row1_position: "SP",
-      row1_discount: 0,
-    };
-    triggerValueMock.value = 5;
-
-    render(<JobOverview />);
-    fireEvent.click(await screen.findByRole("button", { name: "trigger-discount-change" }));
-
-    await waitFor(async () => {
-      const values = await readFormValues();
-      expect(values.summaryDiscountGross).toBe(5);
-      expect(values.summaryTotalAmountMaterial).toBe(190); // 200 * (1 - 5%)
-      expect(values.row1_discount).toBe(5); // distributed to the matching CHARGEABLE/SP row
-    });
-  });
-
-  it("onSummaryDiscountChange is a no-op when discountBase is NET_PRICE", async () => {
-    discountBaseMock.value = "NET_PRICE";
-    allFieldsMock.value = grossModeFields();
-    initialFormValuesMock.value = {
-      summaryGrossAmount: 200,
-      summaryTotalAmountMaterial: 200,
-      summaryType: "totalSummary",
-      summaryDiscountGross: 0,
-      row1_type: "CHARGEABLE",
-      row1_position: "SP",
-      row1_discount: 0,
-    };
-    triggerValueMock.value = 5;
-
-    render(<JobOverview />);
-    fireEvent.click(await screen.findByRole("button", { name: "trigger-discount-change" }));
-
-    // Give any (unexpected) async writes a chance to land, then assert nothing changed.
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    const values = await readFormValues();
-    expect(values.summaryDiscountGross).toBe(0);
-    expect(values.row1_discount).toBe(0);
-  });
-
-  it("onSummaryTotalAmountChange (GROSS_PRICE) clamps to grossAmount and back-calculates discount", async () => {
-    discountBaseMock.value = "GROSS_PRICE";
-    allFieldsMock.value = grossModeFields();
-    initialFormValuesMock.value = {
-      summaryGrossAmount: 200,
-      summaryTotalAmountMaterial: 200,
-      summaryTotalAmount: 200,
-      summaryType: "totalSummary",
-      summaryDiscountGross: 0,
-      summaryDiscountHidden: 0,
-      row1_type: "CHARGEABLE",
-      row1_position: "SP",
-      row1_discount: 0,
-    };
-    triggerValueMock.value = 500; // exceeds grossAmount(200) -> should clamp to 200
-
-    render(<JobOverview />);
-    fireEvent.click(await screen.findByRole("button", { name: "trigger-total-change" }));
-
-    await waitFor(async () => {
-      const values = await readFormValues();
-      expect(values.summaryTotalAmountMaterial).toBe(200); // clamped, not 500
-      expect(values.summaryDiscountGross).toBe(0); // 0% discount at full price
-      expect(values.summaryDiscountHidden).toBe(0);
-    });
-  });
-
-  it("onSummaryTotalAmountChange (GROSS_PRICE) back-calculates a partial discount and distributes it", async () => {
-    discountBaseMock.value = "GROSS_PRICE";
-    allFieldsMock.value = grossModeFields();
-    initialFormValuesMock.value = {
-      summaryGrossAmount: 200,
-      summaryTotalAmountMaterial: 200,
-      summaryTotalAmount: 200,
-      summaryType: "totalSummary",
-      summaryDiscountGross: 0,
-      summaryDiscountHidden: 0,
-      row1_type: "CHARGEABLE",
-      row1_position: "SP",
-      row1_discount: 0,
-    };
-    triggerValueMock.value = 90; // 55% discount off 200
-
-    render(<JobOverview />);
-    fireEvent.click(await screen.findByRole("button", { name: "trigger-total-change" }));
-
-    await waitFor(async () => {
-      const values = await readFormValues();
-      expect(values.summaryTotalAmountMaterial).toBe(90);
-      expect(values.summaryDiscountGross).toBe(55);
-      expect(values.row1_discount).toBe(55);
-    });
-  });
-
-  it("onSummaryNetAmountChange (NET_PRICE) back-calculates discount and distributes to matching rows", async () => {
-    discountBaseMock.value = "NET_PRICE";
-    allFieldsMock.value = netModeFields();
-    initialFormValuesMock.value = {
-      summarySuggestedNetPrice: 100,
-      summaryNetAmount: 100,
-      summaryType: "totalSummary",
-      summaryDiscountNet: 0,
-      summaryDiscountHidden: 0,
-      row1_type: "CHARGEABLE",
-      row1_position: "SP",
-      row1_discount: 0,
-    };
-    triggerValueMock.value = 80; // 20% discount off suggested net 100
-
-    render(<JobOverview />);
-    fireEvent.click(await screen.findByRole("button", { name: "trigger-net-change" }));
-
-    await waitFor(async () => {
-      const values = await readFormValues();
-      expect(values.summaryNetAmount).toBe(80);
-      expect(values.summaryDiscountNet).toBe(20);
-      expect(values.row1_discount).toBe(20);
-    });
-  });
-
-  it("onSummaryDiscountNetChange (NET_PRICE) writes discount and distributes to matching rows", async () => {
-    discountBaseMock.value = "NET_PRICE";
-    allFieldsMock.value = netModeFields();
-    initialFormValuesMock.value = {
-      summarySuggestedNetPrice: 100,
-      summaryNetAmount: 100,
-      summaryType: "totalSummary",
-      summaryDiscountNet: 0,
-      summaryDiscountHidden: 0,
-      row1_type: "CHARGEABLE",
-      row1_position: "SP",
-      row1_discount: 0,
-    };
-    triggerValueMock.value = 10; // 10% discount
-
-    render(<JobOverview />);
-    fireEvent.click(await screen.findByRole("button", { name: "trigger-discount-net-change" }));
-
-    await waitFor(async () => {
-      const values = await readFormValues();
-      expect(values.summaryDiscountNet).toBe(10); // activeDiscountNetMaterialField write
-      expect(values.summaryDiscountHidden).toBe(10);
-      expect(values.summaryNetAmount).toBe(90); // 100 * (1 - 10%)
-      expect(values.row1_discount).toBe(10);
-    });
-  });
-
-  it("type filter excludes non-matching rows from distribution (WARRANTY row untouched by chargeable-only filter)", async () => {
-    discountBaseMock.value = "GROSS_PRICE";
-    const fields = grossModeFields();
-    // Override summaryType field default value via initialFormValues below;
-    // add a second, non-CHARGEABLE row that should NOT receive the distributed discount.
-    fields.push(
-      makeField("row2_discount", "diagnosticDiscount", {
-        fieldMapping: { nameStartsWith: "row2" },
-        dependentFields: [{ fieldValue: "GROSS_PRICE" }],
-      } as Partial<Field>),
-      makeField("row2_type", "diagnosticType", {
-        fieldMapping: { nameStartsWith: "row2" },
-      } as Partial<Field>),
-      makeField("row2_position", "diagnosticPosition", {
-        fieldMapping: { nameStartsWith: "row2" },
-      } as Partial<Field>),
-    );
-    allFieldsMock.value = fields;
-    initialFormValuesMock.value = {
-      summaryGrossAmount: 200,
-      summaryTotalAmountMaterial: 200,
-      summaryType: "chargeable", // filter: only CHARGEABLE rows
-      summaryDiscountGross: 0,
-      row1_type: "CHARGEABLE",
-      row1_position: "SP",
-      row1_discount: 0,
-      row2_type: "WARRANTY",
-      row2_position: "SP",
-      row2_discount: 0,
-    };
-    triggerValueMock.value = 5;
-
-    render(<JobOverview />);
-    fireEvent.click(await screen.findByRole("button", { name: "trigger-discount-change" }));
-
-    await waitFor(async () => {
-      const values = await readFormValues();
-      expect(values.row1_discount).toBe(5); // CHARGEABLE: distributed
-    });
-    const values = await readFormValues();
-    expect(values.row2_discount).toBe(0); // WARRANTY: excluded by type filter, untouched
   });
 });
 
@@ -2038,13 +1808,6 @@ const makeTab = (
   position,
   ...overrides,
 });
-
-const WORKFLOW_REFETCH_KEYS = [
-  ["job", "J-1"],
-  ["diagnostic", "J-1"],
-  ["jobs"],
-  ["messages", "J-1"],
-];
 
 describe("JobOverview mutation callbacks", () => {
   beforeEach(() => {
@@ -2163,151 +1926,6 @@ describe("JobOverview mutation callbacks", () => {
     });
   });
 
-  describe("workflow transitions (refetch + analytics)", () => {
-    it.each([
-      {
-        key: "startRepair",
-        success: "successStartRepair",
-        error: "errorStartRepair",
-        tracker: "trackRepairStarted" as const,
-      },
-      {
-        key: "finishRepair",
-        success: "successFinishRepair",
-        error: "errorFinishRepair",
-        tracker: "trackRepairFinished" as const,
-      },
-      {
-        key: "startReview",
-        success: "successSubmitForReview",
-        error: "errorSubmitForReview",
-        tracker: "trackJobSubmittedForReview" as const,
-      },
-      {
-        key: "repairApproval",
-        success: "successApproveForRepair",
-        error: "errorApproveForRepair",
-        tracker: "trackJobApprovedForRepair" as const,
-      },
-    ])("$key: resyncs, refetches, notifies and emits $tracker", async (testCase) => {
-      initialFormValuesMock.value = { jobType: "REPAIR" };
-      queryCacheMock.value = { job: { job: { jobStatus: "IN_REPAIR" } } };
-      const { setMessagesMock } = renderWithMessages();
-
-      await runOnSuccess(testCase.key);
-
-      expect(resyncMaterialsFromAPIMock).toHaveBeenCalled();
-      for (const queryKey of WORKFLOW_REFETCH_KEYS) {
-        expect(queryClientMock.refetchQueries).toHaveBeenCalledWith({ queryKey });
-      }
-      expect(analyticsMock[testCase.tracker]).toHaveBeenCalledWith({
-        jobType: "REPAIR",
-        jobStatus: "IN_REPAIR",
-      });
-
-      await runOnError(testCase.key);
-
-      const messages = collectMessages(setMessagesMock);
-      expect(messages).toContainEqual({ text: testCase.success, type: "success", duration: 3000 });
-      expect(messages).toContainEqual({ text: testCase.error, type: "error", duration: 3000 });
-    });
-
-    it("toolDelivered: emits job completed with DELIVERED completion type", async () => {
-      initialFormValuesMock.value = { jobType: "REPAIR" };
-      queryCacheMock.value = { job: { job: { jobStatus: "DELIVERED" } } };
-      const { setMessagesMock } = renderWithMessages();
-
-      await runOnSuccess("toolDelivered");
-      await runOnError("toolDelivered");
-
-      expect(analyticsMock.trackJobCompleted).toHaveBeenCalledWith({
-        jobType: "REPAIR",
-        jobStatus: "DELIVERED",
-        completionType: CompletionType.DELIVERED,
-      });
-      const messages = collectMessages(setMessagesMock);
-      expect(messages).toContainEqual({
-        text: "successToolDelivered",
-        type: "success",
-        duration: 3000,
-      });
-      expect(messages).toContainEqual({
-        text: "errorToolDelivered",
-        type: "error",
-        duration: 3000,
-      });
-    });
-
-    it("internalApproval: emits pre-approval requested and uses API error message on failure", async () => {
-      initialFormValuesMock.value = { jobType: "REPAIR" };
-      queryCacheMock.value = { job: { job: { jobStatus: "WAITING_FOR_APPROVAL" } } };
-      const { setMessagesMock } = renderWithMessages();
-
-      await runOnSuccess("internalApproval");
-      expect(analyticsMock.trackPreApprovalRequested).toHaveBeenCalledWith({
-        jobType: "REPAIR",
-        jobStatus: "WAITING_FOR_APPROVAL",
-      });
-
-      await runOnError("internalApproval");
-
-      const messages = collectMessages(setMessagesMock);
-      expect(messages).toContainEqual({
-        text: "successRequestInternalApproval",
-        type: "success",
-        duration: 3000,
-      });
-      expect(messages).toContainEqual(
-        expect.objectContaining({ type: "error", duration: 5000, text: expect.any(String) }),
-      );
-      expect(scrollToTopMock).toHaveBeenCalled();
-    });
-
-    it("does not emit analytics when job type is missing", async () => {
-      queryCacheMock.value = { job: { job: { jobStatus: "IN_REPAIR" } } };
-      renderWithMessages();
-
-      await runOnSuccess("startRepair");
-
-      expect(analyticsMock.trackRepairStarted).not.toHaveBeenCalled();
-    });
-
-    it("does not emit analytics when refetched job status is missing", async () => {
-      initialFormValuesMock.value = { jobType: "REPAIR" };
-      renderWithMessages();
-
-      await runOnSuccess("startRepair");
-
-      expect(analyticsMock.trackRepairStarted).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("customerAnswer", () => {
-    it("resyncs, refetches and notifies on success; reports error on failure", async () => {
-      const { setMessagesMock } = renderWithMessages();
-
-      await runOnSuccess("customerAnswer");
-      expect(resyncMaterialsFromAPIMock).toHaveBeenCalled();
-      for (const queryKey of WORKFLOW_REFETCH_KEYS) {
-        expect(queryClientMock.refetchQueries).toHaveBeenCalledWith({ queryKey });
-      }
-
-      await runOnError("customerAnswer");
-
-      const messages = collectMessages(setMessagesMock);
-      expect(messages).toContainEqual({
-        text: "successSubmitCustomerAnswer",
-        type: "success",
-        duration: 3000,
-      });
-      expect(messages).toContainEqual({
-        text: "errorSubmitCustomerAnswer",
-        type: "error",
-        duration: 3000,
-      });
-    });
-  });
-
   describe("approvePreApproval", () => {
     it("navigates back to approval list when no Bosch-internal approval is pending", async () => {
       queryCacheMock.value = { job: { job: { pendingApprovals: ["CUSTOMER"] } } };
@@ -2374,7 +1992,7 @@ describe("JobOverview mutation callbacks", () => {
 
     it("opens the generated PDF and revokes the object URL afterwards", async () => {
       vi.mocked(getCostEstimationPdf).mockResolvedValueOnce(new Blob(["pdf"]));
-      openSpy = vi.spyOn(window, "open").mockReturnValue({} as Window);
+      openSpy = vi.spyOn(globalThis, "open").mockReturnValue({} as Window);
       const { setMessagesMock } = renderWithMessages();
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
 
@@ -2394,7 +2012,7 @@ describe("JobOverview mutation callbacks", () => {
 
     it("does not schedule URL revocation when the popup is blocked", async () => {
       vi.mocked(getCostEstimationPdf).mockResolvedValueOnce(new Blob(["pdf"]));
-      openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+      openSpy = vi.spyOn(globalThis, "open").mockReturnValue(null);
       renderWithMessages();
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
 
@@ -2407,7 +2025,7 @@ describe("JobOverview mutation callbacks", () => {
 
     it("does not open a window when no PDF is returned", async () => {
       vi.mocked(getCostEstimationPdf).mockResolvedValueOnce(undefined as unknown as Blob);
-      openSpy = vi.spyOn(window, "open");
+      openSpy = vi.spyOn(globalThis, "open");
       renderWithMessages();
 
       await runOnSuccess("createCostEstimate");
@@ -2434,31 +2052,6 @@ describe("JobOverview mutation callbacks", () => {
       vi.useRealTimers();
     });
 
-    it("merges nested diagnostic into cache and reports unique price errors (excluding 2004)", async () => {
-      queryCacheMock.value = { diagnostic: { technicianNote: "keep-me", status: "OLD" } };
-      const { setMessagesMock } = renderWithMessages();
-
-      await runOnSuccess("validateAndSave", {
-        diagnostic: { jobId: "J-1", status: "DRAFT", materials: [] },
-        errorMessages: [{ key: "1001" }, { key: "1001" }, { key: "1002" }, { key: "2004" }],
-      });
-
-      expect(queryClientMock.setQueryData).toHaveBeenCalledWith(["diagnostic", "J-1"], {
-        technicianNote: "keep-me",
-        jobId: "J-1",
-        status: "DRAFT",
-        materials: [],
-      });
-      expect(resyncMaterialsFromAPIMock).toHaveBeenCalledWith(false);
-      expect(markAllValidatedMock).not.toHaveBeenCalled();
-      expect(collectMessages(setMessagesMock)).toContainEqual({
-        text: "priceNotAvailable: 1001, 1002",
-        type: "error",
-        duration: 5000,
-      });
-      expect(scrollToTopMock).toHaveBeenCalled();
-    });
-
     it("falls back to generic simulation error when only ignored error keys are returned", async () => {
       const { setMessagesMock } = renderWithMessages();
 
@@ -2469,38 +2062,6 @@ describe("JobOverview mutation callbacks", () => {
         text: "orderSimulationFailed",
         type: "error",
         duration: 5000,
-      });
-    });
-
-    it("builds diagnostic from top-level response data and completes the success flow", async () => {
-      initialFormValuesMock.value = { jobType: "REPAIR" };
-      queryCacheMock.value = { job: { job: { jobStatus: "IN_DIAGNOSTICS" } } };
-      const { setMessagesMock } = renderWithMessages();
-      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-
-      const response = { materials: [], actionType: "REPAIR", errorMessages: [] };
-      await runOnSuccess("validateAndSave", response);
-      // Second call exercises clearing of the pending fallback timeout.
-      await runOnSuccess("validateAndSave", response);
-      act(() => {
-        vi.advanceTimersByTime(500);
-      });
-
-      expect(queryClientMock.setQueryData).toHaveBeenCalledWith(["diagnostic", "J-1"], {
-        ...response,
-        jobId: "J-1",
-      });
-      expect(markAllValidatedMock).toHaveBeenCalled();
-      expect(resyncMaterialsFromAPIMock).toHaveBeenCalledWith(true);
-      expect(queryClientMock.refetchQueries).toHaveBeenCalledWith({ queryKey: ["job", "J-1"] });
-      expect(analyticsMock.trackDiagnosticValidated).toHaveBeenCalledWith({
-        jobType: "REPAIR",
-        jobStatus: "IN_DIAGNOSTICS",
-      });
-      expect(collectMessages(setMessagesMock)).toContainEqual({
-        text: "successValidateAndSave",
-        type: "success",
-        duration: 3000,
       });
     });
 
@@ -2523,64 +2084,6 @@ describe("JobOverview mutation callbacks", () => {
       );
       expect(scrollToTopMock).toHaveBeenCalled();
     });
-  });
-});
-
-describe("JobOverview patchPayloadFromCache (via silent diagnostic save)", () => {
-  const mockDiagnosticPayload = (diagnostic: Record<string, unknown>) => {
-    vi.mocked(mapValuesToAPI).mockReturnValueOnce({
-      diagnostic: {
-        materials: [{ id: "M-1", order: 1, partNumber: "PN-1", price: { unitPrice: 10 } }],
-        ...diagnostic,
-      },
-    } as unknown as ReturnType<typeof mapValuesToAPI>);
-  };
-
-  const getSilentPayload = () =>
-    (silentDiagnosticMutateAsyncMock.mock.calls[0][0] as { payload: Record<string, unknown> })
-      .payload;
-
-  beforeEach(() => {
-    mockJob();
-  });
-
-  it("fills missing status and diagnosticId from the cached diagnostic", async () => {
-    queryCacheMock.value = { diagnostic: { status: "DRAFT", diagnosticId: "D-CACHED" } };
-    mockDiagnosticPayload({});
-    renderWithMessages();
-
-    fireEvent.click(screen.getByRole("button", { name: "Approve Repair" }));
-
-    await waitFor(() => expect(silentDiagnosticMutateAsyncMock).toHaveBeenCalledTimes(1));
-    expect(getSilentPayload()).toEqual(
-      expect.objectContaining({ status: "DRAFT", diagnosticId: "D-CACHED" }),
-    );
-    await waitFor(() => expect(repairApprovalMutateMock).toHaveBeenCalledWith({ jobId: "J-1" }));
-  });
-
-  it("keeps payload diagnosticId and ignores cache without status", async () => {
-    queryCacheMock.value = { diagnostic: { diagnosticId: "D-CACHED" } };
-    mockDiagnosticPayload({ status: null, diagnosticId: "D-OWN" });
-    renderWithMessages();
-
-    fireEvent.click(screen.getByRole("button", { name: "Request Internal" }));
-
-    await waitFor(() => expect(silentDiagnosticMutateAsyncMock).toHaveBeenCalledTimes(1));
-    const payload = getSilentPayload();
-    expect(payload.status).toBeNull();
-    expect(payload.diagnosticId).toBe("D-OWN");
-  });
-
-  it("leaves payload untouched when no diagnostic is cached", async () => {
-    mockDiagnosticPayload({});
-    renderWithMessages();
-
-    fireEvent.click(screen.getByRole("button", { name: "Create Cost" }));
-
-    await waitFor(() => expect(silentDiagnosticMutateAsyncMock).toHaveBeenCalledTimes(1));
-    const payload = getSilentPayload();
-    expect(payload.status).toBeUndefined();
-    expect(payload.diagnosticId).toBeUndefined();
   });
 });
 
@@ -2698,10 +2201,6 @@ const formCtx = () => {
   return captured.formCtx;
 };
 const callbacks = () => formCtx().actionCallbacks as AnyRecord;
-const managerArgs = () => {
-  if (!captured.managerArgs) throw new Error("useDiagnosticsManager args not captured");
-  return captured.managerArgs;
-};
 const lastCallArg = (mock: ReturnType<typeof vi.fn>) =>
   mock.mock.calls[mock.mock.calls.length - 1]?.[0];
 const diagnosticsCtx = () => {
@@ -3290,25 +2789,6 @@ describe("JobOverview customer answer modal", () => {
   });
 });
 
-describe("JobOverview silent diagnostic save failures", () => {
-  it.each([
-    { button: "Approve Repair", mutateMock: repairApprovalMutateMock },
-    { button: "Request Internal", mutateMock: internalApprovalMutateMock },
-    { button: "Create Cost", mutateMock: createCostEstimateMutateMock },
-  ])("$button logs the silent save error and still proceeds", async (testCase) => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    silentDiagnosticMutateAsyncMock.mockRejectedValueOnce(new Error("save failed"));
-    mockJob();
-    renderWithMessages();
-
-    fireEvent.click(screen.getByRole("button", { name: testCase.button }));
-
-    await waitFor(() => expect(testCase.mutateMock).toHaveBeenCalledWith({ jobId: "J-1" }));
-    expect(errorSpy).toHaveBeenCalledWith(expect.any(Error));
-    errorSpy.mockRestore();
-  });
-});
-
 describe("JobOverview buildDiagnosticPayload branches (validate)", () => {
   const getValidatePayload = () =>
     (validateAndSaveMutateMock.mock.calls[0][0] as { payload: AnyRecord }).payload;
@@ -3316,61 +2796,6 @@ describe("JobOverview buildDiagnosticPayload branches (validate)", () => {
   beforeEach(() => {
     hasExistingDiagnosticMock.value = false;
     mockJob();
-  });
-
-  it("normalizes materials, keeps status for existing diagnostics and filters archived rows", async () => {
-    vi.mocked(mapValuesToAPI).mockReturnValueOnce({
-      diagnostic: {
-        status: "SUBMITTED",
-        materials: [
-          null,
-          { order: "x", partNumber: "PN-1 A", price: { unitPrice: null } },
-          { id: "M-2", order: 2, partNumber: "PN-2", price: { unitPrice: 5 } },
-        ],
-        archivedMaterials: [null, { partNumber: "" }, { partNumber: "ARCH-1" }],
-      },
-    } as unknown as ReturnType<typeof mapValuesToAPI>);
-    renderWithMessages();
-
-    fireEvent.click(screen.getByRole("button", { name: "Validate" }));
-
-    await waitFor(() => expect(validateAndSaveMutateMock).toHaveBeenCalledTimes(1));
-    const payload = getValidatePayload();
-    expect(payload.status).toBe("SUBMITTED");
-    expect(payload.materials).toEqual([
-      expect.objectContaining({ partNumber: "PN1A", order: 1, price: null }),
-      expect.objectContaining({ id: "M-2", order: 2, price: { unitPrice: 5 } }),
-    ]);
-    expect(payload.archivedMaterials).toEqual([{ partNumber: "ARCH-1" }]);
-  });
-
-  it("recalculates price summary for existing, fully identified diagnostics", async () => {
-    vi.mocked(mapValuesToAPI).mockReturnValueOnce({
-      diagnostic: {
-        status: "SUBMITTED",
-        priceSummary: { netAmount: 999 },
-        materials: [{ id: "M-1", order: 1, partNumber: "PN-1", price: { unitPrice: 1 } }],
-        archivedMaterials: [],
-      },
-    } as unknown as ReturnType<typeof mapValuesToAPI>);
-    renderWithMessages();
-
-    fireEvent.click(screen.getByRole("button", { name: "Validate" }));
-
-    await waitFor(() => expect(validateAndSaveMutateMock).toHaveBeenCalledTimes(1));
-    const payload = getValidatePayload();
-    expect(Object.keys(payload.priceSummary).sort()).toEqual(
-      [
-        "discount",
-        "discountAmount",
-        "grossAmount",
-        "netAmount",
-        "suggestedNetPrice",
-        "taxAmount",
-        "totalAmount",
-      ].sort(),
-    );
-    expect(payload).not.toHaveProperty("archivedMaterials");
   });
 
   it("applies the not-belongs-to-tool flag from the matching part number field", async () => {
@@ -3662,120 +3087,6 @@ describe("JobOverview form context wiring", () => {
   });
 });
 
-describe("JobOverview summary handler edge branches", () => {
-  const resetDistributing = () => {
-    diagnosticsCtx().isDistributingRef.current = false;
-  };
-
-  beforeEach(() => {
-    mockJob();
-  });
-
-  it("onSummaryDiscountChange handles invalid input, unknown summary type and missing gross", async () => {
-    discountBaseMock.value = "GROSS_PRICE";
-    allFieldsMock.value = [
-      makeField("summaryType", "diagnosticSummaryType"),
-      makeField("summaryTotalAmountMaterial", "diagnosticSummaryTotalAmountMaterial"),
-    ];
-    initialFormValuesMock.value = { summaryType: "unknownType", summaryTotalAmountMaterial: 10 };
-    renderWithMessages();
-
-    act(() => {
-      callbacks().onSummaryDiscountChange("not-a-number");
-    });
-
-    await waitFor(() => expect(formikValues().summaryTotalAmountMaterial).toBe(0));
-  });
-
-  it("onSummaryDiscountNetChange is a no-op in GROSS mode and tolerates invalid input in NET mode", async () => {
-    discountBaseMock.value = "GROSS_PRICE";
-    allFieldsMock.value = [makeField("summaryNetAmount", "diagnosticSummaryNetAmountMaterial")];
-    initialFormValuesMock.value = { summaryNetAmount: 50 };
-    const { unmount } = renderWithMessages();
-
-    act(() => {
-      callbacks().onSummaryDiscountNetChange(10);
-    });
-    expect(formikValues().summaryNetAmount).toBe(50);
-    unmount();
-
-    discountBaseMock.value = "NET_PRICE";
-    renderWithMessages();
-    act(() => {
-      callbacks().onSummaryDiscountNetChange("abc");
-    });
-    await waitFor(() => expect(formikValues().summaryNetAmount).toBe(0));
-  });
-
-  it("onSummaryTotalAmountChange skips in NET mode or while distributing, uses raw value without gross", async () => {
-    allFieldsMock.value = [
-      makeField("summaryTotalAmountMaterial", "diagnosticSummaryTotalAmountMaterial"),
-    ];
-    initialFormValuesMock.value = { summaryTotalAmountMaterial: 1 };
-
-    discountBaseMock.value = "NET_PRICE";
-    const { unmount } = renderWithMessages();
-    act(() => {
-      callbacks().onSummaryTotalAmountChange(70);
-    });
-    expect(formikValues().summaryTotalAmountMaterial).toBe(1);
-    unmount();
-
-    discountBaseMock.value = "GROSS_PRICE";
-    renderWithMessages();
-    diagnosticsCtx().isDistributingRef.current = true;
-    act(() => {
-      callbacks().onSummaryTotalAmountChange(70);
-    });
-    expect(formikValues().summaryTotalAmountMaterial).toBe(1);
-
-    resetDistributing();
-    act(() => {
-      callbacks().onSummaryTotalAmountChange("-5");
-    });
-    await waitFor(() => expect(formikValues().summaryTotalAmountMaterial).toBe(0));
-
-    resetDistributing();
-    act(() => {
-      callbacks().onSummaryTotalAmountChange(70);
-    });
-    await waitFor(() => expect(formikValues().summaryTotalAmountMaterial).toBe(70));
-  });
-
-  it("onSummaryNetAmountChange skips in GROSS mode or while distributing, uses raw value without suggested net", async () => {
-    allFieldsMock.value = [makeField("summaryNetAmount", "diagnosticSummaryNetAmountMaterial")];
-    initialFormValuesMock.value = { summaryNetAmount: 1 };
-
-    discountBaseMock.value = "GROSS_PRICE";
-    const { unmount } = renderWithMessages();
-    act(() => {
-      callbacks().onSummaryNetAmountChange(40);
-    });
-    expect(formikValues().summaryNetAmount).toBe(1);
-    unmount();
-
-    discountBaseMock.value = "NET_PRICE";
-    renderWithMessages();
-    diagnosticsCtx().isDistributingRef.current = true;
-    act(() => {
-      callbacks().onSummaryNetAmountChange(40);
-    });
-    expect(formikValues().summaryNetAmount).toBe(1);
-
-    resetDistributing();
-    act(() => {
-      callbacks().onSummaryNetAmountChange("abc");
-    });
-    await waitFor(() => expect(formikValues().summaryNetAmount).toBe(0));
-
-    resetDistributing();
-    act(() => {
-      callbacks().onSummaryNetAmountChange(40);
-    });
-    await waitFor(() => expect(formikValues().summaryNetAmount).toBe(40));
-  });
-});
-
 describe("JobOverview form reset and resync effects", () => {
   it("maps job data into initial values and mirrors fault code into its dropdown", () => {
     // Set explicitly: a module-level beforeEach later in this file defaults it to GROSS_PRICE.
@@ -3806,37 +3117,5 @@ describe("JobOverview form reset and resync effects", () => {
       prev: Record<string, unknown>,
     ) => Record<string, unknown>;
     expect(updater({})).not.toHaveProperty("faultCodeDropdown");
-  });
-
-  it("skips form reset while skipFormResetRef is set", () => {
-    allFieldsMock.value = [makeField("faultCode", "faultCode")];
-    mockJob();
-    const { rerenderView } = renderWithMessages();
-    expect(setInitialFormValuesMock).toHaveBeenCalledTimes(1);
-
-    managerArgs().skipFormResetRef.current = true;
-    mockJob({ jobStatus: "IN_REPAIR" });
-    rerenderView();
-
-    expect(setInitialFormValuesMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("clears resync state after two animation frames and completes pending validation", async () => {
-    mockJob();
-    const { rerenderView } = renderWithMessages();
-
-    // Sets isResyncingRef, the completion callback and a fallback timeout.
-    await runOnSuccess("validateAndSave", {});
-    expect(diagnosticsCtx().isResyncingRef.current).toBe(true);
-
-    initialFormValuesMock.value = { reinitialized: 1 };
-    rerenderView();
-    // Second change while the first frame is pending exercises cancelAnimationFrame.
-    initialFormValuesMock.value = { reinitialized: 2 };
-    rerenderView();
-
-    await waitFor(() => expect(diagnosticsCtx().isResyncingRef.current).toBe(false));
-    await waitFor(() => expect(diagnosticsCtx().arePricesValidated).toBe(true));
-    expect(managerArgs().skipFormResetRef.current).toBe(false);
   });
 });

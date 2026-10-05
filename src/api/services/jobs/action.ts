@@ -5,6 +5,7 @@ import {
   JobList,
   JobOverviewItem,
   Message,
+  SummaryDetail,
 } from "modules/JobManagement/JobList/JobList.types";
 import { JobColumnConfiguration } from "modules/JobManagement/JobList/JobListTable/JobListColumns.config";
 import { AxiosResponse } from "axios";
@@ -311,6 +312,18 @@ export interface ValidateAndSaveResponse {
     totalAmount: number;
     discountAmount?: number;
   };
+  priceSummaryDetailed?: {
+    total?: {
+      discount: number;
+      grossAmount: number;
+      netAmount: number;
+      suggestedNetPrice: number;
+      taxAmount: number;
+      totalAmount: number;
+      discountAmount?: number;
+    };
+    byJobType: SummaryDetail[];
+  };
 }
 
 export const postValidateAndSave = async (
@@ -318,13 +331,25 @@ export const postValidateAndSave = async (
   payload: Record<string, unknown>,
 ): Promise<ValidateAndSaveResponse> => {
   try {
-    const response = await axiosClient.post(`/v1/jobs/flow/validate-and-save`, {
+    const response = await axiosClient.post(`/v2/jobs/flow/validate-and-save`, {
       jobId,
       ...payload,
     });
     return response.data;
   } catch (error) {
     console.error(`Error validating and saving job ${jobId}:`, error);
+    throw error;
+  }
+};
+
+export const postRecalculatePrices = async (
+  payload: Record<string, unknown>,
+): Promise<ValidateAndSaveResponse> => {
+  try {
+    const response = await axiosClient.post(`/v1/diagnostic/prices/recalculate`, payload);
+    return response.data;
+  } catch (error) {
+    console.error(`Error recalculate prices: `, error);
     throw error;
   }
 };

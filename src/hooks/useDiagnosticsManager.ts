@@ -9,13 +9,12 @@ import type { GenericOptionProps } from "components/generics/Field/GenericField.
 import Field from "components/generics/Field/GenericField.types";
 import Section from "components/generics/Section/GenericSection.types";
 import Area from "components/generics/Area/GenericArea.types";
-import type { RefObject } from "react";
+import type { RefObject, Dispatch, SetStateAction } from "react";
 import {
   setDuplicatedArea,
   mapFieldToFieldMapping,
   syncFieldsToTabs,
 } from "components/generics/utils";
-import { calculatePrices } from "utils/priceCalculator";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { useBareSalesRelation } from "api/services/bareSalesRelation/hooks";
@@ -23,6 +22,11 @@ import { PERMISSIONS } from "utils/Permissions";
 import type { HeaderUserData } from "api/services/header/action";
 import { MessagesContext } from "../contexts/messagescontext";
 import { scrollToTop } from "../utils/scrollToError";
+import {
+  SummaryDetail,
+  SummaryDetailAll,
+  SummaryPrice,
+} from "@/modules/JobManagement/JobList/JobList.types";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -52,6 +56,16 @@ export interface MaterialItem {
   isPriceSetManually?: boolean;
   reimbursementPaymentMethod?: string | null;
 }
+
+const ZERO_SUMMARY_PRICE: SummaryPrice = {
+  discount: 0,
+  grossAmount: 0,
+  netAmount: 0,
+  suggestedNetPrice: 0,
+  taxAmount: 0,
+  totalAmount: 0,
+  discountAmount: 0,
+};
 
 // ── Diagnostic field helpers ───────────────────────────────────────────────
 
@@ -162,46 +176,11 @@ enum QuantitySource {
   FAULT_CODES = "FAULT_CODES",
   USER = "USER",
 }
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-const computePricesForItem = (item: MaterialItem, mode?: discountBase): MaterialItem => {
-  if (item.unitPrice <= 0) return item;
-  const result = calculatePrices(
-    {
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      taxPercent: item.tax,
-      discountPercent: item.discount,
-      grossAmount: 0,
-      netAmount: 0,
-      suggestedNetPrice: 0,
-      totalAmount: 0,
-      taxAmount: 0,
-    },
-    "unitPrice",
-    item.unitPrice,
-    mode,
-  );
-  return {
-    ...item,
-    netAmount: result.netAmount,
-    suggestedNetPrice: result.suggestedNetPrice,
-    tax: result.taxPercent,
-    taxAmount: result.taxAmount,
-    grossAmount: result.grossAmount,
-    discount: result.discountPercent,
-    discountAmount: result.discountAmount,
-    totalAmount: result.totalAmount,
-  };
-};
-
 const buildEmptyMaterial = (
   position: string,
   jobType: string,
   quantity: number,
   t: TFunction<"translation", "app">,
-  mode?: discountBase,
 ): MaterialItem => {
   const autofill = getPositionAutofill(t)[position];
   const base: MaterialItem = {
@@ -221,7 +200,7 @@ const buildEmptyMaterial = (
     order: 0,
     isPriceSetManually: false,
   };
-  return computePricesForItem(base, mode);
+  return base;
 };
 
 /** Write a MaterialItem's values into the duplicate area's fields via subtype. */
@@ -272,6 +251,53 @@ export const buildRowValues = (
     {} as Record<string, unknown>,
   );
 };
+/** subtype → value for the fields shared by diagnosticsSummaryTotal and each
+ *  diagnosticsSummaryDetailed row's own "total" breakdown. */
+const mapSummaryPriceSubtypes = (price: Partial<SummaryPrice>): Record<string, unknown> => ({
+  diagnosticSummarySuggestedNetPrice: price.suggestedNetPrice,
+  diagnosticSummaryDiscountNet: price.discount,
+  diagnosticSummaryNetAmount: price.netAmount,
+  diagnosticSummaryTaxAmount: price.taxAmount,
+  diagnosticSummaryGrossAmount: price.grossAmount,
+  diagnosticSummaryDiscount: price.discount,
+  diagnosticSummaryTotalAmount: price.totalAmount,
+});
+
+const mapAreaFields = (
+  areaFields: Field[],
+  mappingSubtype: Record<string, unknown>,
+): Record<string, unknown> =>
+  areaFields.reduce(
+    (acc, field) => {
+      acc[field.name] = mappingSubtype[field.subtype ?? ""] ?? field.defaultValue ?? "";
+      return acc;
+    },
+    {} as Record<string, unknown>,
+  );
+
+export const getSummaryDetailedRowValues = (
+  areaFields: Field[],
+  item: SummaryDetail,
+): Record<string, unknown> => {
+  const total = item.total ?? ({} as Partial<SummaryPrice>);
+  const materialRelated = item.materialRelated ?? ({} as Partial<SummaryPrice>);
+  return mapAreaFields(areaFields, {
+    ...mapSummaryPriceSubtypes(total),
+    summaryDetailedJobType: item.jobType,
+    diagnosticSummaryDiscountNetMaterial: materialRelated.discount,
+    diagnosticSummaryNetAmountMaterial: materialRelated.netAmount,
+    diagnosticSummaryTaxAmountMaterial: materialRelated.taxAmount,
+    diagnosticSummaryGrossAmountMaterial: materialRelated.grossAmount,
+    diagnosticSummaryDiscountMaterial: materialRelated.discount,
+    diagnosticSummaryTotalAmountMaterial: materialRelated.totalAmount,
+  });
+};
+
+/** Maps priceSummaryDetailed.total onto the single, non-duplicated diagnosticsSummaryTotal area. */
+export const getSummaryTotalRowValues = (
+  areaFields: Field[],
+  total?: SummaryPrice,
+): Record<string, unknown> => mapAreaFields(areaFields, mapSummaryPriceSubtypes(total ?? {}));
 
 /** Overlay status and type fields onto an existing values map from the current form state. */
 function applyStatusAndTypeOverrides(
@@ -306,6 +332,25 @@ function shouldReuseExistingRowValues(params: {
   if (livePosition !== expectedPosition) return false;
   if (forceRebuild) return false;
   return !rowHasNoPrices;
+}
+
+export function buildSummaryDetailedRowValues(params: {
+  details?: SummaryDetail[];
+  areas: Area[];
+  fields: Field[];
+}): Record<string, unknown> {
+  const { details, areas, fields } = params;
+  let rowValues: Record<string, unknown> = {};
+  details?.forEach((item, idx) => {
+    const area = areas[idx];
+    if (!area) return;
+
+    const areaFieldNameSet = new Set(area.fields.map((af) => af.name));
+    const areaFields = fields.filter((f) => areaFieldNameSet.has(f.name));
+    rowValues = { ...rowValues, ...getSummaryDetailedRowValues(areaFields, item) };
+  });
+
+  return rowValues;
 }
 
 export function buildMaterialsRowValues(params: {
@@ -417,13 +462,13 @@ function withSpecialMaterialSpOption(params: {
 
 function computeFinalSparePartsAreas(
   needed: number,
-  sparePartsAreas: Area[],
+  oldAreas: Area[],
   newAreas: Area[],
   removeAreaNames: Set<string>,
 ): Area[] {
-  if (needed > 0) return [...sparePartsAreas, ...newAreas];
-  if (needed < 0) return sparePartsAreas.filter((a) => !removeAreaNames.has(a.name));
-  return sparePartsAreas;
+  if (needed > 0) return [...oldAreas, ...newAreas];
+  if (needed < 0) return oldAreas.filter((a) => !removeAreaNames.has(a.name));
+  return oldAreas;
 }
 
 function removeDiagnosticsAreas(tab: Section, removeAreaNames: Set<string>): Section {
@@ -536,7 +581,12 @@ export const syncMaterialsWithForm = (
 
 interface UseDiagnosticsManagerProps {
   diagnosticData:
-    | { jobId?: string; materials?: unknown[]; archivedMaterials?: unknown[] }
+    | {
+        jobId?: string;
+        materials?: unknown[];
+        archivedMaterials?: unknown[];
+        priceSummaryDetailed?: unknown;
+      }
     | undefined;
   currentActionType: string;
   currentJobType: string;
@@ -550,7 +600,7 @@ interface UseDiagnosticsManagerProps {
   arePricesValidated: boolean;
   setArePricesValidated: React.Dispatch<React.SetStateAction<boolean>>;
   /** When set, will be flipped to true during initial load when all materials have IDs (prices from DB). */
-  isResyncingRef?: RefObject<boolean>;
+  // isResyncingRef?: RefObject<boolean>;
   /** When true, Effect 2 (rule-change rebuild) is skipped so API-loaded materials are preserved. */
   readOnly?: boolean;
   jobStatus?: string;
@@ -558,6 +608,8 @@ interface UseDiagnosticsManagerProps {
 
 export interface UseDiagnosticsManagerReturn {
   materials: MaterialItem[];
+  priceSummaryDetailedByJobType: SummaryDetail[];
+  setPriceSummaryDetailedByJobType: React.Dispatch<React.SetStateAction<SummaryDetail[]>>;
   apiMaterialsLoaded: boolean;
   apiMaterialsEmpty: boolean;
   hasExistingDiagnostic: boolean;
@@ -581,7 +633,7 @@ export interface UseDiagnosticsManagerReturn {
   markAllValidated: () => void;
   markRowDirty: (areaIndex: number) => void;
   enableValidate: () => boolean;
-  resyncMaterialsFromAPI: (markValidated?: boolean) => void;
+  // resyncMaterialsFromAPI: (markValidated?: boolean) => void;
   setRevisedRejectedRowPending: (areaName: string) => void;
   canArchiveOnDelete: boolean;
 }
@@ -612,7 +664,6 @@ export const useDiagnosticsManager = ({
   formValuesRef,
   arePricesValidated,
   setArePricesValidated,
-  isResyncingRef,
   readOnly = false,
   jobStatus = "",
 }: UseDiagnosticsManagerProps): UseDiagnosticsManagerReturn => {
@@ -722,14 +773,14 @@ export const useDiagnosticsManager = ({
     [allowedPositions, resolveFaultCodesQuantity],
   );
 
-  // ── Source-of-truth list ─────────────────────────────────────────────────
   const [materials, setMaterials] = useState<MaterialItem[]>([]);
   const [archivedMaterials, setArchivedMaterials] = useState<MaterialItem[]>([]);
+  const [priceSummaryDetailed, setPriceSummaryDetailed] = useState<SummaryDetailAll>();
+
   const [apiMaterialsLoaded, setApiMaterialsLoaded] = useState(false);
   const [apiMaterialsEmpty, setApiMaterialsEmpty] = useState(false);
   const hasExistingDiagnostic = Boolean(diagnosticData?.jobId);
 
-  // Stable refs so effects don't re-run when callbacks change
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
   const allFieldsRef = useRef(allFields);
@@ -753,6 +804,7 @@ export const useDiagnosticsManager = ({
 
   const hasSyncedFromAPIRef = useRef(false);
   const hasSyncedArchivedRef = useRef(false);
+  const hasSyncedSummaryDetailedRef = useRef(false);
   const forceRebuildRef = useRef(false);
   const archivedForceRebuildRef = useRef(false);
   const jobStatusRef = useRef(jobStatus);
@@ -767,6 +819,8 @@ export const useDiagnosticsManager = ({
   const archivedMaterialsRef = useRef(archivedMaterials);
   archivedMaterialsRef.current = archivedMaterials;
   const archivedTemplateRef = useRef<Area | null>(null);
+  const priceSummaryDetailedRef = useRef(priceSummaryDetailed);
+  priceSummaryDetailedRef.current = priceSummaryDetailed;
 
   const baretoolNumberField = allFields?.find((x) => x.subtype === "baretoolNumber");
   const baretoolNumber = baretoolNumberField
@@ -792,29 +846,17 @@ export const useDiagnosticsManager = ({
     position: string,
     description: string,
     price: Record<string, unknown>,
-    mode: discountBase,
   ) => {
     const quantity = Number(m.quantity) || 1;
     const unitPrice = Number(price.unitPrice) || 0;
     const taxPercent = Number(price.tax) || 0;
-    const discountPercent = Number(price.discount) || 0;
-
-    const calculated = calculatePrices(
-      {
-        quantity,
-        unitPrice,
-        taxPercent,
-        discountPercent,
-        suggestedNetPrice: 0,
-        netAmount: 0,
-        grossAmount: 0,
-        totalAmount: 0,
-        taxAmount: 0,
-      },
-      "unitPrice",
-      unitPrice,
-      mode,
-    );
+    const discount = Number(price.discount) || 0;
+    const netAmount = Number(price.netAmount) || 0;
+    const taxAmount = Number(price.taxAmount) || 0;
+    const grossAmount = Number(price.grossAmount) || 0;
+    const discountAmount = Number(price.discountAmount) || 0;
+    const totalAmount = Number(price.totalAmount) || 0;
+    const suggestedNetPrice = Number(price.suggestedNetPrice) || 0;
 
     return {
       position,
@@ -823,14 +865,14 @@ export const useDiagnosticsManager = ({
       type: (m.jobType as string) ?? "",
       quantity,
       unitPrice,
-      netAmount: calculated.netAmount,
+      netAmount,
       tax: taxPercent,
-      taxAmount: calculated.taxAmount,
-      grossAmount: calculated.grossAmount,
-      discount: calculated.discountPercent,
-      discountAmount: calculated.discountAmount,
-      totalAmount: calculated.totalAmount,
-      suggestedNetPrice: calculated.suggestedNetPrice,
+      taxAmount,
+      grossAmount,
+      discount,
+      discountAmount,
+      totalAmount,
+      suggestedNetPrice,
       status: (m.status as string) ?? undefined,
       materialId: (m.id as string) ?? undefined,
       isValidated: shouldMarkValidatedRef.current,
@@ -840,23 +882,68 @@ export const useDiagnosticsManager = ({
     };
   };
   // Reset on new job
+  //needs work
   useEffect(() => {
     hasSyncedFromAPIRef.current = false;
     hasSyncedArchivedRef.current = false;
+    hasSyncedSummaryDetailedRef.current = false;
     prevRuleKeyRef.current = "";
     prAutofillAppliedRef.current = false;
     setApiMaterialsLoaded(false);
     setApiMaterialsEmpty(false);
     setMaterials([]);
     setArchivedMaterials([]);
+    setPriceSummaryDetailed(undefined);
   }, [diagnosticData?.jobId]);
 
+  //this is OK
   useEffect(() => {
     if (!diagnosticData) return;
     setApiMaterialsLoaded(true);
     const apiMaterials = diagnosticData.materials;
     setApiMaterialsEmpty(!apiMaterials || apiMaterials.length === 0);
   }, [diagnosticData]);
+
+  /** Maps raw API material records into MaterialItem[] (Bug 6 tax-preservation merge
+   *  included), sorted by order/position. Shared by Effect 1's diagnosticData-driven sync
+   *  and applyRecalculatedMaterials's direct, immediate apply from a mutation response. */
+  const buildMaterialsFromAPI = useCallback(
+    (apiMaterials: Array<Record<string, unknown>>): MaterialItem[] => {
+      const autofill = getPositionAutofill(tRef.current);
+      const items: MaterialItem[] = apiMaterials.map((m) => {
+        const position = (m.position as string) ?? "";
+        const price = (m.price as Record<string, unknown>) ?? {};
+        const description = autofill[position]?.description ?? (m.description as string) ?? "";
+        return mapPrice(m, position, description, price);
+      });
+      shouldMarkValidatedRef.current = false;
+
+      const allHaveIds = items.every((item) => !!item.materialId);
+      if (allHaveIds) {
+        items.forEach((item) => {
+          item.isValidated = true;
+        });
+      }
+
+      // Bug 6 fix: preserve tax for in-progress rows not yet returned by the API
+      const mergedItems = items.map((item) => {
+        if (item.materialId) return item; // API-sourced, use API tax
+        const existing = materialsRef.current.find(
+          (m) => m.position === item.position && !m.materialId,
+        );
+        if (existing && existing.tax > 0 && item.tax === 0) {
+          return { ...item, tax: existing.tax };
+        }
+        return item;
+      });
+
+      const sorted = sortMaterialsByOrder(mergedItems);
+
+      return sorted;
+    },
+    // [isResyncingRef],
+    [],
+  );
 
   // ── Effect 1: API data → materials list ───────────────────────────────────
   useEffect(() => {
@@ -865,48 +952,17 @@ export const useDiagnosticsManager = ({
 
     hasSyncedFromAPIRef.current = true;
 
-    const autofill = getPositionAutofill(tRef.current);
-    const items: MaterialItem[] = apiMaterials.map((m) => {
-      const position = (m.position as string) ?? "";
-      const price = (m.price as Record<string, unknown>) ?? {};
-      const description = autofill[position]?.description ?? (m.description as string) ?? "";
-      return mapPrice(m, position, description, price, discountBaseRef.current);
-    });
-    shouldMarkValidatedRef.current = false;
+    forceRebuildRef.current = false;
+    setMaterials(buildMaterialsFromAPI(apiMaterials));
+  }, [diagnosticData, buildMaterialsFromAPI, setArePricesValidated]);
 
-    // If every material already has an ID it was previously validated — prices exist in DB.
-    // Mark rows as validated so prices are visible, but always keep arePricesValidated=false
-    // on page load so the user must explicitly click Validate before proceeding.
-    const allHaveIds = items.every((item) => !!item.materialId);
-    if (allHaveIds) {
-      items.forEach((item) => {
-        item.isValidated = true;
-      });
-      // Set isResyncingRef so useSparePartPriceCalculation skips recalculation during
-      // Formik reinitialization, preventing onUserEdit from zeroing out prices or
-      // calling markRowDirty which would flip arePricesValidated back to false.
-      if (isResyncingRef) {
-        isResyncingRef.current = true;
-      }
-    }
+  useEffect(() => {
+    const priceSummary = diagnosticData?.priceSummaryDetailed as SummaryDetailAll;
+    if (!priceSummary?.byJobType?.length || hasSyncedSummaryDetailedRef.current) return;
 
-    // Bug 6 fix: preserve tax for in-progress rows not yet returned by the API
-    const mergedItems = items.map((item) => {
-      if (item.materialId) return item; // API-sourced, use API tax
-      const existing = materialsRef.current.find(
-        (m) => m.position === item.position && !m.materialId,
-      );
-      if (existing && existing.tax > 0 && item.tax === 0) {
-        return { ...item, tax: existing.tax };
-      }
-      return item;
-    });
-
-    // Signal Effect 3 to force a full rebuild so field components always
-    // re-render with fresh API data, even when the row count hasn't changed.
-    forceRebuildRef.current = true;
-    setMaterials(sortMaterialsByOrder(mergedItems));
-  }, [diagnosticData, isResyncingRef, setArePricesValidated]);
+    hasSyncedSummaryDetailedRef.current = true;
+    setPriceSummaryDetailed(priceSummary);
+  }, [diagnosticData]);
 
   // ── Effect 1b: API archived data → archivedMaterials list ─────────────────
   useEffect(() => {
@@ -921,7 +977,7 @@ export const useDiagnosticsManager = ({
       const position = (m.position as string) ?? "";
       const price = (m.price as Record<string, unknown>) ?? {};
       const description = (m.description as string) ?? "";
-      return mapPrice(m, position, description, price, discountBaseRef.current);
+      return mapPrice(m, position, description, price);
     });
 
     archivedForceRebuildRef.current = true;
@@ -965,13 +1021,7 @@ export const useDiagnosticsManager = ({
       const positionsToAdd = sortByPositionOrder(automatic.filter((pos) => allowedSet.has(pos)));
       const automaticItems = positionsToAdd.map((pos) => {
         const qty = getQuantityForPositionRef.current(pos, faultCode, faultCodeLabourQty) ?? 1;
-        const item = buildEmptyMaterial(
-          pos,
-          currentJobType,
-          qty,
-          tRef.current,
-          discountBaseRef.current,
-        );
+        const item = buildEmptyMaterial(pos, currentJobType, qty, tRef.current);
         if (pos === "PN") {
           prAutofillAppliedRef.current = false;
           const salesData = bareSalesDataRef.current;
@@ -1279,18 +1329,148 @@ export const useDiagnosticsManager = ({
   }, [positionDropdownOptions, allFields, setAllFields, setTabs, formValuesRef, skipFormResetRef]);
 
   // ── Public callbacks ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!priceSummaryDetailed) return;
+    if (!priceSummaryDetailed?.byJobType?.length) return;
+    const byJobType = priceSummaryDetailed?.byJobType;
+    const currentTabs = tabsRef.current;
+    const currentFields = allFieldsRef.current ?? [];
 
-  const onAddRow = useCallback((formValues?: Record<string, unknown>) => {
-    if (!formValues) return;
-    const perms = userPermissionsRef.current;
-    const hasPositionPermission = (position: string): boolean => {
-      const required =
-        POSITION_INSERT_PERMISSIONS[position as keyof typeof POSITION_INSERT_PERMISSIONS];
-      if (!required) return true;
-      return perms.includes(required);
-    };
-    const allowed = allowedPositionsRef.current.filter((p) => hasPositionPermission(p.position));
-    if (allowed.length > 0) {
+    const diagnosticTab = currentTabs.find((t) => t.name === "diagnosticData");
+    if (!diagnosticTab) return;
+
+    const diagnosticsSummaryDetailed = diagnosticTab.areas.filter(
+      (a) => a.isMultiple && a.name.includes("diagnosticsSummaryDetailed"),
+    );
+
+    const templateArea = diagnosticsSummaryDetailed[0];
+
+    if (!templateArea) return;
+    const currentCount = diagnosticsSummaryDetailed.length;
+    const targetCount = Number(byJobType?.length || 0);
+    const needed = targetCount - currentCount;
+    const newAreas: Area[] = [];
+    let removeAreaNames = new Set<string>();
+    let removeFieldNames = new Set<string>();
+
+    let updatedFields = [...currentFields];
+
+    if (needed > 0) {
+      const maxIndex = diagnosticsSummaryDetailed.reduce(
+        (max, a) => Math.max(max, a.index ?? 0),
+        0,
+      );
+
+      for (let i = 0; i < needed; i++) {
+        const cloned = structuredClone(templateArea);
+        cloned.label = "";
+        const area = setDuplicatedArea(cloned, maxIndex + 1 + i, diagnosticTab.name);
+        const areaFields = area.fields.map((f) => mapFieldToFieldMapping(f));
+        newAreas.push(area);
+        updatedFields = [...updatedFields, ...areaFields];
+      }
+    } else if (needed < 0) {
+      // Remove excess areas (from the end, beyond index 0)
+      const toRemove = diagnosticsSummaryDetailed.slice(targetCount);
+      removeAreaNames = new Set(toRemove.map((a) => a.name));
+      removeFieldNames = new Set(toRemove.flatMap((a) => a.fields.map((f) => f.name)));
+      updatedFields = currentFields.filter((f) => !removeFieldNames.has(f.name));
+    }
+
+    const finalSparePartsAreas = computeFinalSparePartsAreas(
+      needed,
+      diagnosticsSummaryDetailed,
+      newAreas,
+      removeAreaNames,
+    );
+
+    const rowValues = buildSummaryDetailedRowValues({
+      details: byJobType,
+      areas: finalSparePartsAreas,
+      fields: updatedFields,
+    });
+
+    if (needed !== 0 || forceRebuildRef.current) {
+      skipFormResetRef.current = true;
+
+      if (needed > 0) {
+        const addedFields = updatedFields.slice(currentFields.length);
+        setAllFields((prev) => [...(prev ?? []), ...addedFields]);
+        setTabs((prev) =>
+          prev.map((tab) =>
+            tab.name === "diagnosticData" ? { ...tab, areas: [...tab.areas, ...newAreas] } : tab,
+          ),
+        );
+      } else if (needed < 0) {
+        setAllFields((prev) => (prev ?? []).filter((f) => !removeFieldNames.has(f.name)));
+        setTabs((prev) => prev.map((tab) => removeDiagnosticsAreas(tab, removeAreaNames)));
+      }
+    }
+
+    if (forceRebuildRef.current) {
+      setInitialFormValues((prev) => ({ ...prev, ...rowValues }));
+    } else {
+      const currentFormWithoutRowFields = Object.fromEntries(
+        Object.entries(formValuesRef.current).filter(
+          ([k, v]) =>
+            !k.startsWith("diagnosticData_diagnosticsSummaryDetailed") &&
+            v !== "" &&
+            v !== null &&
+            v !== undefined,
+        ),
+      );
+      setInitialFormValues((prev) => ({ ...prev, ...currentFormWithoutRowFields, ...rowValues }));
+    }
+    forceRebuildRef.current = false;
+  }, [
+    formValuesRef,
+    priceSummaryDetailed,
+    priceSummaryDetailed?.byJobType,
+    setAllFields,
+    setInitialFormValues,
+    setTabs,
+    skipFormResetRef,
+  ]);
+
+  // ── priceSummaryDetailed.total → diagnosticsSummaryTotal field values ──────
+  // Independent of byJobType: total must populate (and stay populated) whenever
+  // priceSummaryDetailed syncs, whether or not there's a byJobType breakdown.
+  useEffect(() => {
+    if (!priceSummaryDetailed) return;
+
+    const diagnosticTab = tabsRef.current.find((t) => t.name === "diagnosticData");
+    const totalArea = diagnosticTab?.areas.find((a) => a.name.includes("diagnosticsSummaryTotal"));
+    if (!totalArea) return;
+
+    const rowValues = getSummaryTotalRowValues(totalArea.fields, priceSummaryDetailed.total);
+    setInitialFormValues((prev) => ({ ...prev, ...rowValues }));
+  }, [priceSummaryDetailed, setInitialFormValues]);
+
+  const onAddRow = useCallback(
+    (formValues?: Record<string, unknown>) => {
+      if (!formValues) return;
+      const perms = userPermissionsRef.current;
+      const hasPositionPermission = (position: string): boolean => {
+        const required =
+          POSITION_INSERT_PERMISSIONS[position as keyof typeof POSITION_INSERT_PERMISSIONS];
+        if (!required) return true;
+        return perms.includes(required);
+      };
+      const allowed = allowedPositionsRef.current.filter((p) => hasPositionPermission(p.position));
+      if (allowed.length > 0) {
+        const current = allFieldsRef.current ?? [];
+        const positionCounts: Record<string, number> = {};
+        current
+          .filter((f) => f.subtype === "diagnosticPosition")
+          .forEach((f) => {
+            const val = formValues[f.name] as string;
+            if (val) positionCounts[val] = (positionCounts[val] ?? 0) + 1;
+          });
+        const totalRows = Object.values(positionCounts).reduce((s, c) => s + c, 0);
+        const maxTotal = allowed.reduce((s, p) => s + p.maxCount, 0);
+        if (totalRows >= maxTotal) return;
+      }
+
       const current = allFieldsRef.current ?? [];
       const positionCounts: Record<string, number> = {};
       current
@@ -1299,49 +1479,34 @@ export const useDiagnosticsManager = ({
           const val = formValues[f.name] as string;
           if (val) positionCounts[val] = (positionCounts[val] ?? 0) + 1;
         });
-      const totalRows = Object.values(positionCounts).reduce((s, c) => s + c, 0);
-      const maxTotal = allowed.reduce((s, p) => s + p.maxCount, 0);
-      if (totalRows >= maxTotal) return;
-    }
 
-    const current = allFieldsRef.current ?? [];
-    const positionCounts: Record<string, number> = {};
-    current
-      .filter((f) => f.subtype === "diagnosticPosition")
-      .forEach((f) => {
-        const val = formValues[f.name] as string;
-        if (val) positionCounts[val] = (positionCounts[val] ?? 0) + 1;
+      const nextPosition =
+        [...allowed]
+          .sort(
+            (a, b) =>
+              (POSITION_ORDER[a.position] ?? Number.MAX_SAFE_INTEGER) -
+              (POSITION_ORDER[b.position] ?? Number.MAX_SAFE_INTEGER),
+          )
+          .find((p) => (positionCounts[p.position] ?? 0) < p.maxCount)?.position ?? "";
+
+      const qty = nextPosition
+        ? (getQuantityForPositionRef.current(
+            nextPosition,
+            (formValues.faultCode as string) ?? "",
+            Number(formValues.faultCodeLabourQuantity) || 0,
+          ) ?? 1)
+        : 1;
+      const newItem = {
+        ...buildEmptyMaterial(nextPosition, "", qty, tRef.current),
+      };
+      setMaterials((prev) => {
+        const syncedMaterials = syncMaterialsWithForm(prev, formValues);
+        return normalizeMaterialOrders([...syncedMaterials, newItem]);
       });
-
-    const nextPosition =
-      [...allowed]
-        .sort(
-          (a, b) =>
-            (POSITION_ORDER[a.position] ?? Number.MAX_SAFE_INTEGER) -
-            (POSITION_ORDER[b.position] ?? Number.MAX_SAFE_INTEGER),
-        )
-        .find((p) => (positionCounts[p.position] ?? 0) < p.maxCount)?.position ?? "";
-
-    const qty = nextPosition
-      ? (getQuantityForPositionRef.current(
-          nextPosition,
-          (formValues.faultCode as string) ?? "",
-          Number(formValues.faultCodeLabourQuantity) || 0,
-        ) ?? 1)
-      : 1;
-
-    // Bug 6 fix: use tax from existing validated rows as default for new rows
-    const defaultTax = materialsRef.current.find((m) => m.tax > 0)?.tax ?? 0;
-    const newItem = {
-      ...buildEmptyMaterial(nextPosition, "", qty, tRef.current, discountBaseRef.current),
-      tax: defaultTax,
-    };
-
-    setMaterials((prev) => {
-      const syncedMaterials = syncMaterialsWithForm(prev, formValues);
-      return normalizeMaterialOrders([...syncedMaterials, newItem]);
-    });
-  }, []);
+      setArePricesValidated(false);
+    },
+    [setArePricesValidated],
+  );
 
   const onDeleteRow = useCallback(
     (areaName: string) => {
@@ -1455,15 +1620,22 @@ export const useDiagnosticsManager = ({
             totalAmount: 0,
             origin: m.origin,
           };
-          return computePricesForItem(base, discountBaseRef.current);
+          return base;
         });
 
       if (toAdd.length === 0) return;
+      let emptySlotsToReplace = toAdd.length;
       setMaterials((prev) => {
-        return normalizeMaterialOrders([...prev, ...toAdd]);
+        const filteredPrev = prev.filter((m) => {
+          if (m.partNumber !== "" || emptySlotsToReplace <= 0) return true;
+          emptySlotsToReplace -= 1;
+          return false;
+        });
+        return normalizeMaterialOrders([...filteredPrev, ...toAdd]);
       });
+      setArePricesValidated(false);
     },
-    [formValuesRef],
+    [formValuesRef, setArePricesValidated],
   );
 
   const onRestoreRow = useCallback(
@@ -1539,9 +1711,11 @@ export const useDiagnosticsManager = ({
   );
 
   const markAllValidated = useCallback(() => {
+    setArePricesValidated(true);
     setMaterials((prev) => prev.map((m) => ({ ...m, isValidated: true })));
+
     pendingArchivedDeletionsRef.current = 0;
-  }, []);
+  }, [setArePricesValidated]);
 
   const markRowDirty = useCallback(
     (areaIndex: number) => {
@@ -1558,18 +1732,6 @@ export const useDiagnosticsManager = ({
 
     return !arePricesValidated;
   }, [arePricesValidated]);
-
-  const resyncMaterialsFromAPI = useCallback(
-    (markValidated = false) => {
-      hasSyncedFromAPIRef.current = false;
-      hasSyncedArchivedRef.current = false;
-      forceRebuildRef.current = true;
-      archivedForceRebuildRef.current = true;
-      if (markValidated) shouldMarkValidatedRef.current = true;
-      skipFormResetRef.current = true;
-    },
-    [skipFormResetRef],
-  );
 
   /** Returns the positional index of an area inside the sparePartsAreas array. */
   const getAreaPositionalIndex = useCallback((areaName: string): number => {
@@ -1605,8 +1767,23 @@ export const useDiagnosticsManager = ({
     );
   }, []);
 
+  const setPriceSummaryDetailedByJobType = useCallback<Dispatch<SetStateAction<SummaryDetail[]>>>(
+    (update) => {
+      setPriceSummaryDetailed((prev) => ({
+        total: prev?.total ?? ZERO_SUMMARY_PRICE,
+        byJobType:
+          typeof update === "function"
+            ? (update as (prev: SummaryDetail[]) => SummaryDetail[])(prev?.byJobType ?? [])
+            : update,
+      }));
+    },
+    [],
+  );
+
   return {
     materials,
+    priceSummaryDetailedByJobType: priceSummaryDetailed?.byJobType ?? [],
+    setPriceSummaryDetailedByJobType,
     apiMaterialsLoaded,
     apiMaterialsEmpty,
     hasExistingDiagnostic,
@@ -1626,7 +1803,7 @@ export const useDiagnosticsManager = ({
     markAllValidated,
     markRowDirty,
     enableValidate,
-    resyncMaterialsFromAPI,
+    //   resyncMaterialsFromAPI,
     setRevisedRejectedRowPending,
     canArchiveOnDelete: !STATUSES_WITH_PERMANENT_DELETE.includes(jobStatus),
   };

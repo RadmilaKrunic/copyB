@@ -124,9 +124,29 @@ export interface WarrantyInformation {
   allowedWarrantyRepairCount?: number | null;
   evaluation?: WarrantyEvaluation | null;
 }
+export interface SummaryPrice {
+  discount: number;
+  grossAmount: number;
+  netAmount: number;
+  suggestedNetPrice: number;
+  taxAmount: number;
+  totalAmount: number;
+  discountAmount: number;
+}
+export interface SummaryDetail {
+  total: SummaryPrice;
+  jobType: string;
+  materialRelated: SummaryPrice;
+  serviceRelated: SummaryPrice;
+}
+
+export interface SummaryDetailAll {
+  total?: SummaryPrice;
+  byJobType?: SummaryDetail[];
+}
 
 export interface JobOverviewItem {
-  order: {
+  order?: {
     orderId: string;
     ascId: string;
     pickupType: string;
@@ -136,7 +156,7 @@ export interface JobOverviewItem {
     customerId: string;
     customer: Customer;
   };
-  job: {
+  job?: {
     jobId: string;
     orderId: string;
     assigneeID: string;
@@ -236,13 +256,6 @@ export interface JobDiagnostic {
       totalAmount: number;
     };
   }[];
-  priceSummary: {
-    discount: number;
-    grossAmount: number;
-    netAmount: number;
-    suggestedNetPrice: number;
-    taxAmount: number;
-    totalAmount: number;
-    discountAmount: number;
-  };
+  priceSummary?: SummaryPrice;
+  priceSummaryDetailed?: SummaryDetailAll;
 }

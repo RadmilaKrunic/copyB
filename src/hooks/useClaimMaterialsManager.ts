@@ -17,7 +17,6 @@ import {
   buildRowValues,
 } from "hooks/useDiagnosticsManager";
 import type { Material } from "modules/ClaimManagement/ClaimOverview/Claims.types";
-import { calculatePrices } from "utils/priceCalculator";
 import { PERMISSIONS } from "utils/Permissions";
 import type { HeaderUserData } from "api/services/header/action";
 
@@ -49,29 +48,18 @@ function computeClaimsFinalAreas(
   return sparePartsAreas;
 }
 
-const claimMaterialToMaterialItem = (m: Material, mode: discountBase): MaterialItem => {
+const claimMaterialToMaterialItem = (m: Material): MaterialItem => {
   const price = m.price ?? ({} as Material["price"]);
   const quantity = m.quantity ?? 1;
   const unitPrice = price?.unitPrice ?? 0;
   const taxPercent = price?.tax ?? 0;
-  const discountPercent = price?.discount ?? 0;
-
-  const calculated = calculatePrices(
-    {
-      quantity,
-      unitPrice,
-      taxPercent,
-      discountPercent,
-      suggestedNetPrice: price?.suggestedNetPrice ?? 0,
-      netAmount: price?.netAmount ?? 0,
-      grossAmount: price?.grossAmount ?? 0,
-      totalAmount: price?.totalAmount ?? 0,
-      taxAmount: price?.taxAmount ?? 0,
-    },
-    "unitPrice",
-    unitPrice,
-    mode,
-  );
+  const discount = price?.discount ?? 0;
+  const suggestedNetPrice = price?.suggestedNetPrice ?? 0;
+  const netAmount = price?.netAmount ?? 0;
+  const grossAmount = price?.grossAmount ?? 0;
+  const discountAmount = price?.discountAmount ?? 0;
+  const totalAmount = price?.totalAmount ?? 0;
+  const taxAmount = price?.taxAmount ?? 0;
 
   return {
     position: m.position ?? "",
@@ -80,14 +68,14 @@ const claimMaterialToMaterialItem = (m: Material, mode: discountBase): MaterialI
     type: m.jobType ?? "",
     quantity,
     unitPrice,
-    suggestedNetPrice: calculated.suggestedNetPrice,
-    netAmount: calculated.netAmount,
+    suggestedNetPrice,
+    netAmount,
     tax: taxPercent,
-    grossAmount: calculated.grossAmount,
-    discount: calculated.discountPercent,
-    discountAmount: calculated.discountAmount,
-    totalAmount: calculated.totalAmount,
-    taxAmount: calculated.taxAmount,
+    grossAmount,
+    discount,
+    discountAmount,
+    totalAmount,
+    taxAmount,
     status: m.status,
     isValidated: m.isValidated,
     order: Number(m.order) || 0,
@@ -129,6 +117,7 @@ const materialItemToMaterial = (item: MaterialItem): Material => ({
     grossAmount: item.grossAmount,
     discount: item.discount,
     totalAmount: item.totalAmount ?? 0,
+    discountAmount: item.discountAmount ?? 0,
   },
 });
 
@@ -168,7 +157,7 @@ export interface UseClaimMaterialsManagerProps {
   arePricesValidated: boolean;
   setArePricesValidated: Dispatch<SetStateAction<boolean>>;
   readOnly?: boolean;
-  isResyncingRef: RefObject<boolean>;
+  // isResyncingRef: RefObject<boolean>;
 }
 
 export interface UseClaimMaterialsManagerReturn {
@@ -213,7 +202,7 @@ export const useClaimMaterialsManager = ({
   formValuesRef,
   setArePricesValidated,
   readOnly = false,
-  isResyncingRef,
+  // isResyncingRef,
 }: UseClaimMaterialsManagerProps): UseClaimMaterialsManagerReturn => {
   const queryClient = useQueryClient();
 
@@ -310,7 +299,7 @@ export const useClaimMaterialsManager = ({
     if (hasSyncedRef.current && lastSyncedMaterialsRef.current === claimMaterials) return;
     hasSyncedRef.current = true;
     lastSyncedMaterialsRef.current = claimMaterials;
-    const items = claimMaterials.map((m) => claimMaterialToMaterialItem(m, discountBaseValue));
+    const items = claimMaterials.map((m) => claimMaterialToMaterialItem(m));
     forceRebuildRef.current = true;
     setMaterials(sortMaterialsByOrder(items));
     setArePricesValidated(claimMaterials.every((m) => m.isValidated === true));
@@ -423,7 +412,7 @@ export const useClaimMaterialsManager = ({
     // server-returned values into the form. Without this guard the hooks fire
     // immediately on the Formik reinitialize and overwrite the BE values with
     // locally-computed prices (visible as "prices show correctly only on 2nd validate").
-    isResyncingRef.current = true;
+    //  isResyncingRef.current = true;
     if (forceRebuildRef.current) {
       setInitialFormValues((prev) => ({ ...prev, ...rowValues }));
     } else {
@@ -439,9 +428,9 @@ export const useClaimMaterialsManager = ({
     forceRebuildRef.current = false;
     // Release the resyncing guard after React has flushed all effects that
     // react to the new initialFormValues (price-calculation useEffects).
-    setTimeout(() => {
-      isResyncingRef.current = false;
-    }, 50);
+    // setTimeout(() => {
+    //   isResyncingRef.current = false;
+    // }, 50);
   }, [
     materials,
     setAllFields,
@@ -449,7 +438,7 @@ export const useClaimMaterialsManager = ({
     setInitialFormValues,
     formValuesRef,
     skipFormResetRef,
-    isResyncingRef,
+    //  isResyncingRef,
   ]);
 
   const populateNeeded = (
@@ -541,7 +530,7 @@ export const useClaimMaterialsManager = ({
 
     let rowValues: Record<string, unknown> = {};
     archivedMaterials.forEach((material, idx) => {
-      const item = claimMaterialToMaterialItem(material, discountBaseValueRef.current);
+      const item = claimMaterialToMaterialItem(material);
       const area = visibleArchivedAreas[idx];
       if (!area) return;
       const areaFieldNameSet = new Set(area.fields.map((af) => af.name));
@@ -757,10 +746,7 @@ export const useClaimMaterialsManager = ({
       const materialToRestore = archivedMaterialsRef.current[areaIndex];
       if (!materialToRestore) return;
 
-      const restoredItem = claimMaterialToMaterialItem(
-        materialToRestore,
-        discountBaseValueRef.current,
-      );
+      const restoredItem = claimMaterialToMaterialItem(materialToRestore);
       forceRebuildRef.current = true;
       setMaterials((prev) => [...prev, restoredItem]);
       archivedForceRebuildRef.current = true;

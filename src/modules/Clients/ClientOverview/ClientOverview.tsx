@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { getCustomerById } from "../../../api/services/customers/customers";
-import { Customer } from "../../../api/services/customers/customers.types";
+import { Customer, CustomerJob } from "../../../api/services/customers/customers.types";
 import { DEFAULT_STALE_TIME_MS } from "../../../utils/queryConstants";
 import ActivityIndicatorWithDelay from "../../../components/ui/ActivityIndicatorWithDelay/ActivityIndicatorWithDelay";
 import { useBreadcrumbs } from "../../../hooks/useBreadcrumbs";
@@ -21,6 +21,9 @@ import {
 import axiosClient from "../../../api/axios-client/axiosClient";
 import { useActionWithValidation } from "../../../hooks/useActionWithValidation";
 import OverviewContent from "../../../components/ui/OverviewContent/OverviewContent";
+import ClientJobsTab from "./ClientJobsTab/ClientJobsTab";
+import ClientOrdersTab from "./ClientOrdersTab/ClientOrdersTab";
+import ClientAssetsTab from "./ClientAssetsTab/ClientAssetsTab";
 
 function ClientOverview() {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
@@ -187,6 +190,16 @@ function ClientOverview() {
     navigate(`/create-job`);
   }, [navigate]);
 
+  const onJobRowClick = useCallback(
+    (job: CustomerJob) => {
+      const navigateResult = navigate(`/job-overview/${job.jobId}`);
+      if (navigateResult instanceof Promise) {
+        navigateResult.catch(() => undefined);
+      }
+    },
+    [navigate],
+  );
+
   const handleGenericAction = useCallback(
     (actionName: string) => {
       const actionMap: Record<string, () => void> = {
@@ -270,6 +283,17 @@ function ClientOverview() {
           onEditSection={enableEditSection}
           currentStatus={status}
           onActionClick={handleGenericAction}
+          tabContentOverrides={{
+            Assets: <ClientAssetsTab clientId={clientId || ""} />,
+            Orders: <ClientOrdersTab clientId={clientId || ""} />,
+            Jobs: (
+              <ClientJobsTab
+                clientId={clientId || ""}
+                onRowClick={onJobRowClick}
+                onCreateJob={onCreateJob}
+              />
+            ),
+          }}
         />
       </GenericFormContext.Provider>
     </div>

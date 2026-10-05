@@ -24,6 +24,80 @@ export interface Customer {
   createdOn?: string;
 }
 
+export interface CustomerJob {
+  jobId: string;
+  orderId: string;
+  serialNumber: string;
+  assetName: string;
+  createdOn: string;
+  updatedOn: string;
+  assigneeName: string;
+  status: string;
+}
+
+export interface CustomerJobsQuery {
+  searchTerm?: string;
+  page?: number;
+  size?: number;
+}
+
+export interface CustomerJobsResponse {
+  page: {
+    number: number;
+    totalElements: number;
+    totalPages: number;
+    size: number;
+  };
+  content: CustomerJob[];
+}
+
+export interface CustomerOrder {
+  orderId: string;
+  assets: number;
+  createdOn: string;
+  updatedOn: string;
+}
+
+export interface CustomerOrdersQuery {
+  searchTerm?: string;
+  page?: number;
+  size?: number;
+}
+
+export interface CustomerOrdersResponse {
+  page: {
+    number: number;
+    totalElements: number;
+    totalPages: number;
+    size: number;
+  };
+  content: CustomerOrder[];
+}
+
+export interface CustomerAsset {
+  assetName: string;
+  serialNumber: string;
+  bareToolNumber: string;
+  manufacturedOn: string;
+  purchaseDate: string;
+}
+
+export interface CustomerAssetsQuery {
+  searchTerm?: string;
+  page?: number;
+  size?: number;
+}
+
+export interface CustomerAssetsResponse {
+  page: {
+    number: number;
+    totalElements: number;
+    totalPages: number;
+    size: number;
+  };
+  content: CustomerAsset[];
+}
+
 export interface Address {
   street: string;
   houseNumber: string;
@@ -34,18 +108,4 @@ export interface Address {
   stateProvinceRegion: string;
   postalCode: string;
   countryCode: string;
-}
-
-export interface UpdateCustomerRequest {
-  firstName?: unknown;
-  lastName?: unknown;
-  email?: unknown;
-  phoneNumber?: unknown;
-  communicationMedium?: unknown;
-  type?: string;
-  ascId?: string;
-  language?: string;
-  locale?: string;
-  clientId?: string;
-  billingAddress?: Partial<Address>;
 }

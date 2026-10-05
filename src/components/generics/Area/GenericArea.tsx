@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useFormikContext } from "formik";
 import { isDependedAndVisible } from "../utils";
 import { getCustomArea } from "./CustomAreasMapper";
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
 import { GenericFormContext } from "../Form/GenericForm.context";
 import { useHasPermission } from "hooks/useHasPermission";
 
@@ -34,7 +34,6 @@ function GenericArea({
   } = useFormikContext<Record<string, unknown>>();
   const { allFields, actionCallbacks, onAreaValueChange } = useContext(GenericFormContext);
   const [isEditing, setIsEditing] = useState(false);
-  const prevAreaValuesKeyRef = useRef<string>("");
   const hasPermission = useHasPermission(area.permissions);
 
   useEffect(() => {
@@ -51,17 +50,18 @@ function GenericArea({
       const callback = actionCallbacks[actionName];
       if (callback) {
         const wrappedSetFieldValue = (field: string, value: unknown) => {
-          void setFieldValue(field, value);
+          void setFieldValue(field, value, false);
         };
 
         const wrappedSetTouched = async (touched: Record<string, boolean>) => {
-          await setTouched(touched);
+          await setTouched(touched, false);
           return undefined as void | Record<string, string>;
         };
 
         const result = callback(formValues, {
           setFieldValue: wrappedSetFieldValue,
-          setErrors,
+          setErrors: (errors: Record<string, unknown>) =>
+            setErrors(errors as Record<string, string>),
           setTouched: wrappedSetTouched,
         });
         if (result instanceof Promise) {
@@ -76,28 +76,6 @@ function GenericArea({
     },
     [actionCallbacks, formValues, setFieldValue, setErrors, setTouched, shouldShowActionsOnEdit],
   );
-
-  useEffect(() => {
-    const areaValues = area.fields.reduce(
-      (acc, field) => {
-        acc[field.name] = formValues[field.name];
-        return acc;
-      },
-      {} as Record<string, unknown>,
-    );
-
-    const areaValuesKey = JSON.stringify(areaValues);
-
-    if (prevAreaValuesKeyRef.current === "") {
-      prevAreaValuesKeyRef.current = areaValuesKey;
-      return;
-    }
-
-    if (prevAreaValuesKeyRef.current !== areaValuesKey) {
-      prevAreaValuesKeyRef.current = areaValuesKey;
-      onAreaValueChange?.(area.name, formValues);
-    }
-  }, [area.fields, area.name, formValues, onAreaValueChange]);
 
   if (
     isSubArea &&

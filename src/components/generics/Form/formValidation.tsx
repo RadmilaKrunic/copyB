@@ -366,7 +366,7 @@ const getYearMonthKey = (year: number, month: number): number | null => {
   return year * 12 + month;
 };
 
-const parsePurchaseYearMonth = (value: unknown): number | null => {
+export const parsePurchaseYearMonth = (value: unknown): number | null => {
   if (typeof value !== "string" || value.trim() === "") return null;
 
   const isoDateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
@@ -381,7 +381,7 @@ const parsePurchaseYearMonth = (value: unknown): number | null => {
   return getYearMonthKey(parsed.getFullYear(), parsed.getMonth() + 1);
 };
 
-const parseManufacturedYearMonth = (value: unknown): number | null => {
+export const parseManufacturedYearMonth = (value: unknown): number | null => {
   if (typeof value !== "string" || value.trim() === "") return null;
 
   const monthYearMatch = /^(\d{1,2})\/(\d{4})$/.exec(value);

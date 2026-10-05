@@ -1,7 +1,7 @@
 import { Icon } from "@bosch/react-frok";
 import { useTranslation } from "react-i18next";
 import GenericField from "components/generics/Field/GenericField";
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { useFormikContext } from "formik";
 import { getPositionAutofill } from "hooks/useDiagnosticsManager";
 import { useParams } from "react-router-dom";
@@ -12,11 +12,8 @@ import ApprovalActionsFlyout from "../../../ClaimManagement/ApprovalList/Approva
 import "./SparePartsRow.scss";
 import Field from "components/generics/Field/GenericField.types";
 import type { GenericOptionProps } from "components/generics/Field/GenericField.types";
-import { resolveDiscountFieldNames, useSparePartsRowCommon } from "./SparePartsRow.shared";
 import { SparePartsMainFields, SparePartsCollapsedSection } from "./SparePartsRow.components";
 import { getPriceFieldEditability } from "./materialPriceEditability";
-import { resolveDiscountOnJobTypeChange } from "./jobTypeDiscountRepopulation";
-import { resolvePartNumberChangeAction } from "./partNumberUtils";
 import { PERMISSIONS } from "utils/Permissions";
 import { useDiagnosticsContext } from "../DiagnosticsContext";
 import { GenericFormContext } from "components/generics/Form/GenericForm.context";
@@ -46,8 +43,6 @@ const EXCHANGE_ACTION_TYPES = new Set([
   "ACCESSORIES_EXCHANGE",
 ]);
 const SPARE_PARTS_EXCHANGE_ACTION_TYPES = new Set(["SPARE_PARTS_EXCHANGE"]);
-const EDITABLE_WITH_CONDITION_TYPES = new Set(["CHARGEABLE"]);
-const EDITABLE_TYPES = new Set(["COMMERCIAL_GOODWILL"]);
 const TYPE_OPTIONS_DISABLED_FOR_INVALID_SPARE_PART = new Set(["WARRANTY", "SERVICE_OFFERING"]);
 const RESETTABLE_ROW_STATUSES = new Set(["REVISED", "REJECTED"]);
 const POSITION_PERMISSIONS = {
@@ -93,11 +88,11 @@ const POSITION_PERMISSIONS = {
   },
 } as const;
 
-function buildPositionCounts(
+const buildPositionCounts = (
   allFormFields: Field[],
   thisFieldName: string,
   values: Record<string, unknown>,
-): Record<string, number> {
+): Record<string, number> => {
   const positionCounts: Record<string, number> = {};
   allFormFields
     .filter((f) => f.subtype === "diagnosticPosition" && f.name !== thisFieldName)
@@ -106,14 +101,14 @@ function buildPositionCounts(
       if (val) positionCounts[val] = (positionCounts[val] ?? 0) + 1;
     });
   return positionCounts;
-}
+};
 
-function computePositionOption(
+const computePositionOption = (
   opt: GenericOptionProps,
   positionCounts: Record<string, number>,
   allowedPositions: { position: string; maxCount: number }[],
   userPermissions: string[],
-): GenericOptionProps {
+): GenericOptionProps => {
   const optPerms = POSITION_PERMISSIONS[opt.value as keyof typeof POSITION_PERMISSIONS] ?? null;
   if (optPerms && !userPermissions.includes(optPerms.canDelete)) {
     return { ...opt, disabled: true };
@@ -122,7 +117,7 @@ function computePositionOption(
   if (!config) return opt;
   const usedElsewhere = positionCounts[opt.value as string] ?? 0;
   return { ...opt, disabled: usedElsewhere >= config.maxCount };
-}
+};
 
 function SparePartsRow({
   fields,
@@ -146,13 +141,9 @@ function SparePartsRow({
   } = useContext(GenericFormContext);
   const {
     arePricesValidated,
-    markRowDirty,
-    setMaterials,
     allowedPositions,
-    isResyncingRef,
     setRevisedRejectedRowPending,
     canArchiveOnDelete,
-    resyncMaterialsFromAPI,
     jobStatus,
     discountBase,
     automaticRows,
@@ -172,11 +163,13 @@ function SparePartsRow({
   const positionField = fields.find((field) => field.subtype === "diagnosticPosition");
   const statusField = fields.find((field) => field.subtype === "diagnosticMaterialStatus");
   const typeField = fields.find((field) => field.subtype === "diagnosticType");
+  const partNumberField = fields.find((field) => field.subtype === "diagnosticPartNumber");
+  const partNumberFieldName = partNumberField?.name || "";
 
-  const { values, setFieldValue } = useFormikContext<Record<string, unknown>>();
+  const { values } = useFormikContext<Record<string, unknown>>();
   const positionValue = (values[positionField?.name || ""] as string) ?? "";
   const rowTypeValue = (values[typeField?.name || ""] as string) ?? "";
-
+  const partNumberValue = (values[partNumberFieldName] as string) ?? "";
   const materialIdField = fields.find(
     (field) =>
       field.subtype === "diagnosticMaterialId" || field.fieldMapping?.originalName === "materialId",
@@ -202,15 +195,6 @@ function SparePartsRow({
     .map((field) => field.fieldMapping?.originalName);
   const collapsableFieldNamesSet = new Set(collapsableFieldNames);
 
-  const getFieldBySubtype = useCallback(
-    (subtype: string) => fields.find((f) => f.subtype === subtype)?.name || "",
-    [fields],
-  );
-
-  const partNumberFieldName = getFieldBySubtype("diagnosticPartNumber");
-  const partNumberValue = partNumberFieldName
-    ? ((values[partNumberFieldName] as string) ?? "")
-    : "";
   const isSparePartTypeRestricted =
     positionValue.toUpperCase() === "SP" &&
     (partNumberValue.trim().length === 0 ||
@@ -262,377 +246,6 @@ function SparePartsRow({
 
   const areaNamePrefix = fields[0]?.fieldMapping?.nameStartsWith ?? "";
   const areaName = areaNamePrefix ? areaNamePrefix.slice(0, -1) : "";
-  const areaIndex = (() => {
-    const match = /#(\d+)_/.exec(areaNamePrefix);
-    return match ? Number.parseInt(match[1], 10) : 0;
-  })();
-
-  const {
-    discountHiddenFieldName,
-    discountAmountHiddenFieldName,
-    activeDiscountFieldName,
-    discountSiblingFieldName,
-  } = resolveDiscountFieldNames(fields, discountBase);
-
-  // On initial load (isResyncingRef = true): sync the active visible discount field from the
-  // hidden discount field (which has attributeMapping and is populated from API data).
-  // The visible discount fields have no attributeMapping so default to 0 in Formik;
-  // buildRowValues also sets them, but this is a safeguard for any edge case where they remain 0.
-  const prevDiscountHiddenRef = useRef<number>(0);
-  useEffect(() => {
-    if (!isResyncingRef.current) return;
-    if (!discountBase || !discountHiddenFieldName || !activeDiscountFieldName) return;
-    const hiddenVal = Number(values[discountHiddenFieldName]) || 0;
-    if (hiddenVal === prevDiscountHiddenRef.current) return;
-    prevDiscountHiddenRef.current = hiddenVal;
-    if (hiddenVal === 0) return;
-    const activeVal = Number(values[activeDiscountFieldName]) || 0;
-    if (Math.abs(activeVal - hiddenVal) < 0.0001) return;
-    void setFieldValue(activeDiscountFieldName, hiddenVal);
-    // also sync sibling so both modes are correct
-    const siblingName = fields.find(
-      (f) =>
-        f.subtype === "diagnosticDiscount" &&
-        !f.dependentFields?.some((df) => df.fieldValue === (discountBase ?? "GROSS_PRICE")),
-    )?.name;
-    if (siblingName) void setFieldValue(siblingName, hiddenVal);
-  }, [
-    discountBase,
-    discountHiddenFieldName,
-    activeDiscountFieldName,
-    values,
-    setFieldValue,
-    isResyncingRef,
-    fields,
-  ]);
-
-  const prevPositionRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (prevPositionRef.current === null) {
-      prevPositionRef.current = positionValue;
-      return;
-    }
-    if (prevPositionRef.current === positionValue) return;
-    prevPositionRef.current = positionValue;
-
-    const autofill = getPositionAutofill(t)[positionValue];
-    if (autofill) {
-      const descriptionFieldName = getFieldBySubtype("diagnosticDescription");
-      if (partNumberFieldName) void setFieldValue(partNumberFieldName, autofill.partNumber);
-      if (descriptionFieldName) void setFieldValue(descriptionFieldName, autofill.description);
-    }
-    if (areaIndex === 1 && !isResyncingRef.current && !prevPartNumberRef.current) {
-      isResyncingRef.current = true;
-    }
-    setMaterials((prev) =>
-      prev.map((m, i) =>
-        i === areaIndex
-          ? {
-              ...m,
-              position: positionValue,
-            }
-          : m,
-      ),
-    );
-  }, [
-    positionValue,
-    setFieldValue,
-    t,
-    getFieldBySubtype,
-    partNumberFieldName,
-    setMaterials,
-    areaIndex,
-    statusField,
-    values,
-    isResyncingRef,
-  ]);
-
-  // Clear price fields when part number changes in a validated row
-  const prevPartNumberRef = useRef<string | null>(null);
-  const prevMaterialIdRef = useRef<string | undefined>(undefined);
-
-  const resetPartNumberDependentFields = useCallback(() => {
-    if (areaIndex === 1 && !isResyncingRef.current && !prevPartNumberRef.current) {
-      isResyncingRef.current = true;
-    }
-    const fieldNames = [
-      getFieldBySubtype("diagnosticUnitPrice"),
-      getFieldBySubtype("diagnosticTax"),
-      getFieldBySubtype("diagnosticNetAmount"),
-      getFieldBySubtype("diagnosticGrossAmount"),
-      getFieldBySubtype("diagnosticTotalAmount"),
-      getFieldBySubtype("diagnosticTaxAmount"),
-      getFieldBySubtype("diagnosticSuggestedNetPrice"),
-      activeDiscountFieldName,
-      discountSiblingFieldName,
-      discountHiddenFieldName,
-      discountAmountHiddenFieldName,
-    ].filter((name): name is string => !!name);
-    const valuesOnFields: { key: string; value: 0 | null }[] = fieldNames.map((item) => {
-      return { key: item, value: 0 };
-    });
-    valuesOnFields?.push({ key: materialIdField?.name || "", value: null });
-    isResyncingRef.current = true;
-    void Promise.all(valuesOnFields.map((item) => setFieldValue(item.key, item.value))).finally(
-      () => {
-        isResyncingRef.current = false;
-      },
-    );
-
-    const currentStatusValue = statusField ? values[statusField.name] : undefined;
-    const wasRevisedOrRejected =
-      typeof currentStatusValue === "string" && RESETTABLE_ROW_STATUSES.has(currentStatusValue);
-    if (areaIndex === 1 && !isResyncingRef.current && !prevPartNumberRef.current) {
-      isResyncingRef.current = true;
-    }
-    setMaterials((prev) =>
-      prev.map((m, i) =>
-        i === areaIndex
-          ? {
-              ...m,
-              partNumber: partNumberValue,
-              unitPrice: 0,
-              tax: 0,
-              netAmount: 0,
-              grossAmount: 0,
-              totalAmount: 0,
-              taxAmount: 0,
-              suggestedNetPrice: 0,
-              discount: 0,
-              discountAmount: 0,
-              materialId: undefined,
-              ...(wasRevisedOrRejected ? { status: "PENDING" } : {}),
-            }
-          : m,
-      ),
-    );
-  }, [
-    getFieldBySubtype,
-    setFieldValue,
-    isResyncingRef,
-    activeDiscountFieldName,
-    discountSiblingFieldName,
-    discountHiddenFieldName,
-    discountAmountHiddenFieldName,
-    materialIdField,
-    setMaterials,
-    areaIndex,
-    partNumberValue,
-    statusField,
-    values,
-  ]);
-
-  const resetPartNumberDependentFieldsRef = useRef(resetPartNumberDependentFields);
-  resetPartNumberDependentFieldsRef.current = resetPartNumberDependentFields;
-
-  useEffect(() => {
-    const action = resolvePartNumberChangeAction(
-      prevPartNumberRef.current,
-      partNumberValue,
-      isResyncingRef.current,
-    );
-
-    if (action === "none") {
-      prevMaterialIdRef.current = materialId;
-      return;
-    }
-
-    prevPartNumberRef.current = partNumberValue;
-    prevMaterialIdRef.current = materialId;
-
-    if (action === "reset") {
-      resetPartNumberDependentFieldsRef.current();
-    }
-  }, [partNumberValue, materialId, isResyncingRef]);
-
-  const preserveFields = useMemo(
-    () => [
-      getFieldBySubtype("diagnosticDiscountHidden"),
-      getFieldBySubtype("diagnosticDiscountNetHidden"),
-      getFieldBySubtype("diagnosticDiscount"),
-      getFieldBySubtype("diagnosticTotalAmountHidden"),
-      getFieldBySubtype("diagnosticTotalAmount"),
-      getFieldBySubtype("diagnosticNetAmount"),
-    ],
-    [getFieldBySubtype],
-  );
-  const prevPriceRef = useRef<Record<string, any> | null>(null);
-  const prevTypeRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (
-      EDITABLE_WITH_CONDITION_TYPES.has(prevTypeRef.current ?? "") ||
-      EDITABLE_TYPES.has(prevTypeRef.current ?? "")
-    ) {
-      if (prevPriceRef.current !== null) return;
-      prevPriceRef.current = preserveFields.map((field) => ({
-        name: field,
-        value: values[field] ?? null,
-      }));
-      return;
-    }
-    if (prevPriceRef.current === null) return;
-
-    prevPriceRef.current.forEach((field: any) => {
-      void setFieldValue(field.name, field.value);
-    });
-    prevPriceRef.current = null;
-  }, [preserveFields, values, setFieldValue]);
-
-  useEffect(() => {
-    const buildSiblingChargeableDiscounts = (): number[] => {
-      const discountHiddenFields = allFormFields.filter(
-        (field) =>
-          field.subtype === "diagnosticDiscountHidden" &&
-          field.fieldMapping?.nameStartsWith &&
-          field.fieldMapping?.nameStartsWith !== areaNamePrefix,
-      );
-
-      const result: number[] = [];
-      for (const field of discountHiddenFields) {
-        const siblingPrefix = field.fieldMapping?.nameStartsWith;
-        const siblingTypeField = allFormFields.find(
-          (f) => f.fieldMapping?.nameStartsWith === siblingPrefix && f.subtype === "diagnosticType",
-        );
-        const siblingPositionField = allFormFields.find(
-          (f) =>
-            f.fieldMapping?.nameStartsWith === siblingPrefix && f.subtype === "diagnosticPosition",
-        );
-        const siblingType = siblingTypeField
-          ? ((values[siblingTypeField.name] as string) ?? "")
-          : "";
-        const siblingPosition = siblingPositionField
-          ? ((values[siblingPositionField.name] as string) ?? "")
-          : "";
-        if (
-          siblingType.toUpperCase() === "CHARGEABLE" &&
-          !PROTECTED_POSITIONS.has(siblingPosition)
-        ) {
-          result.push(Number(values[field.name] ?? 0));
-        }
-      }
-      return result;
-    };
-
-    const currentType = rowTypeValue;
-
-    if (prevTypeRef.current === null) {
-      prevTypeRef.current = currentType;
-      return;
-    }
-
-    const previousType = prevTypeRef.current;
-    prevTypeRef.current = currentType;
-
-    if (!previousType || previousType === currentType) return;
-    if (isResyncingRef.current) return;
-
-    const discountPercent = resolveDiscountOnJobTypeChange(
-      previousType,
-      currentType,
-      positionValue,
-      buildSiblingChargeableDiscounts(),
-    );
-
-    const currentStatusValue = statusField ? values[statusField.name] : undefined;
-    const wasRevisedOrRejected =
-      typeof currentStatusValue === "string" && RESETTABLE_ROW_STATUSES.has(currentStatusValue);
-    if (areaIndex === 1 && !isResyncingRef.current && !prevPartNumberRef.current) {
-      isResyncingRef.current = true;
-    }
-    if (discountPercent === null) {
-      if (wasRevisedOrRejected) {
-        setMaterials((prev) =>
-          prev.map((m, i) =>
-            i === areaIndex ? { ...m, type: currentType, status: "PENDING" } : m,
-          ),
-        );
-      }
-      return;
-    }
-
-    const grossAmountFieldName = getFieldBySubtype("diagnosticGrossAmount");
-    const grossAmount = grossAmountFieldName ? Number(values[grossAmountFieldName]) || 0 : 0;
-    const discountAmount = (grossAmount * discountPercent) / 100;
-
-    prevPriceRef.current = null;
-
-    void setFieldValue(activeDiscountFieldName, discountPercent);
-    if (discountSiblingFieldName) void setFieldValue(discountSiblingFieldName, discountPercent);
-    if (discountHiddenFieldName) void setFieldValue(discountHiddenFieldName, discountPercent);
-    if (discountAmountHiddenFieldName)
-      void setFieldValue(discountAmountHiddenFieldName, discountAmount);
-
-    setMaterials((prev) =>
-      prev.map((m, i) =>
-        i === areaIndex
-          ? {
-              ...m,
-              discount: discountPercent,
-              type: currentType,
-              ...(wasRevisedOrRejected ? { status: "PENDING" } : {}),
-            }
-          : m,
-      ),
-    );
-  }, [
-    rowTypeValue,
-    isResyncingRef,
-    allFormFields,
-    values,
-    activeDiscountFieldName,
-    discountSiblingFieldName,
-    discountHiddenFieldName,
-    discountAmountHiddenFieldName,
-    setFieldValue,
-    positionValue,
-    areaNamePrefix,
-    getFieldBySubtype,
-    setMaterials,
-    areaIndex,
-    statusField,
-  ]);
-
-  const nonPriceInputKey = useSparePartsRowCommon({
-    fields,
-    activeDiscountFieldName,
-    discountSiblingFieldName,
-    discountHiddenFieldName,
-    discountAmountHiddenFieldName,
-    areaNamePrefix,
-    isResyncingRef,
-    discountBase,
-    values,
-    markRowDirty,
-    areaIndex,
-    isValidating,
-  });
-
-  const arePricesValidatedRef = useRef(arePricesValidated);
-  arePricesValidatedRef.current = arePricesValidated;
-
-  const isFirstRowRender = useRef(true);
-  useEffect(() => {
-    if (isFirstRowRender.current) {
-      isFirstRowRender.current = false;
-      return;
-    }
-    // Skip during API-driven reinitialization (e.g. after validateAndSave resync) to
-    // prevent incorrectly marking rows dirty when Formik reinitializes with fresh API data.
-    if (isResyncingRef.current) return;
-    // Bug 1 fix: also skip if validation is currently in flight
-    if (isValidating) return;
-    if (!arePricesValidatedRef.current) return;
-    markRowDirty(areaIndex);
-  }, [
-    areaName,
-    setRevisedRejectedRowPending,
-    nonPriceInputKey,
-    markRowDirty,
-    areaIndex,
-    statusField,
-    isResyncingRef,
-    isValidating,
-  ]);
 
   const isWarrantyIneligible = Boolean(
     warrantyPanelInfo?.isIneligible || !warrantyPanelInfo?.hasPurchaseDate,
@@ -723,12 +336,7 @@ function SparePartsRow({
 
     if (hasApproveCommercialGoodwillPermission) {
       return isPending ? (
-        <ApprovalActionsFlyout
-          jobId={jobId}
-          materialId={materialId}
-          showJobDetailsAction={false}
-          onBeforeInvalidate={resyncMaterialsFromAPI}
-        />
+        <ApprovalActionsFlyout jobId={jobId} materialId={materialId} showJobDetailsAction={false} />
       ) : null;
     }
 
