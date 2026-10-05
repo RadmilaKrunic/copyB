@@ -20,6 +20,10 @@ const h = vi.hoisted(() => ({
     | undefined,
   postMessageMutate: vi.fn(),
   updatePrices: vi.fn(),
+  updatePricesOptions: undefined as any,
+  refetchQueries: vi.fn(),
+  uiConfig: { isLoading: false, isError: false },
+  uiConfigCountry: undefined as string | undefined,
   requestApproval: vi.fn(),
   invalidateQueries: vi.fn(),
   trackNoteAdded: vi.fn(),
@@ -115,15 +119,10 @@ const uiConfiguration = () => ({
   ],
 });
 
-const isUiConfigKey = (key: unknown) => Array.isArray(key) && key[0] === "UIConfiguration";
-
 const queryClientMock = {
   getQueryData: vi.fn((key: unknown) => {
     if (Array.isArray(key) && key[0] === "user") {
       return { countryCode: h.userCountry, permissions: [], roles: [] };
-    }
-    if (isUiConfigKey(key)) {
-      return uiConfiguration();
     }
     if (Array.isArray(key) && key[0] === "claim") {
       return h.claimInCache;
@@ -131,31 +130,28 @@ const queryClientMock = {
     return undefined;
   }),
   invalidateQueries: h.invalidateQueries,
+  refetchQueries: h.refetchQueries,
 };
 
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-query")>()),
   useQueryClient: () => queryClientMock,
-  // Components/hooks that resolve the UI configuration through react-query get the claim form.
-  useQuery: (options?: { queryKey?: unknown }) => ({
-    data: isUiConfigKey(options?.queryKey) ? uiConfiguration() : undefined,
-    isLoading: false,
-    isPending: false,
-    isError: false,
-    isSuccess: true,
-    error: null,
-  }),
-  useQueries: (options?: { queries?: Array<{ queryKey?: unknown }> }) =>
-    (options?.queries ?? []).map((query) => ({
-      data: isUiConfigKey(query.queryKey) ? uiConfiguration() : undefined,
-      isLoading: false,
-      isError: false,
-      isSuccess: true,
-      error: null,
-    })),
   useMutation: (options: { onSuccess?: () => void; onError?: (error: unknown) => void }) => {
     h.mutationOptions = options;
     return { mutate: h.postMessageMutate, mutateAsync: vi.fn(), isPending: false };
+  },
+}));
+
+vi.mock("hooks/useUIConfiguration", () => ({
+  useResourceUIConfiguration: (countryCode?: string | null) => {
+    h.uiConfigCountry = countryCode ?? undefined;
+    const unavailable = h.uiConfig.isLoading || h.uiConfig.isError;
+    return {
+      uiConfiguration: unavailable ? undefined : uiConfiguration(),
+      countryCode: countryCode ?? undefined,
+      isLoading: h.uiConfig.isLoading,
+      isError: h.uiConfig.isError,
+    };
   },
 }));
 
@@ -321,11 +317,10 @@ vi.mock("../../../components/ui/ActivityIndicatorWithDelay/ActivityIndicatorWith
 
 vi.mock("api/services/claims/hooks", () => ({
   useClaimById: (...args: unknown[]) => h.useClaimById(...args),
-  useUpdateClaimPrices: () => ({
-    mutate: h.updatePrices,
-    mutateAsync: h.updatePrices,
-    isPending: false,
-  }),
+  useUpdateClaimPrices: (options?: unknown) => {
+    h.updatePricesOptions = options;
+    return { mutate: h.updatePrices, mutateAsync: h.updatePrices, isPending: false };
+  },
   useClaimRequestApproval: () => ({
     mutate: h.requestApproval,
     mutateAsync: h.requestApproval,
@@ -425,6 +420,7 @@ const makeClaim = (overrides: Record<string, unknown> = {}) => ({
     },
   ],
   archivedMaterials: [],
+  claimPriceSummary: { netAmount: 150 },
   jobDiagnostic: { id: "DIAG-1" },
   ...overrides,
 });
@@ -509,6 +505,10 @@ beforeEach(() => {
     async (_a: string, _b: unknown, _c: unknown, onValid: () => unknown) => onValid(),
   );
   h.updatePrices.mockResolvedValue(undefined);
+  h.updatePricesOptions = undefined;
+  h.refetchQueries.mockResolvedValue(undefined);
+  h.uiConfig = { isLoading: false, isError: false };
+  h.uiConfigCountry = undefined;
   h.requestApproval.mockResolvedValue(undefined);
   h.areAllActionsDisabled.mockReturnValue(false);
   h.setSectionDisabledState.mockImplementation((section: any, disabled?: boolean) => ({
@@ -556,6 +556,31 @@ describe("ClaimOverview basics", () => {
     renderClaim();
 
     expect(screen.getByText("noClaimFound")).toBeInTheDocument();
+  });
+
+  it("shows the loading indicator while the UI configuration loads", () => {
+    h.uiConfig.isLoading = true;
+
+    renderClaim();
+
+    expect(screen.getByText("loading-indicator")).toBeInTheDocument();
+  });
+
+  it("renders an error when the UI configuration cannot be resolved", () => {
+    h.uiConfig.isError = true;
+
+    renderClaim();
+
+    expect(screen.getByText("error")).toBeInTheDocument();
+    expect(screen.queryByText("claim-overview-header")).not.toBeInTheDocument();
+  });
+
+  it("resolves the UI configuration with the country of the claim", () => {
+    setClaim(makeClaim({ countryCode: "TR" }));
+
+    renderClaim();
+
+    expect(h.uiConfigCountry).toBe("TR");
   });
 
   it("renders main layout when claim data exists", () => {
@@ -941,7 +966,7 @@ describe("ClaimOverview validate action", () => {
     });
   };
 
-  it("sends the claim payload built from form values and reports success", async () => {
+  it("sends the claim payload built from form values", async () => {
     setValues();
     renderClaim();
 
@@ -985,26 +1010,63 @@ describe("ClaimOverview validate action", () => {
     expect(arg.payload.materials[0]).toEqual(
       expect.objectContaining({ position: "", partNumber: "", description: "", quantity: 1 }),
     );
-    expect(arg.payload.claimPriceSummary).toEqual({
-      netAmount: 150,
-      suggestedNetPrice: 35,
-      grossAmount: 119,
-      discount: 5,
-      totalAmount: 110,
-      taxAmount: 19,
-    });
+    // The claim only had a plain summary, so the detailed total is derived from it.
+    expect(arg.payload.claimPriceSummary).toEqual({ netAmount: 150 });
+    expect(arg.payload.claimPriceSummaryDetailed).toEqual({ total: { netAmount: 150 } });
   });
 
-  it("marks everything validated, resets rebuild flags and shows a success message", async () => {
+  it("derives the plain claim summary from the detailed total when only that exists", async () => {
+    setClaim(
+      makeClaim({
+        claimPriceSummary: undefined,
+        claimPriceSummaryDetailed: { total: { netAmount: 9 } },
+      }),
+    );
+    renderClaim();
+
+    clickAction("onValidate");
+
+    await waitFor(() => expect(h.updatePrices).toHaveBeenCalledTimes(1));
+    const { payload } = h.updatePrices.mock.calls[0][0];
+    expect(payload.claimPriceSummary).toEqual({ netAmount: 9 });
+    expect(payload.claimPriceSummaryDetailed).toEqual({ total: { netAmount: 9 } });
+  });
+
+  it("fills the diagnostic price summary from its detailed total", async () => {
+    setClaim(
+      makeClaim({
+        jobDiagnostic: { id: "DIAG-1", priceSummaryDetailed: { total: { netAmount: 7 } } },
+      }),
+    );
+    renderClaim();
+
+    clickAction("onValidate");
+
+    await waitFor(() => expect(h.updatePrices).toHaveBeenCalledTimes(1));
+    const { payload } = h.updatePrices.mock.calls[0][0];
+    expect(payload.jobDiagnostic.priceSummary).toEqual({ netAmount: 7 });
+  });
+
+  it("resets rebuild flags before sending the validation request", async () => {
+    h.mgr = makeManager({ hasSyncedRef: { current: true } });
+    renderClaim();
+
+    clickAction("onValidate");
+
+    await waitFor(() => expect(h.updatePrices).toHaveBeenCalledTimes(1));
+    expect(h.mgr.forceRebuildRef.current).toBe(true);
+    expect(h.mgr.hasSyncedRef.current).toBe(false);
+  });
+
+  it("marks everything validated, refetches the claim and shows a success message", async () => {
     setValues();
     renderClaim();
 
     await validateSuccessfully();
 
-    expect(h.mgr.forceRebuildRef.current).toBe(true);
-    expect(h.mgr.hasSyncedRef.current).toBe(false);
     expect(h.mgr.markAllValidated).toHaveBeenCalled();
     expect(h.scrollToTop).toHaveBeenCalled();
+    expect(h.refetchQueries).toHaveBeenCalledWith({ queryKey: ["claim", "C-1"] });
     expect(messagesFromSetMessages()).toContainEqual({
       text: "claimPricesValidateSuccess",
       type: "success",
@@ -1013,25 +1075,35 @@ describe("ClaimOverview validate action", () => {
     expect(h.captured.generic.actionCallbacks.arePricesValidated()).toBe(true);
   });
 
-  it("reports an error when the price update fails", async () => {
-    setValues();
-    h.updatePrices.mockRejectedValueOnce(new Error("fail"));
+  it("merges the server response into the form after a successful validation", async () => {
+    h.formInit.allFields = [{ name: "header", subtype: "text" }];
     renderClaim();
+    h.convertAPIDataToFormValues.mockClear();
 
-    clickAction("onValidate");
+    await validateSuccessfully({ ascName: "From server" });
 
-    await waitFor(() =>
-      expect(messagesFromSetMessages()).toContainEqual({
-        text: "claimPricesValidateError",
-        type: "error",
-        duration: 3000,
-      }),
+    expect(h.convertAPIDataToFormValues).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "C-1", ascName: "From server" }),
+      h.formInit.allFields,
+      expect.anything(),
     );
-    expect(h.mgr.markAllValidated).not.toHaveBeenCalled();
-    expect(h.scrollToTop).toHaveBeenCalled();
   });
 
-  it("does nothing further when validation rejects the form", async () => {
+  it("reports an error when the price update fails", async () => {
+    renderClaim();
+
+    act(() => h.updatePricesOptions.onError(new Error("fail")));
+
+    expect(messagesFromSetMessages()).toContainEqual({
+      text: "claimPricesValidateError",
+      type: "error",
+      duration: 8000,
+    });
+    expect(h.scrollToTop).toHaveBeenCalled();
+    expect(h.mgr.markAllValidated).not.toHaveBeenCalled();
+  });
+
+  it("does not send the request when validation rejects the form", async () => {
     h.handleActionWithValidation.mockImplementation(async () => undefined);
     renderClaim();
 
@@ -1054,28 +1126,35 @@ describe("ClaimOverview validate action", () => {
     await waitFor(() => expect(h.updatePrices).toHaveBeenCalledTimes(1));
   });
 
-  it("only re-applies header values to the form after a validate (skip form reset branch)", async () => {
+  it("sends the request directly when the form context callback has no helpers", async () => {
+    renderClaim();
+
+    await act(async () => {
+      h.captured.generic.actionCallbacks.onValidate({});
+    });
+
+    expect(h.handleActionWithValidation).not.toHaveBeenCalled();
+    expect(h.updatePrices).toHaveBeenCalledTimes(1);
+  });
+
+  it("only merges non-row form values after a validate (skip form reset branch)", async () => {
     h.formInit.allFields = [{ name: "header", subtype: "text" }];
-    const view = renderClaim();
-    await validateSuccessfully();
+    h.convertAPIDataToFormValues.mockImplementation(() => ({
+      header: "H",
+      "claims#0_row": 1,
+    }));
+    renderClaim();
+    clickAction("onValidate");
+    await waitFor(() => expect(h.updatePrices).toHaveBeenCalledTimes(1));
     h.setInitialFormValues.mockClear();
 
-    setClaim(makeClaim({ claimStatus: "OPEN", ascName: "Changed" }));
-    view.rerender(
-      <MessagesContext.Provider value={{ messages: [], setMessages: h.setMessages }}>
-        <ClaimOverview />
-      </MessagesContext.Provider>,
-    );
+    await act(async () => {
+      await h.updatePricesOptions.onSuccess({});
+    });
 
-    await waitFor(() => expect(h.setInitialFormValues).toHaveBeenCalledTimes(1));
     const updater = h.setInitialFormValues.mock.calls[0][0];
-    const result = updater({ existing: "keep" });
-    expect(result).toEqual({
+    expect(updater({ existing: "keep" })).toEqual({
       existing: "keep",
-      faultCode: "F-1",
-      faultCodeDropdown: "F-1",
-      claimFaultCode: "CF-1",
-      claimFaultCodeDropdown: "CF-1",
       header: "H",
       discountBase: "NET_PRICE",
     });
@@ -1158,6 +1237,36 @@ describe("ClaimOverview form context callbacks", () => {
       callbacks().onSummaryTotalAmountChange();
       h.captured.generic.setMandatoryFields();
     }).not.toThrow();
+  });
+
+  it("wraps action callbacks for the dependency evaluator with the current form values", async () => {
+    renderClaim();
+    const ctx = h.areAllActionsDisabled.mock.calls.at(-1)?.[1];
+
+    expect(ctx.actionCallbacks.enableValidate()).toBe(true);
+    expect(ctx.actionCallbacks.canChangeClaimDecision()).toBeUndefined();
+
+    act(() => {
+      ctx.actionCallbacks.onEditClaim();
+    });
+    expect(lastSection().currentMode).toBe("edit");
+
+    act(() => {
+      ctx.actionCallbacks.onCancelNewNote();
+    });
+    expect(h.setEditingSections).toHaveBeenCalled();
+
+    await act(async () => {
+      ctx.actionCallbacks.onValidate();
+    });
+    const helpers = h.handleActionWithValidation.mock.calls.at(-1)?.[2];
+    expect(() =>
+      act(() => {
+        helpers.setErrors({ a: "x" });
+        helpers.setTouched({ a: true });
+        helpers.setFieldValue("a", "b");
+      }),
+    ).not.toThrow();
   });
 
   it("forwards setAllFields values and updater functions", () => {
@@ -1386,33 +1495,44 @@ describe("ClaimOverview diagnostics context", () => {
 });
 
 describe("ClaimOverview form data mapping", () => {
-  it("maps claim data to form values and mirrors fault codes into dropdowns", () => {
+  it("maps claim data to form values and mirrors fault codes into dropdowns", async () => {
     h.formInit.allFields = [{ name: "faultCode", subtype: "text" }];
+    h.convertAPIDataToFormValues.mockImplementation(() => ({
+      faultCode: "F-1",
+      claimFaultCode: "CF-1",
+      header: "H",
+      "claims#0_row": 1,
+    }));
 
     renderClaim();
 
-    expect(h.convertAPIDataToFormValues).toHaveBeenCalled();
+    await waitFor(() => expect(h.setInitialFormValues).toHaveBeenCalled());
     const [mappedClaim, mappedFields] = h.convertAPIDataToFormValues.mock.calls[0];
     expect(mappedClaim).toEqual(expect.objectContaining({ id: "C-1" }));
     expect(mappedFields).toBe(h.formInit.allFields);
-    expect(h.setInitialFormValues).toHaveBeenCalledWith(
-      expect.objectContaining({
-        faultCodeDropdown: "F-1",
-        claimFaultCodeDropdown: "CF-1",
-        discountBase: "NET_PRICE",
-      }),
-    );
+    const updater = h.setInitialFormValues.mock.calls[0][0];
+    expect(updater({ existing: "keep" })).toEqual({
+      existing: "keep",
+      faultCode: "F-1",
+      faultCodeDropdown: "F-1",
+      claimFaultCode: "CF-1",
+      claimFaultCodeDropdown: "CF-1",
+      header: "H",
+      "claims#0_row": 1,
+      discountBase: "NET_PRICE",
+    });
   });
 
-  it("does not add fault code dropdowns when no fault code is mapped", () => {
+  it("does not add fault code dropdowns when no fault code is mapped", async () => {
     h.formInit.allFields = [{ name: "x", subtype: "text" }];
     h.convertAPIDataToFormValues.mockImplementation(() => ({ header: "H" }));
 
     renderClaim();
 
-    const mapped = h.setInitialFormValues.mock.calls[0][0];
-    expect(mapped).not.toHaveProperty("faultCodeDropdown");
-    expect(mapped).not.toHaveProperty("claimFaultCodeDropdown");
+    await waitFor(() => expect(h.setInitialFormValues).toHaveBeenCalled());
+    const result = h.setInitialFormValues.mock.calls[0][0]({});
+    expect(result).not.toHaveProperty("faultCodeDropdown");
+    expect(result).not.toHaveProperty("claimFaultCodeDropdown");
   });
 
   it("does not map form values before fields are available", () => {
@@ -1559,11 +1679,14 @@ describe("ClaimOverview tab content states", () => {
   });
 });
 
-// Runs the Validate action and waits until the price update resolved and the
-// success state (validated flag + message) is visible.
-async function validateSuccessfully() {
+// Runs the Validate action and completes the mutation the way react-query would,
+// by invoking the onSuccess option captured from useUpdateClaimPrices.
+async function validateSuccessfully(responseData: Record<string, unknown> = {}) {
   const before = h.updatePrices.mock.calls.length;
   clickAction("onValidate");
   await waitFor(() => expect(h.updatePrices.mock.calls.length).toBe(before + 1));
-  await waitFor(() => expect(h.captured.generic.actionCallbacks.arePricesValidated()).toBe(true));
+  await act(async () => {
+    await h.updatePricesOptions.onSuccess(responseData);
+  });
+  expect(h.captured.generic.actionCallbacks.arePricesValidated()).toBe(true);
 }
