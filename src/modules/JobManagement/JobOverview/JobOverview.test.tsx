@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { useContext, useEffect, useRef } from "react";
 import { useFormikContext } from "formik";
@@ -1972,7 +1972,7 @@ describe("JobOverview mutation callbacks", () => {
     const originalRevokeObjectURL = URL.revokeObjectURL;
     let createObjectURLMock: ReturnType<typeof vi.fn>;
     let revokeObjectURLMock: ReturnType<typeof vi.fn>;
-    let openSpy: ReturnType<typeof vi.spyOn> | undefined;
+    let openSpy: MockInstance<typeof globalThis.open> | undefined;
 
     beforeEach(() => {
       createObjectURLMock = vi.fn(() => "blob:cost-estimate");
