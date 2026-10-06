@@ -373,7 +373,22 @@ export const useClaimMaterialsManager = ({
       if (!area) return;
       const areaFieldNames = new Set(area.fields.map((af) => af.name));
       const areaFields = allUpdatedFields.filter((f) => areaFieldNames.has(f.name));
-      if (idx < currentCount && !forceRebuildRef.current) {
+      // Same guard as useDiagnosticsManager: the pre-mounted template row (row 0) may
+      // still hold empty price values when the API item already has prices. Reusing
+      // those stale form values would show 0, so rebuild the row from the item.
+      const hasApiPrices = item.netAmount > 0 || item.grossAmount > 0 || item.totalAmount > 0;
+      const rowHasNoPrices =
+        hasApiPrices &&
+        areaFields
+          .filter(
+            (f) =>
+              f.subtype === "diagnosticNetAmount" ||
+              f.subtype === "diagnosticGrossAmount" ||
+              f.subtype === "diagnosticTotalAmount" ||
+              f.subtype === "diagnosticSuggestedNetPrice",
+          )
+          .every((f) => !Number(formValuesRef.current[f.name]));
+      if (idx < currentCount && !forceRebuildRef.current && !rowHasNoPrices) {
         const existingValues = Object.fromEntries(
           areaFields
             .filter((f) => f.name in formValuesRef.current)
