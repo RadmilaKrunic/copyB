@@ -216,19 +216,6 @@ export default function ClaimOverview() {
   // validation — React effects in ClaimSparePartsRow fire synchronously on the
   // same render cycle when arePricesValidated flips to true (row collapse effect).
   const suppressDirtyRef = useRef(false);
-  // Same idea for the initial load: when the API says every row is already
-  // validated, the pre-mounted template row (row 0) sees arePricesValidated flip
-  // to true and would call markRowDirty(0), un-validating the claim and
-  // desyncing only the first row. Rows 1+ mount after the flip and skip that
-  // effect. Released by the effect below once children's effects have flushed.
-  const suppressLoadDirtyRef = useRef(false);
-  const setArePricesValidatedFromManager = useCallback((value: React.SetStateAction<boolean>) => {
-    if (value === true) suppressLoadDirtyRef.current = true;
-    setArePricesValidated(value);
-  }, []);
-  useEffect(() => {
-    suppressLoadDirtyRef.current = false;
-  }, [arePricesValidated]);
   // Tracks per-part-number-field whether the currently selected spare part does
   // NOT belong to the tool (set by GenericField's autocomplete handler). Mirrors
   // JobOverview's sparePartNotBelongsToToolRef so ClaimSparePartsRow can restrict
@@ -270,7 +257,7 @@ export default function ClaimOverview() {
     skipFormResetRef,
     formValuesRef,
     arePricesValidated,
-    setArePricesValidated: setArePricesValidatedFromManager,
+    setArePricesValidated,
     readOnly: !isClaimEditMode,
   });
 
@@ -280,7 +267,7 @@ export default function ClaimOverview() {
       // Suppress all dirty signalling while we're in the post-validation flush
       // (React effects in ClaimSparePartsRow fire on the same cycle when
       // arePricesValidated flips to true for row collapse).
-      if (suppressDirtyRef.current || suppressLoadDirtyRef.current) return;
+      if (suppressDirtyRef.current) return;
       markRowDirtyInternal(areaIndex);
       hasClaimChangesRef.current = true;
     },

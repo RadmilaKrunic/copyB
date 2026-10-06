@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Field from "components/generics/Field/GenericField.types";
 import Section from "components/generics/Section/GenericSection.types";
 import { useClaimMaterialsManager } from "./useClaimMaterialsManager";
+import { buildRowValues } from "hooks/useDiagnosticsManager";
 
 vi.mock("components/generics/utils", () => ({
   setDuplicatedArea: vi.fn((area, index, tabName) => ({
@@ -480,5 +481,69 @@ describe("useClaimMaterialsManager", () => {
     expect(item.discountAmount).toBe(0);
     expect(item.totalAmount).toBe(0);
     expect(item.taxAmount).toBe(0);
+  });
+  describe("existing row price reuse", () => {
+    const netField = {
+      name: "claims_claimSpareParts#0_netAmount",
+      label: "net",
+      type: "price",
+      subtype: "diagnosticNetAmount",
+    };
+    const priceTab = {
+      ...claimsTab,
+      areas: [{ ...claimsTab.areas[0], fields: [...claimsTab.areas[0].fields, netField] }],
+    } as unknown as Section;
+    const priceFields = [...allFields, netField] as unknown as Field[];
+
+    const renderWithFormValues = async (formValues: Record<string, unknown>) => {
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      queryClient.setQueryData(["user"], { countryCode: "ZA", permissions: [] });
+      const { result } = renderHook(
+        () =>
+          useClaimMaterialsManager({
+            claimId: "C1",
+            claimMaterials: undefined,
+            currentActionType: "REPAIR",
+            currentJobType: "WARRANTY",
+            tabs: [priceTab],
+            setTabs: vi.fn(),
+            allFields: priceFields,
+            setAllFields: vi.fn(),
+            setInitialFormValues: vi.fn(),
+            skipFormResetRef: { current: false },
+            formValuesRef: { current: formValues },
+            arePricesValidated: false,
+            setArePricesValidated: vi.fn(),
+            readOnly: false,
+          }),
+        { wrapper: makeWrapper(queryClient) },
+      );
+      act(() => {
+        result.current.setMaterials([
+          {
+            ...loadedClaimMaterials[0].price,
+            partNumber: "P-1",
+            position: "SP",
+            type: "WARRANTY",
+            quantity: 1,
+            description: "",
+          },
+        ] as never);
+      });
+      return result;
+    };
+
+    it("rebuilds row 0 from the item when its form price fields are empty but the API has prices", async () => {
+      await renderWithFormValues({ [netField.name]: 0 });
+      await waitFor(() => expect(buildRowValues).toHaveBeenCalled());
+    });
+
+    it("reuses existing row 0 form values when prices are already populated", async () => {
+      await renderWithFormValues({ [netField.name]: 25 });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(buildRowValues).not.toHaveBeenCalled();
+    });
   });
 });
