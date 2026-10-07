@@ -37,7 +37,6 @@ export interface DiagnosticsContextValue {
   allowedPositions: AllowedPosition[];
   /** Returns the set of part numbers already present in the form */
   getExistingPartNumbers: (formValues: Record<string, unknown>) => Set<string>;
-  // isResyncingRef: RefObject<boolean>;
   /** Set to true after the onValidate action callback completes successfully */
   arePricesValidated: boolean;
   setArePricesValidated: Dispatch<SetStateAction<boolean>>;
@@ -89,8 +88,6 @@ const defaultDiagnosticsContextValue: DiagnosticsContextValue = {
   positionDropdownOptions: [],
   allowedPositions: [],
   getExistingPartNumbers: () => new Set(),
-  //isDistributingRef: createDefaultRef(),
-  // isResyncingRef: createDefaultRef(),
   arePricesValidated: false,
   setArePricesValidated: noop,
   hasPricesPopulated: false,

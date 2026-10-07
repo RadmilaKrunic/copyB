@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { useContext } from "react";
@@ -240,11 +239,7 @@ vi.mock("components/generics/Action/GenericAction", () => ({
   }) => (
     <div data-testid="generic-action" data-globally-disabled={String(Boolean(isGloballyDisabled))}>
       {actions.map((action) => (
-        <button
-          key={action.name}
-          type="button"
-          onClick={() => onActionClick(action.onAction)}
-        >
+        <button key={action.name} type="button" onClick={() => onActionClick(action.onAction)}>
           {action.name}
         </button>
       ))}
@@ -796,7 +791,9 @@ describe("ClaimOverview notes", () => {
 
     clickAction("onSaveNewNote");
 
-    await act(async () => {});
+    await act(async () => {
+      h.formInit.initialFormValues = { note: "hello" };
+    });
     expect(h.handleActionWithValidation).not.toHaveBeenCalled();
     expect(h.postMessageMutate).not.toHaveBeenCalled();
   });
@@ -1563,22 +1560,19 @@ describe("ClaimOverview tab content states", () => {
     expect(lastSection().currentMode).toBe("edit");
   });
 
-  it.each(["TR", "ZA"])(
-    "disables claim data and summary areas in edit mode for %s",
-    (country) => {
-      h.userCountry = country;
-      renderClaim();
+  it.each(["TR", "ZA"])("disables claim data and summary areas in edit mode for %s", (country) => {
+    h.userCountry = country;
+    renderClaim();
 
-      clickAction("onEditClaim");
+    clickAction("onEditClaim");
 
-      const areas = lastSection().section.areas as any[];
-      const byName = (name: string) => areas.find((a) => a.name === name);
-      expect(byName("claimData").isDisabled).toBe(true);
-      expect(byName("claimData").fields.every((f: any) => f.isDisabled)).toBe(true);
-      expect(byName("claimDiagnosticsSummary").isDisabled).toBe(true);
-      expect(byName("otherArea").isDisabled).toBeUndefined();
-    },
-  );
+    const areas = lastSection().section.areas as any[];
+    const byName = (name: string) => areas.find((a) => a.name === name);
+    expect(byName("claimData").isDisabled).toBe(true);
+    expect(byName("claimData").fields.every((f: any) => f.isDisabled)).toBe(true);
+    expect(byName("claimDiagnosticsSummary").isDisabled).toBe(true);
+    expect(byName("otherArea").isDisabled).toBeUndefined();
+  });
 
   it("leaves all areas untouched in edit mode for other countries", () => {
     renderClaim();
@@ -1667,10 +1661,7 @@ describe("ClaimOverview tab content states", () => {
   });
 
   it("keeps notes without any area actions read-only when areas exist but have none", () => {
-    h.formInit.tabs = [
-      claimsTab(),
-      makeTab("notes", { areas: [makeSimpleArea("notesArea", [])] }),
-    ];
+    h.formInit.tabs = [claimsTab(), makeTab("notes", { areas: [makeSimpleArea("notesArea", [])] })];
     renderClaim();
 
     selectTab("notes");

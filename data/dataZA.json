@@ -1109,7 +1109,7 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "claim.customer.vatNumber",
+                  "attributeMapping": "customer.vatNumber",
                   "defaultValue": "",
                   "allowedFormats": [],
                   "isMultiple": false,
@@ -4670,7 +4670,7 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "diagnostic.priceSummary.taxAmount",
+                  "attributeMapping": "jobDiagnostic.priceSummary.taxAmount",
                   "defaultValue": 0,
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
@@ -4890,11 +4890,11 @@
                     },
                     {
                       "label": "comercialGoodwill",
-                      "value": "comercialGoodwill"
+                      "value": "comercial_goodwill"
                     },
                     {
                       "label": "serviceOffering",
-                      "value": "serviceOffering"
+                      "value": "service_offering"
                     }
                   ],
                   "radioButtonsSource": "getRadioButtonsForSummaryType",
@@ -5728,6 +5728,34 @@
                   "multiSelect": false
                 },
                 {
+                  "name": "notBelongsToTool",
+                  "label": "",
+                  "type": "text",
+                  "subtype": "notBelongsToTool",
+                  "maxLength": 0,
+                  "minLength": 0,
+                  "minValue": 0,
+                  "maxValue": 0,
+                  "isDisabled": true,
+                  "isHidden": true,
+                  "isRequired": false,
+                  "disabledForStatuses": [],
+                  "alwaysDisabled": false,
+                  "isInfoIcon": false,
+                  "radioButtons": [],
+                  "isSubField": false,
+                  "dependentFields": [],
+                  "position": 2,
+                  "options": [],
+                  "autoFillFields": [],
+                  "attributeMapping": "materials#.notBelongsToTool",
+                  "defaultValue": "",
+                  "allowedFormats": [],
+                  "isMultiple": false,
+                  "permissions": [],
+                  "multiSelect": false
+                },
+                {
                   "name": "sparePartNumber",
                   "label": "sparePartNumber",
                   "type": "autocomplete",
@@ -5783,7 +5811,7 @@
                   "isSubField": true,
                   "dependFieldCondition": "",
                   "dependentFields": [],
-                  "position": 3,
+                  "position": 4,
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
@@ -5816,7 +5844,7 @@
                   "isSubField": true,
                   "dependFieldCondition": "",
                   "dependentFields": [],
-                  "position": 4,
+                  "position": 5,
                   "options": [
                     {
                       "name": "WARRANTY",
@@ -5862,7 +5890,7 @@
                   "isSubField": true,
                   "dependFieldCondition": "",
                   "dependentFields": [],
-                  "position": 5,
+                  "position": 6,
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
@@ -5895,7 +5923,7 @@
                   "isSubField": true,
                   "dependFieldCondition": "",
                   "dependentFields": [],
-                  "position": 6,
+                  "position": 7,
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
@@ -5928,7 +5956,7 @@
                   "isSubField": true,
                   "dependFieldCondition": "",
                   "dependentFields": [],
-                  "position": 7,
+                  "position": 8,
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
@@ -5966,7 +5994,7 @@
                       "fieldValue": "NET_PRICE"
                     }
                   ],
-                  "position": 8,
+                  "position": 9,
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
@@ -6000,7 +6028,7 @@
                   "isSubField": true,
                   "dependFieldCondition": "",
                   "dependentFields": [],
-                  "position": 9,
+                  "position": 10,
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
@@ -6034,7 +6062,7 @@
                   "isSubField": true,
                   "dependFieldCondition": "",
                   "dependentFields": [],
-                  "position": 10,
+                  "position": 11,
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
@@ -6067,7 +6095,7 @@
                   "isSubField": true,
                   "dependFieldCondition": "",
                   "dependentFields": [],
-                  "position": 11,
+                  "position": 12,
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
@@ -6100,7 +6128,7 @@
                   "isSubField": true,
                   "dependFieldCondition": "",
                   "dependentFields": [],
-                  "position": 12,
+                  "position": 13,
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
@@ -6138,7 +6166,7 @@
                       "fieldValue": "GROSS_PRICE"
                     }
                   ],
-                  "position": 13,
+                  "position": 14,
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
@@ -6171,8 +6199,7 @@
                   "isSubField": true,
                   "dependFieldCondition": "",
                   "dependentFields": [],
-                  "position": 14,
-                  "options": [],
+                  "position": 15,
                   "patternText": "",
                   "autoFillFields": [],
                   "attributeMapping": "",
@@ -6205,7 +6232,7 @@
                   "isSubField": true,
                   "dependFieldCondition": "",
                   "dependentFields": [],
-                  "position": 15,
+                  "position": 16,
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
@@ -6239,7 +6266,7 @@
                   "isSubField": true,
                   "dependFieldCondition": "",
                   "dependentFields": [],
-                  "position": 16,
+                  "position": 17,
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
@@ -6273,40 +6300,12 @@
                   "isSubField": true,
                   "dependFieldCondition": "",
                   "dependentFields": [],
-                  "position": 17,
+                  "position": 18,
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
                   "attributeMapping": "materials#.price.totalAmount",
                   "defaultValue": 0,
-                  "allowedFormats": [],
-                  "isMultiple": false,
-                  "permissions": [],
-                  "multiSelect": false
-                },
-                {
-                  "name": "notBelongsToTool",
-                  "label": "",
-                  "type": "text",
-                  "subtype": "notBelongsToTool",
-                  "maxLength": 0,
-                  "minLength": 0,
-                  "minValue": 0,
-                  "maxValue": 0,
-                  "isDisabled": true,
-                  "isHidden": true,
-                  "isRequired": false,
-                  "disabledForStatuses": [],
-                  "alwaysDisabled": false,
-                  "isInfoIcon": false,
-                  "radioButtons": [],
-                  "isSubField": false,
-                  "dependentFields": [],
-                  "position": 18,
-                  "options": [],
-                  "autoFillFields": [],
-                  "attributeMapping": "materials#.notBelongsToTool",
-                  "defaultValue": "",
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
@@ -6883,7 +6882,7 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "priceSummary.suggestedNetPrice",
+                  "attributeMapping": "claimPriceSummaryDetailed.total.suggestedNetPrice",
                   "defaultValue": 0,
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
@@ -6917,12 +6916,12 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "",
+                  "attributeMapping": "claimPriceSummaryDetailed.total.discount",
                   "defaultValue": 0,
-                  "sameDataFieldAs": "summaryDiscount",
+                  "sameDataFieldAs": "",
                   "allowedFormats": [],
                   "isMultiple": false,
-                  "onValueChange": "onSummaryDiscountNetChange",
+                  "onValueChange": "",
                   "permissions": [],
                   "multiSelect": false
                 },
@@ -6952,7 +6951,7 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "priceSummary.netAmount",
+                  "attributeMapping": "claimPriceSummaryDetailed.total.netAmount",
                   "defaultValue": 0,
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
@@ -6986,7 +6985,7 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "priceSummary.taxAmount",
+                  "attributeMapping": "claimPriceSummaryDetailed.total.taxAmount",
                   "defaultValue": 0,
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
@@ -7021,7 +7020,7 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "priceSummary.totalGrossAmount",
+                  "attributeMapping": "claimPriceSummaryDetailed.total.grossAmount",
                   "defaultValue": 0,
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
@@ -7055,7 +7054,7 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "",
+                  "attributeMapping": "claimPriceSummaryDetailed.total.discount",
                   "defaultValue": 0,
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
@@ -7089,7 +7088,7 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "priceSummary.discount",
+                  "attributeMapping": "claimPriceSummaryDetailed.total.discount",
                   "defaultValue": 0,
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
@@ -7101,7 +7100,7 @@
                   "name": "claimsSummaryDiscountAmountHidden",
                   "label": "",
                   "type": "price",
-                  "subtype": "diagnosticSummaryDiscountHidden",
+                  "subtype": "diagnosticSummaryDiscountAmountHidden",
                   "pattern": "",
                   "maxLength": 0,
                   "minLength": 0,
@@ -7123,7 +7122,7 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "priceSummary.discountAmount",
+                  "attributeMapping": "claimPriceSummaryDetailed.total.discountAmount",
                   "defaultValue": 0,
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
@@ -7157,7 +7156,7 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "priceSummary.totalAmount",
+                  "attributeMapping": "claimPriceSummaryDetailed.total.totalAmount",
                   "defaultValue": "",
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
@@ -7198,7 +7197,7 @@
                   "patternText": "",
                   "autoFillFields": [],
                   "attributeMapping": "",
-                  "defaultValue": "0",
+                  "defaultValue": "totalSummary",
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
@@ -14308,7 +14307,8 @@
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onValueChange": "onNonPriceFieldChange"
                 },
                 {
                   "name": "sparePartNumber",
@@ -14342,7 +14342,8 @@
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onValueChange": "onNonPriceFieldChange"
                 },
                 {
                   "name": "description",
@@ -14427,7 +14428,8 @@
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onValueChange": "onNonPriceFieldChange"
                 },
                 {
                   "name": "quantity",
@@ -14461,7 +14463,8 @@
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
                 },
                 {
                   "name": "status",
@@ -14585,7 +14588,8 @@
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
                 },
                 {
                   "name": "suggestedNetPrice",
@@ -14624,7 +14628,8 @@
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
                 },
                 {
                   "name": "discountNet",
@@ -14657,13 +14662,14 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "",
+                  "attributeMapping": "diagnostic.materials#.price.discount",
                   "defaultValue": 0,
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
                 },
                 {
                   "name": "netAmount",
@@ -14697,7 +14703,8 @@
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
                 },
                 {
                   "name": "tax",
@@ -14731,7 +14738,8 @@
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
                 },
                 {
                   "name": "taxAmount",
@@ -14765,7 +14773,8 @@
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
                 },
                 {
                   "name": "grossAmount",
@@ -14804,7 +14813,8 @@
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
                 },
                 {
                   "name": "discount",
@@ -14837,13 +14847,14 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "",
+                  "attributeMapping": "diagnostic.materials#.price.discount",
                   "defaultValue": 0,
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
                 },
                 {
                   "name": "totalAmount",
@@ -14877,7 +14888,8 @@
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
                 }
               ],
               "dependFieldCondition": "AND",
@@ -14907,7 +14919,394 @@
               "hiddenForStatuses": []
             },
             {
-              "name": "diagnosticsSummary",
+              "name": "diagnosticsSummaryTotal",
+              "label": "summary",
+              "position": 3,
+              "fields": [
+                {
+                  "name": "summaryTotalSuggestedNetPrice",
+                  "label": "sparePartsSuggestedNetPrice",
+                  "type": "price",
+                  "subtype": "diagnosticSummarySuggestedNetPrice",
+                  "pattern": "",
+                  "maxLength": 0,
+                  "minLength": 0,
+                  "minValue": 0,
+                  "maxValue": 0,
+                  "isDisabled": true,
+                  "isHidden": false,
+                  "isRequired": false,
+                  "disabledForStatuses": [],
+                  "alwaysDisabled": false,
+                  "isInfoIcon": false,
+                  "infoText": "",
+                  "size": "3",
+                  "radioButtons": [],
+                  "isSubField": true,
+                  "dependFieldCondition": "AND",
+                  "dependentFields": [
+                    {
+                      "fieldName": "discountBase",
+                      "fieldValue": "NET_PRICE"
+                    },
+                    {
+                      "fieldName": "summaryType",
+                      "fieldValue": "totalSummary"
+                    }
+                  ],
+                  "position": 1,
+                  "options": [],
+                  "patternText": "",
+                  "autoFillFields": [],
+                  "attributeMapping": "diagnostic.priceSummaryDetailed.total.suggestedNetPrice",
+                  "defaultValue": 0,
+                  "sameDataFieldAs": "",
+                  "allowedFormats": [],
+                  "isMultiple": false,
+                  "permissions": [],
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
+                },
+                {
+                  "name": "summaryTotalDiscountNet",
+                  "label": "summaryDiscount",
+                  "type": "price",
+                  "subtype": "diagnosticSummaryDiscountNet",
+                  "pattern": "",
+                  "maxLength": 0,
+                  "minLength": 0,
+                  "minValue": 0,
+                  "maxValue": 100,
+                  "isDisabled": true,
+                  "isHidden": false,
+                  "isRequired": false,
+                  "disabledForStatuses": [],
+                  "alwaysDisabled": false,
+                  "isInfoIcon": false,
+                  "infoText": "",
+                  "size": "3",
+                  "radioButtons": [],
+                  "isSubField": true,
+                  "dependFieldCondition": "AND",
+                  "dependentFields": [
+                    {
+                      "fieldName": "discountBase",
+                      "fieldValue": "NET_PRICE"
+                    },
+                    {
+                      "fieldName": "summaryType",
+                      "fieldValue": "totalSummary"
+                    }
+                  ],
+                  "position": 1,
+                  "options": [],
+                  "patternText": "",
+                  "autoFillFields": [],
+                  "attributeMapping": "diagnostic.priceSummaryDetailed.total.discount",
+                  "defaultValue": 0,
+                  "sameDataFieldAs": "",
+                  "allowedFormats": [],
+                  "isMultiple": false,
+                  "permissions": [],
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
+                },
+                {
+                  "name": "summaryTotalSubtotal",
+                  "label": "sparePartsNetAmount",
+                  "type": "price",
+                  "subtype": "diagnosticSummaryNetAmount",
+                  "pattern": "",
+                  "maxLength": 0,
+                  "minLength": 0,
+                  "minValue": 0,
+                  "maxValue": 0,
+                  "isDisabled": true,
+                  "isHidden": false,
+                  "isRequired": false,
+                  "disabledForStatuses": [],
+                  "alwaysDisabled": false,
+                  "isInfoIcon": false,
+                  "infoText": "",
+                  "size": "3",
+                  "radioButtons": [],
+                  "isSubField": true,
+                  "dependFieldCondition": "AND",
+                  "dependentFields": [
+                    {
+                      "fieldName": "summaryType",
+                      "fieldValue": "totalSummary"
+                    }
+                  ],
+                  "position": 1,
+                  "options": [],
+                  "patternText": "",
+                  "autoFillFields": [],
+                  "attributeMapping": "diagnostic.priceSummaryDetailed.total.netAmount",
+                  "defaultValue": 0,
+                  "sameDataFieldAs": "",
+                  "allowedFormats": [],
+                  "isMultiple": false,
+                  "permissions": [],
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
+                },
+                {
+                  "name": "summaryTotalTaxAmount",
+                  "label": "sparePartsTaxAmount",
+                  "type": "price",
+                  "subtype": "diagnosticSummaryTaxAmount",
+                  "pattern": "",
+                  "maxLength": 0,
+                  "minLength": 0,
+                  "minValue": 0,
+                  "maxValue": 0,
+                  "isDisabled": true,
+                  "isHidden": false,
+                  "isRequired": false,
+                  "disabledForStatuses": [],
+                  "alwaysDisabled": false,
+                  "isInfoIcon": false,
+                  "infoText": "",
+                  "size": "3",
+                  "radioButtons": [],
+                  "isSubField": true,
+                  "dependFieldCondition": "AND",
+                  "dependentFields": [
+                    {
+                      "fieldName": "summaryType",
+                      "fieldValue": "totalSummary"
+                    }
+                  ],
+                  "position": 1,
+                  "options": [],
+                  "patternText": "",
+                  "autoFillFields": [],
+                  "attributeMapping": "diagnostic.priceSummaryDetailed.total.taxAmount",
+                  "defaultValue": 0,
+                  "sameDataFieldAs": "",
+                  "allowedFormats": [],
+                  "isMultiple": false,
+                  "permissions": [],
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
+                },
+                {
+                  "name": "summaryTotalGrossAmount",
+                  "label": "sparePartsGrossAmount",
+                  "type": "price",
+                  "subtype": "diagnosticSummaryGrossAmount",
+                  "pattern": "",
+                  "maxLength": 0,
+                  "minLength": 0,
+                  "minValue": 0,
+                  "maxValue": 0,
+                  "isDisabled": true,
+                  "isHidden": false,
+                  "isRequired": false,
+                  "disabledForStatuses": [],
+                  "alwaysDisabled": false,
+                  "isInfoIcon": false,
+                  "infoText": "",
+                  "size": "3",
+                  "radioButtons": [],
+                  "isSubField": true,
+                  "dependFieldCondition": "AND",
+                  "dependentFields": [
+                    {
+                      "fieldName": "discountBase",
+                      "fieldValue": "GROSS_PRICE"
+                    },
+                    {
+                      "fieldName": "summaryType",
+                      "fieldValue": "totalSummary"
+                    }
+                  ],
+                  "position": 1,
+                  "options": [],
+                  "patternText": "",
+                  "autoFillFields": [],
+                  "attributeMapping": "diagnostic.priceSummaryDetailed.total.grossAmount",
+                  "defaultValue": 0,
+                  "sameDataFieldAs": "",
+                  "allowedFormats": [],
+                  "isMultiple": false,
+                  "permissions": [],
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
+                },
+                {
+                  "name": "summaryTotalDiscount",
+                  "label": "summaryDiscount",
+                  "type": "price",
+                  "subtype": "diagnosticSummaryDiscount",
+                  "pattern": "",
+                  "maxLength": 0,
+                  "minLength": 0,
+                  "minValue": 0,
+                  "maxValue": 100,
+                  "isDisabled": true,
+                  "isHidden": false,
+                  "isRequired": false,
+                  "disabledForStatuses": [],
+                  "alwaysDisabled": false,
+                  "isInfoIcon": false,
+                  "infoText": "",
+                  "size": "3",
+                  "radioButtons": [],
+                  "isSubField": true,
+                  "dependFieldCondition": "AND",
+                  "dependentFields": [
+                    {
+                      "fieldName": "discountBase",
+                      "fieldValue": "GROSS_PRICE"
+                    },
+                    {
+                      "fieldName": "summaryType",
+                      "fieldValue": "totalSummary"
+                    }
+                  ],
+                  "position": 1,
+                  "options": [],
+                  "patternText": "",
+                  "autoFillFields": [],
+                  "attributeMapping": "diagnostic.priceSummaryDetailed.total.discount",
+                  "defaultValue": 0,
+                  "sameDataFieldAs": "",
+                  "allowedFormats": [],
+                  "isMultiple": false,
+                  "permissions": [],
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
+                },
+                {
+                  "name": "summaryTotalTotalAmount",
+                  "label": "sparePartsTotalAmount",
+                  "type": "price",
+                  "subtype": "diagnosticSummaryTotalAmount",
+                  "pattern": "",
+                  "maxLength": 0,
+                  "minLength": 0,
+                  "minValue": 0,
+                  "maxValue": 0,
+                  "isDisabled": true,
+                  "isHidden": false,
+                  "isRequired": false,
+                  "disabledForStatuses": [],
+                  "alwaysDisabled": false,
+                  "isInfoIcon": false,
+                  "infoText": "",
+                  "size": "3",
+                  "radioButtons": [],
+                  "isSubField": true,
+                  "dependFieldCondition": "AND",
+                  "dependentFields": [
+                    {
+                      "fieldName": "discountBase",
+                      "fieldValue": "GROSS_PRICE"
+                    },
+                    {
+                      "fieldName": "summaryType",
+                      "fieldValue": "totalSummary"
+                    }
+                  ],
+                  "position": 1,
+                  "options": [],
+                  "patternText": "",
+                  "autoFillFields": [],
+                  "attributeMapping": "diagnostic.priceSummaryDetailed.total.totalAmount",
+                  "defaultValue": "",
+                  "sameDataFieldAs": "",
+                  "allowedFormats": [],
+                  "isMultiple": false,
+                  "permissions": [],
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
+                },
+                {
+                  "name": "summaryType",
+                  "label": "summaryType",
+                  "type": "radiogroup",
+                  "subtype": "diagnosticSummaryType",
+                  "pattern": "",
+                  "maxLength": 0,
+                  "minLength": 0,
+                  "minValue": 0,
+                  "maxValue": 0,
+                  "isDisabled": false,
+                  "isHidden": false,
+                  "isRequired": true,
+                  "disabledForStatuses": ["CUSTOMER_APPROVAL_PENDING"],
+                  "alwaysDisabled": false,
+                  "isInfoIcon": false,
+                  "infoText": "",
+                  "size": "2",
+                  "radioButtons": [
+                    {
+                      "label": "totalSummary",
+                      "value": "totalSummary"
+                    },
+                    {
+                      "label": "warranty",
+                      "value": "warranty"
+                    },
+                    {
+                      "label": "chargeable",
+                      "value": "chargeable"
+                    },
+                    {
+                      "label": "comercialGoodwill",
+                      "value": "comercial_goodwill"
+                    },
+                    {
+                      "label": "serviceOffering",
+                      "value": "service_offering"
+                    }
+                  ],
+                  "radioButtonsSource": "getRadioButtonsForSummaryType",
+                  "isSubField": false,
+                  "dependFieldCondition": "",
+                  "dependentFields": [],
+                  "position": 0,
+                  "options": [],
+                  "patternText": "",
+                  "autoFillFields": [],
+                  "attributeMapping": "",
+                  "defaultValue": "totalSummary",
+                  "allowedFormats": [],
+                  "isMultiple": false,
+                  "permissions": [],
+                  "multiSelect": false
+                }
+              ],
+              "dependFieldCondition": "AND",
+              "dependentFields": [
+                {
+                  "fieldName": "actionType",
+                  "fieldValue": "-"
+                },
+                {
+                  "fieldName": "jobType",
+                  "fieldValue": "-"
+                },
+                {
+                  "fieldName": "typeOfUse",
+                  "fieldValue": "-"
+                },
+                {
+                  "fieldName": "faultCodeDropdown",
+                  "fieldValue": "-"
+                }
+              ],
+              "actions": [],
+              "isSubArea": true,
+              "isMultiple": false,
+              "permissions": ["DP_V"],
+              "isDisabled": false,
+              "hiddenForStatuses": []
+            },
+            {
+              "name": "diagnosticsSummaryDetailed",
               "label": "summary",
               "position": 3,
               "fields": [
@@ -14942,13 +15341,14 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "diagnostic.priceSummary.suggestedNetPrice",
+                  "attributeMapping": "diagnostic.priceSummaryDetailed.byJobType#.total.suggestedNetPrice",
                   "defaultValue": 0,
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
                 },
                 {
                   "name": "summaryDiscountNet",
@@ -14981,13 +15381,14 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "",
+                  "attributeMapping": "diagnostic.priceSummaryDetailed.byJobType#.total.discount",
                   "defaultValue": 0,
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
                 },
                 {
                   "name": "summarySubtotal",
@@ -15015,13 +15416,14 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "diagnostic.priceSummary.netAmount",
+                  "attributeMapping": "diagnostic.priceSummaryDetailed.byJobType#.total.netAmount",
                   "defaultValue": 0,
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
                 },
                 {
                   "name": "summaryTaxAmount",
@@ -15049,13 +15451,14 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "diagnostic.priceSummary.taxAmount",
+                  "attributeMapping": "diagnostic.priceSummaryDetailed.byJobType#.total.taxAmount",
                   "defaultValue": 0,
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
                 },
                 {
                   "name": "summaryGrossAmount",
@@ -15088,13 +15491,14 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "diagnostic.priceSummary.grossAmount",
+                  "attributeMapping": "diagnostic.priceSummaryDetailed.byJobType#.total.grossAmount",
                   "defaultValue": 0,
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
                 },
                 {
                   "name": "summaryDiscount",
@@ -15127,121 +15531,20 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "",
+                  "attributeMapping": "diagnostic.priceSummaryDetailed.byJobType#.total.discount",
                   "defaultValue": 0,
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
-                  "multiSelect": false
-                },
-                {
-                  "name": "summaryDiscountHidden",
-                  "label": "",
-                  "type": "price",
-                  "subtype": "diagnosticSummaryDiscountHidden",
-                  "pattern": "",
-                  "maxLength": 0,
-                  "minLength": 0,
-                  "minValue": 0,
-                  "maxValue": 0,
-                  "isDisabled": true,
-                  "isHidden": true,
-                  "isRequired": false,
-                  "disabledForStatuses": [],
-                  "alwaysDisabled": false,
-                  "isInfoIcon": false,
-                  "infoText": "",
-                  "size": "3",
-                  "radioButtons": [],
-                  "isSubField": true,
-                  "dependFieldCondition": "",
-                  "dependentFields": [],
-                  "position": 0,
-                  "options": [],
-                  "patternText": "",
-                  "autoFillFields": [],
-                  "attributeMapping": "diagnostic.priceSummary.discount",
-                  "defaultValue": 0,
-                  "sameDataFieldAs": "",
-                  "allowedFormats": [],
-                  "isMultiple": false,
-                  "permissions": [],
-                  "multiSelect": false
-                },
-                {
-                  "name": "summaryDiscountAmountHidden",
-                  "label": "",
-                  "type": "price",
-                  "subtype": "diagnosticSummaryDiscountHidden",
-                  "pattern": "",
-                  "maxLength": 0,
-                  "minLength": 0,
-                  "minValue": 0,
-                  "maxValue": 0,
-                  "isDisabled": true,
-                  "isHidden": true,
-                  "isRequired": false,
-                  "disabledForStatuses": [],
-                  "alwaysDisabled": false,
-                  "isInfoIcon": false,
-                  "infoText": "",
-                  "size": "3",
-                  "radioButtons": [],
-                  "isSubField": true,
-                  "dependFieldCondition": "",
-                  "dependentFields": [],
-                  "position": 0,
-                  "options": [],
-                  "patternText": "",
-                  "autoFillFields": [],
-                  "attributeMapping": "diagnostic.priceSummary.discountAmount",
-                  "defaultValue": 0,
-                  "sameDataFieldAs": "",
-                  "allowedFormats": [],
-                  "isMultiple": false,
-                  "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
                 },
                 {
                   "name": "summaryTotalAmount",
                   "label": "sparePartsTotalAmount",
                   "type": "price",
                   "subtype": "diagnosticSummaryTotalAmount",
-                  "pattern": "",
-                  "maxLength": 0,
-                  "minLength": 0,
-                  "minValue": 0,
-                  "maxValue": 0,
-                  "isDisabled": true,
-                  "isHidden": false,
-                  "isRequired": false,
-                  "disabledForStatuses": [],
-                  "alwaysDisabled": false,
-                  "isInfoIcon": false,
-                  "infoText": "",
-                  "size": "3",
-                  "radioButtons": [],
-                  "isSubField": true,
-                  "dependFieldCondition": "AND",
-                  "dependentFields": [],
-                  "position": 1,
-                  "options": [],
-                  "patternText": "",
-                  "autoFillFields": [],
-                  "attributeMapping": "diagnostic.priceSummary.totalAmount",
-                  "defaultValue": "",
-                  "sameDataFieldAs": "",
-                  "allowedFormats": [],
-                  "isMultiple": false,
-                  "permissions": [],
-                  "multiSelect": false
-                },
-                {
-                  "name": "summarySuggestedNetPriceMaterial",
-                  "label": "sparePartsSuggestedNetPrice",
-                  "type": "price",
-                  "subtype": "diagnosticSummarySuggestedNetPriceMaterial",
                   "pattern": "",
                   "maxLength": 0,
                   "minLength": 0,
@@ -15272,19 +15575,20 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "",
-                  "defaultValue": 0,
+                  "attributeMapping": "diagnostic.priceSummaryDetailed.byJobType#.total.totalAmount",
+                  "defaultValue": "",
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
                 },
                 {
-                  "name": "summaryDiscountMaterialHidden",
+                  "name": "summaryJobType",
                   "label": "",
-                  "type": "price",
-                  "subtype": "diagnosticSummaryDiscountMaterialHidden",
+                  "type": "text",
+                  "subtype": "summaryDetailedJobType",
                   "pattern": "",
                   "maxLength": 0,
                   "minLength": 0,
@@ -15300,13 +15604,13 @@
                   "size": "3",
                   "radioButtons": [],
                   "isSubField": true,
-                  "dependFieldCondition": "",
+                  "dependFieldCondition": "AND",
                   "dependentFields": [],
-                  "position": 0,
+                  "position": 1,
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "",
+                  "attributeMapping": "diagnostic.priceSummaryDetailed.byJobType#.jobType",
                   "defaultValue": 0,
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
@@ -15349,14 +15653,15 @@
                   "position": 1,
                   "options": [],
                   "autoFillFields": [],
-                  "attributeMapping": "",
+                  "attributeMapping": "diagnostic.priceSummaryDetailed.byJobType#.materialRelated.discount",
                   "defaultValue": 0,
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
                   "isMultiple": false,
                   "onValueChange": "onSummaryDiscountNetChange",
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
                 },
                 {
                   "name": "summarySubtotalMaterial",
@@ -15389,14 +15694,14 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "",
+                  "attributeMapping": "diagnostic.priceSummaryDetailed.byJobType#.materialRelated.netAmount",
                   "defaultValue": 0,
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
                   "isMultiple": false,
-                  "onValueChange": "onSummaryNetAmountChange",
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
                 },
                 {
                   "name": "summaryTaxAmountMaterial",
@@ -15429,13 +15734,14 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "",
+                  "attributeMapping": "diagnostic.priceSummaryDetailed.byJobType#.materialRelated.taxAmount",
                   "defaultValue": 0,
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
                 },
                 {
                   "name": "summaryGrossAmountMaterial",
@@ -15472,13 +15778,14 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "",
+                  "attributeMapping": "diagnostic.priceSummaryDetailed.byJobType#.materialRelated.grossAmount",
                   "defaultValue": 0,
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
                   "isMultiple": false,
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
                 },
                 {
                   "name": "summaryDiscountMaterial",
@@ -15515,14 +15822,14 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "",
+                  "attributeMapping": "diagnostic.priceSummaryDetailed.byJobType#.materialRelated.discount",
                   "defaultValue": 0,
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
                   "isMultiple": false,
-                  "onValueChange": "onSummaryDiscountChange",
                   "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
                 },
                 {
                   "name": "summaryTotalAmountMaterial",
@@ -15555,69 +15862,14 @@
                   "options": [],
                   "patternText": "",
                   "autoFillFields": [],
-                  "attributeMapping": "",
+                  "attributeMapping": "diagnostic.priceSummaryDetailed.byJobType#.materialRelated.totalAmount",
                   "defaultValue": "",
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
                   "isMultiple": false,
-                  "onValueChange": "onSummaryTotalAmountChange",
                   "permissions": [],
-                  "multiSelect": false
-                },
-                {
-                  "name": "summaryType",
-                  "label": "summaryType",
-                  "type": "radiogroup",
-                  "subtype": "diagnosticSummaryType",
-                  "pattern": "",
-                  "maxLength": 0,
-                  "minLength": 0,
-                  "minValue": 0,
-                  "maxValue": 0,
-                  "isDisabled": false,
-                  "isHidden": false,
-                  "isRequired": true,
-                  "disabledForStatuses": ["CUSTOMER_APPROVAL_PENDING"],
-                  "alwaysDisabled": false,
-                  "isInfoIcon": false,
-                  "infoText": "",
-                  "size": "2",
-                  "radioButtons": [
-                    {
-                      "label": "totalSummary",
-                      "value": "totalSummary"
-                    },
-                    {
-                      "label": "warranty",
-                      "value": "warranty"
-                    },
-                    {
-                      "label": "chargeable",
-                      "value": "chargeable"
-                    },
-                    {
-                      "label": "comercialGoodwill",
-                      "value": "comercialGoodwill"
-                    },
-                    {
-                      "label": "serviceOffering",
-                      "value": "serviceOffering"
-                    }
-                  ],
-                  "radioButtonsSource": "getRadioButtonsForSummaryType",
-                  "isSubField": false,
-                  "dependFieldCondition": "",
-                  "dependentFields": [],
-                  "position": 0,
-                  "options": [],
-                  "patternText": "",
-                  "autoFillFields": [],
-                  "attributeMapping": "",
-                  "defaultValue": "0",
-                  "allowedFormats": [],
-                  "isMultiple": false,
-                  "permissions": [],
-                  "multiSelect": false
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
                 }
               ],
               "dependFieldCondition": "AND",
@@ -15641,7 +15893,7 @@
               ],
               "actions": [],
               "isSubArea": true,
-              "isMultiple": false,
+              "isMultiple": true,
               "permissions": ["DP_V"],
               "isDisabled": false,
               "hiddenForStatuses": []
@@ -16355,8 +16607,8 @@
                   "permissions": [],
                   "statuses": ["IN_DIAGNOSTICS", "WAITING_FOR_APPROVAL", "REVISED", "REJECTED"],
                   "modes": [],
-                  "method": "showAddRow",
                   "roles": [],
+                  "method": "showAddRow",
                   "nonEmpty": ["actionType", "jobType", "typeOfUse", "faultCodeDropdown"]
                 },
                 "enableAction": {
@@ -21739,7 +21991,7 @@
           "dependency": {
             "shouldDisableSection": false,
             "showAction": {
-              "permissions": [],
+              "permissions": ["SC_S"],
               "statuses": ["ACTIVE"],
               "modes": [],
               "roles": [],
@@ -21758,7 +22010,7 @@
           "dependency": {
             "shouldDisableSection": false,
             "showAction": {
-              "permissions": [],
+              "permissions": ["SC_S"],
               "statuses": ["INACTIVE"],
               "modes": [],
               "roles": [],

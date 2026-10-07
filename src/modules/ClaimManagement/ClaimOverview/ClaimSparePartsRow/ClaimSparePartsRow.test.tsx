@@ -39,7 +39,6 @@ vi.mock("../ClaimContext", () => ({
     markRowDirty: vi.fn(),
     allowedPositions: [],
     positionDropdownOptions: [],
-    // isResyncingRef: { current: false },
     discountBase: "GROSS_PRICE",
     canDeleteRows: true,
     automaticRows: [],
@@ -92,7 +91,6 @@ const baseClaimContext = {
   markRowDirty: vi.fn(),
   allowedPositions: [] as Array<{ position: string; maxCount: number }>,
   positionDropdownOptions: [] as Array<{ value: string; name: string }>,
-  // isResyncingRef: { current: false },
   discountBase: "GROSS_PRICE",
   canDeleteRows: true,
   automaticRows: [] as string[],
@@ -574,7 +572,6 @@ describe("ClaimSparePartsRow", () => {
       mockUseClaimContext.mockReturnValue({
         ...baseClaimContext,
         markRowDirty,
-        //  isResyncingRef: { current: true },
       } as never);
 
       const { rerender } = render(buildElement());

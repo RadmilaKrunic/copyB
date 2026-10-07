@@ -1568,11 +1568,6 @@ describe("SparePartsRow areaNamePrefix fallback", () => {
 });
 
 describe("SparePartsRow row-index-1 branches", () => {
-  // These two `if (areaIndex === 1 && !isResyncingRef.current && !prevPartNumberRef.current)`
-  // guards can only ever be true for a row whose areaNamePrefix encodes index 1
-  // (`diagnosticsSpareParts#1_...`). Every other test in this file renders the row under
-  // test as index 0 (`#0_`), so these branches were structurally unreachable regardless of
-  // how many index-0 scenarios were added. Rendering the row itself at index 1 is required.
   const row1Fields: Field[] = rowFields.map((f) => ({
     ...f,
     fieldMapping: f.fieldMapping
@@ -1586,7 +1581,7 @@ describe("SparePartsRow row-index-1 branches", () => {
       : statusField.fieldMapping,
   };
 
-  it("flips isResyncingRef via the partNumber-reset path when the row itself is at index 1", async () => {
+  it("flips via the partNumber-reset path when the row itself is at index 1", async () => {
     renderRow(
       {
         row0_position: "SP",
@@ -1610,7 +1605,7 @@ describe("SparePartsRow row-index-1 branches", () => {
     });
   });
 
-  it("flips isResyncingRef via the jobType-discount path when the row itself is at index 1", async () => {
+  it("flips via the jobType-discount path when the row itself is at index 1", async () => {
     renderRow(
       { row0_position: "SP", row0_type: "WARRANTY" },
       [],
@@ -1633,7 +1628,7 @@ describe("SparePartsRow row-index-1 branches", () => {
 });
 
 describe("SparePartsRow preserveFields restore branch", () => {
-  it("restores previously-preserved price fields after leaving CHARGEABLE while isResyncingRef suppressed the discount reset", async () => {
+  it("restores previously-preserved price fields after leaving CHARGEABLE while suppressed the discount reset", async () => {
     renderRow(
       {
         row0_position: "SP",

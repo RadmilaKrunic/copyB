@@ -17,6 +17,7 @@ import {
   convertAPIDataToFormValues,
   setSectionDisabledState,
   mapValuesToAPI,
+  syncMaterialsWithForm,
 } from "components/generics/utils";
 import { getUploadFieldErrors } from "components/generics/Form/formValidation";
 import Field, {
@@ -70,7 +71,6 @@ import {
   usePostJobStatusStartDiagnostic,
   useToggleJobHold,
   usePostValidateAndSave,
-  //usePostDiagnostic,
   usePostRepairApproval,
   usePostInternalApprovalRequest,
   usePostStartReview,
@@ -95,7 +95,6 @@ import { SpecialMaterial } from "./AddSpecialMaterialModal/SpecialMeterialItem/S
 import {
   useDiagnosticsManager,
   hasWarrantyOrProServiceItems,
-  syncMaterialsWithForm,
   getPendingInfo,
 } from "hooks/useDiagnosticsManager";
 import { useFormInitialization } from "hooks/useFormInitialization";
@@ -122,6 +121,7 @@ const WARRANTY_REASON_KEYS = new Set([
   "WARRANTY_EXPIRED",
   "ALLOWED_REPAIR_COUNT_EXCEEDED",
 ]);
+const SPARE_PARTS_PREFIX = "diagnosticData_diagnosticsSpareParts#";
 
 interface WarrantyInfoContentData extends WarrantyInfoPayload {
   reasonKey: WarrantyInfoPayload["reasonKey"];
@@ -255,9 +255,7 @@ export default function JobOverview() {
       purchaseDate: asset.purchaseDate,
     };
     warrantyCheckMutation.mutate(payload);
-    // warrantyCheckMutation.mutate is stable — intentionally excluded from deps
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobData]);
+  }, [jobData, warrantyCheckMutation]);
 
   useEffect(() => {
     if (!jobData?.job?.asset?.purchaseDate) {
@@ -1185,7 +1183,7 @@ export default function JobOverview() {
   );
 
   const onProductDetails = useCallback(() => {
-    const updatedMaterials = syncMaterialsWithForm(materials, formValuesRef.current ?? {});
+    const updatedMaterials = syncMaterialsWithForm(materials, formValuesRef.current ?? {}, SPARE_PARTS_PREFIX);
     setMaterials(updatedMaterials);
     setIsExplosionDrawingModalOpen(true);
   }, [materials, setMaterials]);

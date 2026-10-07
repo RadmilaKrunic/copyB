@@ -66,7 +66,9 @@ vi.mock("../Action/GenericAction", () => ({
 }));
 
 vi.mock("components/ui/TooltipContent/InfoIconWithTooltip", () => ({
-  default: ({ infoText }: { infoText?: string }) => <span data-testid="warranty-info">{infoText}</span>,
+  default: ({ infoText }: { infoText?: string }) => (
+    <span data-testid="warranty-info">{infoText}</span>
+  ),
 }));
 
 describe("GenericSection", () => {
@@ -842,7 +844,8 @@ describe("GenericSection", () => {
     it("uses getCollapsedTitle with form values when collapsed", () => {
       renderWithContext(section, {
         isCollapsed: true,
-        getCollapsedTitle: (values: Record<string, unknown>) => `Title ${String(values.testField)}!`,
+        getCollapsedTitle: (values: Record<string, unknown>) =>
+          `Title ${String(values.testField)}!`,
       });
       expect(screen.getByText("Title !")).toBeInTheDocument();
     });
@@ -850,10 +853,21 @@ describe("GenericSection", () => {
     it("expands the section when the collapsed edit icon is clicked", async () => {
       const user = userEvent.setup();
       renderWithContext(
-        { ...section, areas: [{
-          name: "area1", label: "Area 1", position: 1, fields: [], dependFieldCondition: "",
-          dependentFields: [], actions: null, isSubArea: false,
-        }] },
+        {
+          ...section,
+          areas: [
+            {
+              name: "area1",
+              label: "Area 1",
+              position: 1,
+              fields: [],
+              dependFieldCondition: "",
+              dependentFields: [],
+              actions: null,
+              isSubArea: false,
+            },
+          ],
+        },
         { isCollapsed: true, collapsedTitle: "Summary" },
       );
       expect(screen.queryByTestId("area-area1")).not.toBeInTheDocument();
@@ -866,10 +880,12 @@ describe("GenericSection", () => {
       render(
         <QueryClientProvider client={queryClient}>
           <GenericFormContext.Provider
-            value={{
-              ...mockContextValue,
-              warrantyPanelInfo: { isIneligible: true, unavailableMessage: "Out of warranty" },
-            } as never}
+            value={
+              {
+                ...mockContextValue,
+                warrantyPanelInfo: { isIneligible: true, unavailableMessage: "Out of warranty" },
+              } as never
+            }
           >
             <Formik initialValues={mockInitialValues} onSubmit={vi.fn()}>
               <GenericSection section={section} />

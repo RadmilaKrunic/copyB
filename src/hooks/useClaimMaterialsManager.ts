@@ -48,41 +48,6 @@ function computeClaimsFinalAreas(
   return sparePartsAreas;
 }
 
-const claimMaterialToMaterialItem = (m: Material): MaterialItem => {
-  const price = m.price ?? ({} as Material["price"]);
-  const quantity = m.quantity ?? 1;
-  const unitPrice = price?.unitPrice ?? 0;
-  const taxPercent = price?.tax ?? 0;
-  const discount = price?.discount ?? 0;
-  const suggestedNetPrice = price?.suggestedNetPrice ?? 0;
-  const netAmount = price?.netAmount ?? 0;
-  const grossAmount = price?.grossAmount ?? 0;
-  const discountAmount = price?.discountAmount ?? 0;
-  const totalAmount = price?.totalAmount ?? 0;
-  const taxAmount = price?.taxAmount ?? 0;
-
-  return {
-    position: m.position ?? "",
-    partNumber: m.partNumber ?? "",
-    description: m.description ?? "",
-    type: m.jobType ?? "",
-    quantity,
-    unitPrice,
-    suggestedNetPrice,
-    netAmount,
-    tax: taxPercent,
-    grossAmount,
-    discount,
-    discountAmount,
-    totalAmount,
-    taxAmount,
-    status: m.status,
-    isValidated: m.isValidated,
-    order: Number(m.order) || 0,
-    reimbursementPaymentMethod: m.reimbursementPaymentMethod,
-  };
-};
-
 const getOrderValue = (item: MaterialItem, fallbackIndex: number): number => {
   const parsed = Number(item.order);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallbackIndex + 1;
@@ -157,7 +122,6 @@ export interface UseClaimMaterialsManagerProps {
   arePricesValidated: boolean;
   setArePricesValidated: Dispatch<SetStateAction<boolean>>;
   readOnly?: boolean;
-  // isResyncingRef: RefObject<boolean>;
 }
 
 export interface UseClaimMaterialsManagerReturn {
@@ -179,10 +143,62 @@ export interface UseClaimMaterialsManagerReturn {
   markRowDirty: (areaIndex: number) => void;
   forceRebuildRef: RefObject<boolean>;
   hasSyncedRef: RefObject<boolean>;
+  claimMaterialToMaterialItem: (m: Material) => MaterialItem;
 }
 
 const POSITION_PERMISSIONS: Record<string, string> = {
   PN: PERMISSIONS.DIAGNOSTICS.CAN_VIEW_NET_DEALER_PRICE,
+};
+
+function shouldReuseExistingRowValues(params: {
+  rowIndex: number;
+  currentCount: number;
+  livePosition: string;
+  expectedPosition: string;
+  forceRebuild: boolean;
+  rowHasNoPrices: boolean;
+}): boolean {
+  const { rowIndex, currentCount, livePosition, expectedPosition, forceRebuild, rowHasNoPrices } =
+    params;
+  if (rowIndex >= currentCount) return false;
+  if (livePosition !== expectedPosition) return false;
+  if (forceRebuild) return false;
+  return !rowHasNoPrices;
+}
+export const claimMaterialToMaterialItem = (m: Material): MaterialItem => {
+  const price = m.price ?? ({} as Material["price"]);
+  const quantity = m.quantity ?? 1;
+  const unitPrice = price?.unitPrice ?? 0;
+  const taxPercent = price?.tax ?? 0;
+  const discount = price?.discount ?? 0;
+  const suggestedNetPrice = price?.suggestedNetPrice ?? 0;
+  const netAmount = price?.netAmount ?? 0;
+  const grossAmount = price?.grossAmount ?? 0;
+  const discountAmount = price?.discountAmount ?? 0;
+  const totalAmount = price?.totalAmount ?? 0;
+  const taxAmount = price?.taxAmount ?? 0;
+
+  return {
+    position: m.position ?? "",
+    partNumber: m.partNumber ?? "",
+    description: m.description ?? "",
+    type: m.jobType ?? "",
+    quantity,
+    unitPrice,
+    suggestedNetPrice,
+    netAmount,
+    tax: taxPercent,
+    grossAmount,
+    discount,
+    discountAmount,
+    totalAmount,
+    taxAmount,
+    status: m.status,
+    isValidated: m.isValidated,
+    order: Number(m.order) || 0,
+    reimbursementPaymentMethod: m.reimbursementPaymentMethod,
+  };
+
 };
 
 // ── Hook ──────────────────────────────────────────────────────────────────
@@ -202,7 +218,6 @@ export const useClaimMaterialsManager = ({
   formValuesRef,
   setArePricesValidated,
   readOnly = false,
-  // isResyncingRef,
 }: UseClaimMaterialsManagerProps): UseClaimMaterialsManagerReturn => {
   const queryClient = useQueryClient();
 
@@ -290,7 +305,7 @@ export const useClaimMaterialsManager = ({
 
   // ── Effect 1: Load materials from API response ─────────────────────────
   useEffect(() => {
-    if (!claimMaterials?.length) return;
+    if (!claimMaterials?.length || hasSyncedRef.current) return;
     // Allow re-run when:
     //  • hasSyncedRef was externally reset to false (post-validate resync), OR
     //  • claimMaterials is a new reference (fresh fetch with different / more items)
@@ -303,8 +318,7 @@ export const useClaimMaterialsManager = ({
     forceRebuildRef.current = true;
     setMaterials(sortMaterialsByOrder(items));
     setArePricesValidated(claimMaterials.every((m) => m.isValidated === true));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [claimMaterials]);
+  }, [claimMaterials, setArePricesValidated]);
 
   // ── Effect 2: materials[] → areas + allFields + initialFormValues ──────
   useEffect(() => {
@@ -388,39 +402,50 @@ export const useClaimMaterialsManager = ({
               f.subtype === "diagnosticSuggestedNetPrice",
           )
           .every((f) => !Number(formValuesRef.current[f.name]));
-      if (idx < currentCount && !forceRebuildRef.current && !rowHasNoPrices) {
-        const existingValues = Object.fromEntries(
-          areaFields
-            .filter((f) => f.name in formValuesRef.current)
-            .map((f) => [f.name, formValuesRef.current[f.name]]),
-        );
-        rowValues = { ...rowValues, ...existingValues };
-      } else {
-        rowValues = { ...rowValues, ...buildRowValues(areaFields, item) };
-      }
+     const reuseExistingValues = shouldReuseExistingRowValues({
+       rowIndex: idx,
+       currentCount,
+       livePosition,
+       expectedPosition: item.position,
+       forceRebuild,
+       rowHasNoPrices,
+     });
+       if (reuseExistingValues) {
+            const baseValues = Object.fromEntries(
+              areaFields.filter((f) => f.name in formValues).map((f) => [f.name, formValues[f.name]]),
+            );
+            const existingValues = applyStatusAndTypeOverrides(
+              baseValues,
+              areaFields,
+              item,
+              formValues.faultCodeDropdown,
+            );
+            const descriptionField = areaFields.find((f) => f.subtype === "diagnosticDescription");
+            if (descriptionField) {
+              const currentDescription = existingValues[descriptionField.name];
+              if (
+                (typeof currentDescription !== "string" || !currentDescription.trim()) &&
+                item.description
+              ) {
+                existingValues[descriptionField.name] = item.description;
+              }
+            }
+            if (item.position === "LA") {
+              const qtyField = areaFields.find((f) => f.subtype === "diagnosticQuantity");
+              if (qtyField) {
+                existingValues[qtyField.name] = item.quantity;
+              }
+            }
+            rowValues = { ...rowValues, ...existingValues };
+            return;
+          }
+      
+          rowValues = { ...rowValues, ...buildRowValues(areaFields, item) };
+    });
+    
     });
 
-    const keepClaimArea = (a: Area) => !removeNames.has(a.name);
-    if (needed !== 0 || forceRebuildRef.current) {
-      skipFormResetRef.current = true;
-      // Functional updaters so we compose correctly with useDiagnosticsManager
-      // which shares the same setAllFields / setTabs.
-      if (needed > 0) {
-        setAllFields((prev) => [...(prev ?? []), ...extraFields]);
-        setTabs((prev) =>
-          prev.map((tab) =>
-            tab.name === "claims" ? { ...tab, areas: [...tab.areas, ...newAreas] } : tab,
-          ),
-        );
-      } else {
-        setAllFields((prev) => (prev ?? []).filter((f) => !removeFieldNames.has(f.name)));
-        setTabs((prev) =>
-          prev.map((tab) =>
-            tab.name === "claims" ? { ...tab, areas: tab.areas.filter(keepClaimArea) } : tab,
-          ),
-        );
-      }
-    }
+  
 
     const rowKeys = new Set(Object.keys(rowValues));
     // Signal price-calculation hooks to skip recalculation while we write
@@ -806,5 +831,6 @@ export const useClaimMaterialsManager = ({
     markRowDirty,
     forceRebuildRef,
     hasSyncedRef,
+    claimMaterialToMaterialItem,
   };
 };

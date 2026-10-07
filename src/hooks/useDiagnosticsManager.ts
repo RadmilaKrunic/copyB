@@ -14,6 +14,7 @@ import {
   setDuplicatedArea,
   mapFieldToFieldMapping,
   syncFieldsToTabs,
+  syncMaterialsWithForm,
 } from "components/generics/utils";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -543,40 +544,6 @@ const reindexSparePartsValues = (
   return next;
 };
 
-export const syncMaterialsWithForm = (
-  materials: MaterialItem[],
-  formValues: Record<string, unknown>,
-) => {
-  const syncedMaterials = materials.map((materialItem, index) => {
-    return {
-      ...materialItem,
-      description:
-        (formValues[`${SPARE_PARTS_PREFIX}${index}_description`] as string) ??
-        materialItem.description,
-      discount:
-        Number(formValues[`${SPARE_PARTS_PREFIX}${index}_discount`]) || materialItem.discount,
-      totalAmount:
-        Number(formValues[`${SPARE_PARTS_PREFIX}${index}_totalAmount`]) || materialItem.totalAmount,
-      grossAmount:
-        Number(formValues[`${SPARE_PARTS_PREFIX}${index}_grossAmount`]) || materialItem.grossAmount,
-      partNumber:
-        (formValues[`${SPARE_PARTS_PREFIX}${index}_sparePartNumber`] as string) ??
-        materialItem.partNumber,
-      position:
-        (formValues[`${SPARE_PARTS_PREFIX}${index}_position`] as string) ?? materialItem.position,
-      quantity:
-        Number(formValues[`${SPARE_PARTS_PREFIX}${index}_quantity`]) || materialItem.quantity,
-      tax: Number(formValues[`${SPARE_PARTS_PREFIX}${index}_tax`]) || materialItem.tax,
-      netAmount:
-        Number(formValues[`${SPARE_PARTS_PREFIX}${index}_netAmount`]) || materialItem.netAmount,
-      type: (formValues[`${SPARE_PARTS_PREFIX}${index}_type`] as string) ?? materialItem.type,
-      unitPrice:
-        Number(formValues[`${SPARE_PARTS_PREFIX}${index}_unitPrice`]) || materialItem.unitPrice,
-    };
-  });
-  return syncedMaterials;
-};
-
 // ── Hook ───────────────────────────────────────────────────────────────────
 
 interface UseDiagnosticsManagerProps {
@@ -599,8 +566,6 @@ interface UseDiagnosticsManagerProps {
   formValuesRef: RefObject<Record<string, unknown>>;
   arePricesValidated: boolean;
   setArePricesValidated: React.Dispatch<React.SetStateAction<boolean>>;
-  /** When set, will be flipped to true during initial load when all materials have IDs (prices from DB). */
-  // isResyncingRef?: RefObject<boolean>;
   /** When true, Effect 2 (rule-change rebuild) is skipped so API-loaded materials are preserved. */
   readOnly?: boolean;
   jobStatus?: string;
@@ -941,7 +906,6 @@ export const useDiagnosticsManager = ({
 
       return sorted;
     },
-    // [isResyncingRef],
     [],
   );
 
@@ -1500,7 +1464,7 @@ export const useDiagnosticsManager = ({
         ...buildEmptyMaterial(nextPosition, "", qty, tRef.current),
       };
       setMaterials((prev) => {
-        const syncedMaterials = syncMaterialsWithForm(prev, formValues);
+        const syncedMaterials = syncMaterialsWithForm(prev, formValues, SPARE_PARTS_PREFIX);
         return normalizeMaterialOrders([...syncedMaterials, newItem]);
       });
       setArePricesValidated(false);
@@ -1525,7 +1489,7 @@ export const useDiagnosticsManager = ({
 
       // Archive the row when the current status is not in the permanent-delete set
       if (!STATUSES_WITH_PERMANENT_DELETE.includes(jobStatusRef.current)) {
-        const syncedMaterials = syncMaterialsWithForm(materialsRef.current, formValuesRef.current);
+        const syncedMaterials = syncMaterialsWithForm(materialsRef.current, formValuesRef.current, SPARE_PARTS_PREFIX);
         const deletedMaterial = syncedMaterials[areaIndex];
         if (deletedMaterial) {
           archivedForceRebuildRef.current = true;
@@ -1578,7 +1542,7 @@ export const useDiagnosticsManager = ({
       setTabs(compactedTabs);
       setMaterials((prev) => {
         const updatedMaterials = prev.filter((_, i) => i !== areaIndex);
-        const syncedMaterials = syncMaterialsWithForm(updatedMaterials, compactedValues);
+        const syncedMaterials = syncMaterialsWithForm(updatedMaterials, compactedValues, SPARE_PARTS_PREFIX);
         return normalizeMaterialOrders(syncedMaterials);
       });
       setArePricesValidated(false);
@@ -1640,7 +1604,7 @@ export const useDiagnosticsManager = ({
 
   const onRestoreRow = useCallback(
     (areaName: string) => {
-      const syncedMaterials = syncMaterialsWithForm(materials, formValuesRef.current);
+      const syncedMaterials = syncMaterialsWithForm(materials, formValuesRef.current, SPARE_PARTS_PREFIX);
       const currentTabs = tabsRef.current;
       const diagnosticTab = currentTabs.find((t) => t.name === "diagnosticData");
       if (!diagnosticTab) return;
@@ -1689,7 +1653,7 @@ export const useDiagnosticsManager = ({
 
       forceRebuildRef.current = true;
       setMaterials((prev) => {
-        const syncedMaterials = syncMaterialsWithForm(prev, formValuesRef.current);
+        const syncedMaterials = syncMaterialsWithForm(prev, formValuesRef.current, SPARE_PARTS_PREFIX);
         return normalizeMaterialOrders([
           ...syncedMaterials,
           { ...materialToRestore, isValidated: false, status: "PENDING" },
@@ -1803,7 +1767,6 @@ export const useDiagnosticsManager = ({
     markAllValidated,
     markRowDirty,
     enableValidate,
-    //   resyncMaterialsFromAPI,
     setRevisedRejectedRowPending,
     canArchiveOnDelete: !STATUSES_WITH_PERMANENT_DELETE.includes(jobStatus),
   };

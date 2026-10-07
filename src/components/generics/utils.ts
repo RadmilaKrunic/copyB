@@ -1,3 +1,4 @@
+import { MaterialItem } from "@/hooks/useDiagnosticsManager";
 import Area from "./Area/GenericArea.types";
 import Field, { GenericOptionProps } from "./Field/GenericField.types";
 import GenericForm from "./Form/GenericForm.types";
@@ -761,4 +762,30 @@ export const getFieldsBySectionAndAreaName = (
     .flatMap((s) => s.areas)
     .filter((a) => a.name === areaName)
     .flatMap((a) => a.fields);
+};
+
+export  const syncMaterialsWithForm = (
+  materials: MaterialItem[],
+  formValues: Record<string, unknown>,
+  prefix: string,
+) => {
+  const syncedMaterials = materials.map((materialItem, index) => {
+    return {
+      ...materialItem,
+      description:
+        (formValues[`${prefix}${index}_description`] as string) ?? materialItem.description,
+      discount: Number(formValues[`${prefix}${index}_discount`]) || materialItem.discount,
+      totalAmount: Number(formValues[`${prefix}${index}_totalAmount`]) || materialItem.totalAmount,
+      grossAmount: Number(formValues[`${prefix}${index}_grossAmount`]) || materialItem.grossAmount,
+      partNumber:
+        (formValues[`${prefix}${index}_sparePartNumber`] as string) ?? materialItem.partNumber,
+      position: (formValues[`${prefix}${index}_position`] as string) ?? materialItem.position,
+      quantity: Number(formValues[`${prefix}${index}_quantity`]) || materialItem.quantity,
+      tax: Number(formValues[`${prefix}${index}_tax`]) || materialItem.tax,
+      netAmount: Number(formValues[`${prefix}${index}_netAmount`]) || materialItem.netAmount,
+      type: (formValues[`${prefix}${index}_type`] as string) ?? materialItem.type,
+      unitPrice: Number(formValues[`${prefix}${index}_unitPrice`]) || materialItem.unitPrice,
+    };
+  });
+  return syncedMaterials;
 };

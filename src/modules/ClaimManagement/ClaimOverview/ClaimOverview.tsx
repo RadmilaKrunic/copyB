@@ -4,7 +4,11 @@ import { TabNavigation, Tab } from "@bosch/react-frok";
 import "../../JobManagement/JobOverview/JobOverview.scss";
 import GenericSection from "components/generics/Section/GenericSection";
 import GenericAction from "components/generics/Action/GenericAction";
-import { convertAPIDataToFormValues, setSectionDisabledState } from "components/generics/utils";
+import {
+  convertAPIDataToFormValues,
+  setSectionDisabledState,
+  syncMaterialsWithForm,
+} from "components/generics/utils";
 import { GenericFormContext } from "components/generics/Form/GenericForm.context";
 import Section from "components/generics/Section/GenericSection.types";
 import Field from "components/generics/Field/GenericField.types";
@@ -30,7 +34,10 @@ import { useResourceUIConfiguration } from "hooks/useUIConfiguration";
 import { User } from "types/user.type";
 import { useClaimDecisionPermissions } from "hooks/useClaimDecisionPermissions";
 import { ImportedMaterial, useDiagnosticsManager } from "hooks/useDiagnosticsManager";
-import { useClaimMaterialsManager } from "hooks/useClaimMaterialsManager";
+import {
+  useClaimMaterialsManager,
+  claimMaterialToMaterialItem,
+} from "hooks/useClaimMaterialsManager";
 import { DiagnosticsContext } from "modules/JobManagement/JobOverview/DiagnosticsContext";
 import { ClaimContext } from "./ClaimContext";
 import {
@@ -44,7 +51,9 @@ import { PositionItem } from "modules/JobManagement/JobOverview/ExplosionDiagram
 import { MessagesContext } from "contexts/messagescontext";
 import { ClaimItem } from "./Claims.types";
 import { makeFieldGetter } from "./ClaimOverview.utils";
-
+const SPARE_PARTS_PREFIX = "claimData_claimSpareParts#";
+// Archived spare parts prefix for form synchronization
+//const ARCHIVED_SPARE_PARTS_PREFIX = "claimData_archivedClaimSpareParts#";
 function FormikClaimSync({
   setCurrentActionType,
   setCurrentJobType,
@@ -174,22 +183,7 @@ export default function ClaimOverview() {
 
   const [selectedTab, setSelectedTab] = useState<string>("");
   const prevClaimDataRef = useRef<typeof claimData>(undefined);
-  useEffect(() => {
-    if (claimData) {
-      if (!claimData?.claimPriceSummaryDetailed && claimData?.claimPriceSummary) {
-        claimData.claimPriceSummaryDetailed = {
-          total: claimData?.claimPriceSummary,
-        };
-      }
-      if (!claimData?.claimPriceSummary && claimData?.claimPriceSummaryDetailed) {
-        const detailedTotal = claimData.claimPriceSummaryDetailed.total;
-        if (detailedTotal !== undefined) {
-          claimData.claimPriceSummary = detailedTotal;
-        }
-      }
-      setClaimFullData(claimData);
-    }
-  }, [claimData]);
+
   const [currentActionType, setCurrentActionType] = useState(
     (initialFormValues?.actionType as string) || "",
   );
@@ -260,6 +254,42 @@ export default function ClaimOverview() {
     setArePricesValidated,
     readOnly: !isClaimEditMode,
   });
+
+  useEffect(() => {
+  
+    if (!claimData) return claimData;
+    // if (formValuesRef.current !== initialFormValues) {
+    //   setInitialFormValues(formValuesRef?.current);
+    //   return;
+    // };
+  console.log("FclaimData:", claimData);
+    if (!claimData?.claimPriceSummaryDetailed && claimData?.claimPriceSummary) {
+        console.log("FclaimData:", claimData);
+      claimData.claimPriceSummaryDetailed = {
+        total: claimData?.claimPriceSummary,
+      };
+    }
+    if (!claimData?.claimPriceSummary && claimData?.claimPriceSummaryDetailed) {
+      const detailedTotal = claimData.claimPriceSummaryDetailed.total;
+      if (detailedTotal !== undefined) {
+        claimData.claimPriceSummary = detailedTotal;
+      }
+    }
+    const cmList = claimData?.materials?.map((m) => claimMaterialToMaterialItem(m)) || [];
+    console.log("ClaimData after processing:", cmList);
+
+
+    setClaimFullData(claimData ?? null);
+  
+    const syncedMaterials = syncMaterialsWithForm(
+      claimData?.materials?.map((m) => claimMaterialToMaterialItem(m)) || [],
+      formValuesRef.current ?? {},
+      SPARE_PARTS_PREFIX,
+    );
+    console.log("Synced materials:", syncedMaterials);
+    console.log("Form values ref:", formValuesRef.current);
+
+  }, [initialFormValues, claimData, formValuesRef, setInitialFormValues]);
 
   // Wrap markRowDirty to also flag that user has unsaved changes
   const markRowDirty = useCallback(
@@ -577,6 +607,8 @@ export default function ClaimOverview() {
   );
 
   const onProductDetails = useCallback(() => {
+    const updatedMaterials = syncMaterialsWithForm(materials, formValuesRef.current ?? {}, SPARE_PARTS_PREFIX);
+    setMaterials(updatedMaterials);
     setIsExplosionDrawingModalOpen(true);
   }, []);
 
@@ -857,8 +889,6 @@ export default function ClaimOverview() {
       allowedPositions,
       automaticRows,
       getExistingPartNumbers,
-      // isDistributingRef: claimIsDistributingRef,
-      // isResyncingRef: claimIsResyncingRef,
       arePricesValidated,
       setArePricesValidated,
       hasPricesPopulated: materials.some(
