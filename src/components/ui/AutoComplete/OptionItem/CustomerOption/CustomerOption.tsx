@@ -19,6 +19,9 @@ function CustomerOption({
     <button
       className={`auto-complete-option ${isHighlighted ? "highlighted" : ""}`}
       onClick={() => onSelect(option)}
+      // Keep focus in the input while the option is clicked, so the click is the only
+      // selection (an input blur would otherwise resolve a match of its own first).
+      onMouseDown={(e) => e.preventDefault()}
     >
       <Icon iconName={getCustomerTypeIcon(option)} className="option-avatar" />
       <div className="option-content">
