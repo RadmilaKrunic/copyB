@@ -15,6 +15,7 @@ import {
   type MaterialItem,
   type ImportedMaterial,
   buildRowValues,
+  buildMaterialsRowValues,
 } from "hooks/useDiagnosticsManager";
 import type { Material } from "modules/ClaimManagement/ClaimOverview/Claims.types";
 import { PERMISSIONS } from "utils/Permissions";
@@ -150,21 +151,6 @@ const POSITION_PERMISSIONS: Record<string, string> = {
   PN: PERMISSIONS.DIAGNOSTICS.CAN_VIEW_NET_DEALER_PRICE,
 };
 
-function shouldReuseExistingRowValues(params: {
-  rowIndex: number;
-  currentCount: number;
-  livePosition: string;
-  expectedPosition: string;
-  forceRebuild: boolean;
-  rowHasNoPrices: boolean;
-}): boolean {
-  const { rowIndex, currentCount, livePosition, expectedPosition, forceRebuild, rowHasNoPrices } =
-    params;
-  if (rowIndex >= currentCount) return false;
-  if (livePosition !== expectedPosition) return false;
-  if (forceRebuild) return false;
-  return !rowHasNoPrices;
-}
 export const claimMaterialToMaterialItem = (m: Material): MaterialItem => {
   const price = m.price ?? ({} as Material["price"]);
   const quantity = m.quantity ?? 1;
@@ -198,7 +184,6 @@ export const claimMaterialToMaterialItem = (m: Material): MaterialItem => {
     order: Number(m.order) || 0,
     reimbursementPaymentMethod: m.reimbursementPaymentMethod,
   };
-
 };
 
 // ── Hook ──────────────────────────────────────────────────────────────────
@@ -305,7 +290,7 @@ export const useClaimMaterialsManager = ({
 
   // ── Effect 1: Load materials from API response ─────────────────────────
   useEffect(() => {
-    if (!claimMaterials?.length || hasSyncedRef.current) return;
+    if (!claimMaterials?.length) return;
     // Allow re-run when:
     //  • hasSyncedRef was externally reset to false (post-validate resync), OR
     //  • claimMaterials is a new reference (fresh fetch with different / more items)
@@ -381,78 +366,40 @@ export const useClaimMaterialsManager = ({
       removeNames,
     );
 
-    let rowValues: Record<string, unknown> = {};
-    materials.forEach((item, idx) => {
-      const area = finalClaimsAreas[idx];
-      if (!area) return;
-      const areaFieldNames = new Set(area.fields.map((af) => af.name));
-      const areaFields = allUpdatedFields.filter((f) => areaFieldNames.has(f.name));
-      // Same guard as useDiagnosticsManager: the pre-mounted template row (row 0) may
-      // still hold empty price values when the API item already has prices. Reusing
-      // those stale form values would show 0, so rebuild the row from the item.
-      const hasApiPrices = item.netAmount > 0 || item.grossAmount > 0 || item.totalAmount > 0;
-      const rowHasNoPrices =
-        hasApiPrices &&
-        areaFields
-          .filter(
-            (f) =>
-              f.subtype === "diagnosticNetAmount" ||
-              f.subtype === "diagnosticGrossAmount" ||
-              f.subtype === "diagnosticTotalAmount" ||
-              f.subtype === "diagnosticSuggestedNetPrice",
-          )
-          .every((f) => !Number(formValuesRef.current[f.name]));
-     const reuseExistingValues = shouldReuseExistingRowValues({
-       rowIndex: idx,
-       currentCount,
-       livePosition,
-       expectedPosition: item.position,
-       forceRebuild,
-       rowHasNoPrices,
-     });
-       if (reuseExistingValues) {
-            const baseValues = Object.fromEntries(
-              areaFields.filter((f) => f.name in formValues).map((f) => [f.name, formValues[f.name]]),
-            );
-            const existingValues = applyStatusAndTypeOverrides(
-              baseValues,
-              areaFields,
-              item,
-              formValues.faultCodeDropdown,
-            );
-            const descriptionField = areaFields.find((f) => f.subtype === "diagnosticDescription");
-            if (descriptionField) {
-              const currentDescription = existingValues[descriptionField.name];
-              if (
-                (typeof currentDescription !== "string" || !currentDescription.trim()) &&
-                item.description
-              ) {
-                existingValues[descriptionField.name] = item.description;
-              }
-            }
-            if (item.position === "LA") {
-              const qtyField = areaFields.find((f) => f.subtype === "diagnosticQuantity");
-              if (qtyField) {
-                existingValues[qtyField.name] = item.quantity;
-              }
-            }
-            rowValues = { ...rowValues, ...existingValues };
-            return;
-          }
-      
-          rowValues = { ...rowValues, ...buildRowValues(areaFields, item) };
-    });
-    
+    // Same row builder as the diagnostics tab (useDiagnosticsManager), so claim
+    // items and diagnostic items are populated by identical rules.
+    const rowValues = buildMaterialsRowValues({
+      materials,
+      areas: finalClaimsAreas,
+      fields: allUpdatedFields,
+      formValues: formValuesRef.current,
+      currentCount,
+      forceRebuild: forceRebuildRef.current,
     });
 
-  
+    const keepClaimArea = (a: Area) => !removeNames.has(a.name);
+    if (needed !== 0 || forceRebuildRef.current) {
+      skipFormResetRef.current = true;
+      // Functional updaters so we compose correctly with useDiagnosticsManager
+      // which shares the same setAllFields / setTabs.
+      if (needed > 0) {
+        setAllFields((prev) => [...(prev ?? []), ...extraFields]);
+        setTabs((prev) =>
+          prev.map((tab) =>
+            tab.name === "claims" ? { ...tab, areas: [...tab.areas, ...newAreas] } : tab,
+          ),
+        );
+      } else if (needed < 0) {
+        setAllFields((prev) => (prev ?? []).filter((f) => !removeFieldNames.has(f.name)));
+        setTabs((prev) =>
+          prev.map((tab) =>
+            tab.name === "claims" ? { ...tab, areas: tab.areas.filter(keepClaimArea) } : tab,
+          ),
+        );
+      }
+    }
 
     const rowKeys = new Set(Object.keys(rowValues));
-    // Signal price-calculation hooks to skip recalculation while we write
-    // server-returned values into the form. Without this guard the hooks fire
-    // immediately on the Formik reinitialize and overwrite the BE values with
-    // locally-computed prices (visible as "prices show correctly only on 2nd validate").
-    //  isResyncingRef.current = true;
     if (forceRebuildRef.current) {
       setInitialFormValues((prev) => ({ ...prev, ...rowValues }));
     } else {
@@ -466,20 +413,7 @@ export const useClaimMaterialsManager = ({
       });
     }
     forceRebuildRef.current = false;
-    // Release the resyncing guard after React has flushed all effects that
-    // react to the new initialFormValues (price-calculation useEffects).
-    // setTimeout(() => {
-    //   isResyncingRef.current = false;
-    // }, 50);
-  }, [
-    materials,
-    setAllFields,
-    setTabs,
-    setInitialFormValues,
-    formValuesRef,
-    skipFormResetRef,
-    //  isResyncingRef,
-  ]);
+  }, [materials, setAllFields, setTabs, setInitialFormValues, formValuesRef, skipFormResetRef]);
 
   const populateNeeded = (
     needed: number,

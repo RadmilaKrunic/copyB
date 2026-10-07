@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Field from "components/generics/Field/GenericField.types";
 import Section from "components/generics/Section/GenericSection.types";
 import { useClaimMaterialsManager } from "./useClaimMaterialsManager";
-import { buildRowValues } from "hooks/useDiagnosticsManager";
+import { buildMaterialsRowValues } from "hooks/useDiagnosticsManager";
 
 vi.mock("components/generics/utils", () => ({
   setDuplicatedArea: vi.fn((area, index, tabName) => ({
@@ -26,6 +26,9 @@ vi.mock("components/generics/utils", () => ({
 
 vi.mock("hooks/useDiagnosticsManager", () => ({
   buildRowValues: vi.fn(() => ({
+    "claims_claimSpareParts#0_sparePartNumber": "PN-1",
+  })),
+  buildMaterialsRowValues: vi.fn(() => ({
     "claims_claimSpareParts#0_sparePartNumber": "PN-1",
   })),
 }));
@@ -482,7 +485,7 @@ describe("useClaimMaterialsManager", () => {
     expect(item.totalAmount).toBe(0);
     expect(item.taxAmount).toBe(0);
   });
-  describe("existing row price reuse", () => {
+  describe("row values use the shared diagnostics row builder", () => {
     const netField = {
       name: "claims_claimSpareParts#0_netAmount",
       label: "net",
@@ -533,17 +536,49 @@ describe("useClaimMaterialsManager", () => {
       return result;
     };
 
-    it("rebuilds row 0 from the item when its form price fields are empty but the API has prices", async () => {
-      await renderWithFormValues({ [netField.name]: 0 });
-      await waitFor(() => expect(buildRowValues).toHaveBeenCalled());
+    it("passes the live form values and existing row count for local material changes", async () => {
+      const formValues = { [netField.name]: 25 };
+      await renderWithFormValues(formValues);
+      await waitFor(() => expect(buildMaterialsRowValues).toHaveBeenCalled());
+      expect(buildMaterialsRowValues).toHaveBeenCalledWith(
+        expect.objectContaining({ formValues, currentCount: 1, forceRebuild: false }),
+      );
     });
 
-    it("reuses existing row 0 form values when prices are already populated", async () => {
-      await renderWithFormValues({ [netField.name]: 25 });
-      await act(async () => {
-        await Promise.resolve();
+    it("force-rebuilds rows from the API on every fresh claim fetch", async () => {
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      queryClient.setQueryData(["user"], { countryCode: "ZA", permissions: [] });
+      const setInitialFormValues = vi.fn();
+      const props = {
+        claimId: "C1",
+        claimMaterials: loadedClaimMaterials as never,
+        currentActionType: "REPAIR",
+        currentJobType: "WARRANTY",
+        tabs: [priceTab],
+        setTabs: vi.fn(),
+        allFields: priceFields,
+        setAllFields: vi.fn(),
+        setInitialFormValues,
+        skipFormResetRef: { current: false },
+        formValuesRef: { current: { [netField.name]: 0 } },
+        arePricesValidated: false,
+        setArePricesValidated: vi.fn(),
+        readOnly: false,
+      };
+      const { rerender } = renderHook((p: typeof props) => useClaimMaterialsManager(p), {
+        wrapper: makeWrapper(queryClient),
+        initialProps: props,
       });
-      expect(buildRowValues).not.toHaveBeenCalled();
+      await waitFor(() => expect(buildMaterialsRowValues).toHaveBeenCalledTimes(1));
+      expect(buildMaterialsRowValues).toHaveBeenLastCalledWith(
+        expect.objectContaining({ forceRebuild: true }),
+      );
+
+      rerender({ ...props, claimMaterials: structuredClone(loadedClaimMaterials) as never });
+      await waitFor(() => expect(buildMaterialsRowValues).toHaveBeenCalledTimes(2));
+      expect(buildMaterialsRowValues).toHaveBeenLastCalledWith(
+        expect.objectContaining({ forceRebuild: true }),
+      );
     });
   });
 });

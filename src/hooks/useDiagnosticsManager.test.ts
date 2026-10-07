@@ -18,11 +18,15 @@ vi.mock("utils/scrollToError", () => ({
   scrollToTop: vi.fn(),
 }));
 
-vi.mock("components/generics/utils", () => ({
-  setDuplicatedArea: vi.fn((area) => area),
-  mapFieldToFieldMapping: vi.fn((field) => field),
-  syncFieldsToTabs: vi.fn((tabs) => tabs),
-}));
+vi.mock("components/generics/utils", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("components/generics/utils")>();
+  return {
+    setDuplicatedArea: vi.fn((area) => area),
+    mapFieldToFieldMapping: vi.fn((field) => field),
+    syncFieldsToTabs: vi.fn((tabs) => tabs),
+    syncMaterialsWithForm: actual.syncMaterialsWithForm,
+  };
+});
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useBareSalesRelation } from "api/services/bareSalesRelation/hooks";

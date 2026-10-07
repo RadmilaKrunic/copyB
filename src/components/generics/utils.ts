@@ -1,4 +1,4 @@
-import { MaterialItem } from "@/hooks/useDiagnosticsManager";
+import type { MaterialItem } from "hooks/useDiagnosticsManager";
 import Area from "./Area/GenericArea.types";
 import Field, { GenericOptionProps } from "./Field/GenericField.types";
 import GenericForm from "./Form/GenericForm.types";
@@ -764,7 +764,7 @@ export const getFieldsBySectionAndAreaName = (
     .flatMap((a) => a.fields);
 };
 
-export  const syncMaterialsWithForm = (
+export const syncMaterialsWithForm = (
   materials: MaterialItem[],
   formValues: Record<string, unknown>,
   prefix: string,

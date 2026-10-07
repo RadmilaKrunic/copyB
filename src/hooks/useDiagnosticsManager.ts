@@ -300,6 +300,13 @@ export const getSummaryTotalRowValues = (
   total?: SummaryPrice,
 ): Record<string, unknown> => mapAreaFields(areaFields, mapSummaryPriceSubtypes(total ?? {}));
 
+/** Repeated-row keys written by the materials effects; never restored from the Formik snapshot. */
+const MANAGED_ROW_KEY_PREFIXES = [
+  "diagnosticData_diagnosticsSpareParts",
+  "claims_claimSpareParts",
+  "claims_claimArchivedSpareParts",
+];
+
 /** Overlay status and type fields onto an existing values map from the current form state. */
 function applyStatusAndTypeOverrides(
   baseValues: Record<string, unknown>,
@@ -1150,10 +1157,14 @@ export const useDiagnosticsManager = ({
     if (forceRebuildRef.current) {
       setInitialFormValues((prev) => ({ ...prev, ...rowValues }));
     } else {
+      // Claim spare-parts rows are owned by useClaimMaterialsManager, which may have
+      // written fresh API values into initialFormValues earlier in this same commit.
+      // Re-applying the (still stale) Formik snapshot for those keys would reset the
+      // first claim row back to its template defaults (zero prices).
       const currentFormWithoutRowFields = Object.fromEntries(
         Object.entries(formValuesRef.current).filter(
           ([k, v]) =>
-            !k.startsWith("diagnosticData_diagnosticsSpareParts") &&
+            !MANAGED_ROW_KEY_PREFIXES.some((prefix) => k.startsWith(prefix)) &&
             v !== "" &&
             v !== null &&
             v !== undefined,
@@ -1489,7 +1500,11 @@ export const useDiagnosticsManager = ({
 
       // Archive the row when the current status is not in the permanent-delete set
       if (!STATUSES_WITH_PERMANENT_DELETE.includes(jobStatusRef.current)) {
-        const syncedMaterials = syncMaterialsWithForm(materialsRef.current, formValuesRef.current, SPARE_PARTS_PREFIX);
+        const syncedMaterials = syncMaterialsWithForm(
+          materialsRef.current,
+          formValuesRef.current,
+          SPARE_PARTS_PREFIX,
+        );
         const deletedMaterial = syncedMaterials[areaIndex];
         if (deletedMaterial) {
           archivedForceRebuildRef.current = true;
@@ -1542,7 +1557,11 @@ export const useDiagnosticsManager = ({
       setTabs(compactedTabs);
       setMaterials((prev) => {
         const updatedMaterials = prev.filter((_, i) => i !== areaIndex);
-        const syncedMaterials = syncMaterialsWithForm(updatedMaterials, compactedValues, SPARE_PARTS_PREFIX);
+        const syncedMaterials = syncMaterialsWithForm(
+          updatedMaterials,
+          compactedValues,
+          SPARE_PARTS_PREFIX,
+        );
         return normalizeMaterialOrders(syncedMaterials);
       });
       setArePricesValidated(false);
@@ -1604,7 +1623,11 @@ export const useDiagnosticsManager = ({
 
   const onRestoreRow = useCallback(
     (areaName: string) => {
-      const syncedMaterials = syncMaterialsWithForm(materials, formValuesRef.current, SPARE_PARTS_PREFIX);
+      const syncedMaterials = syncMaterialsWithForm(
+        materials,
+        formValuesRef.current,
+        SPARE_PARTS_PREFIX,
+      );
       const currentTabs = tabsRef.current;
       const diagnosticTab = currentTabs.find((t) => t.name === "diagnosticData");
       if (!diagnosticTab) return;
@@ -1653,7 +1676,11 @@ export const useDiagnosticsManager = ({
 
       forceRebuildRef.current = true;
       setMaterials((prev) => {
-        const syncedMaterials = syncMaterialsWithForm(prev, formValuesRef.current, SPARE_PARTS_PREFIX);
+        const syncedMaterials = syncMaterialsWithForm(
+          prev,
+          formValuesRef.current,
+          SPARE_PARTS_PREFIX,
+        );
         return normalizeMaterialOrders([
           ...syncedMaterials,
           { ...materialToRestore, isValidated: false, status: "PENDING" },
