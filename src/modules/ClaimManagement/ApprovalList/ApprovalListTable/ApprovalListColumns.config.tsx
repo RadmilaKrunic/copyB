@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Job } from "modules/JobManagement/JobList/JobList.types";
+import { ApprovalJob } from "api/services/approvals/approvals.types";
 import StatusIndicator from "components/ui/StatusIndicator/StatusIndicator";
 import { formatDateToDisplay } from "../../../../utils/dateFormatter";
 import { getCustomerNameWithIcon } from "../../../../utils/customerUtils";
@@ -20,12 +20,19 @@ export type ApprovalColumnKey =
   | "source"
   | "ascName"
   | "actionType"
-  | "materialCost";
+  | "materialCost"
+  | "ascPhoneNumber"
+  | "internalReferenceNumber"
+  | "typeOfUsage"
+  | "faultCode"
+  | "exchangeReason"
+  | "customerType"
+  | "assetCategory";
 
 export type ApprovalColumnConfig = {
   key: ApprovalColumnKey;
   label: string;
-  getValue: (job: Job) => string | ReactNode;
+  getValue: (job: ApprovalJob) => string | ReactNode;
 };
 
 export interface ApprovalColumnConfiguration {
@@ -120,7 +127,7 @@ export const getApprovalColumns = (
 
   bareToolNumber: {
     key: "bareToolNumber",
-    label: t("bareToolNumber"),
+    label: t("productNumber"),
     getValue: (job) => job.asset?.bareToolNumber ?? "-",
   },
 
@@ -144,5 +151,43 @@ export const getApprovalColumns = (
       if (cost == null) return "-";
       return cost.toFixed(2);
     },
+  },
+  ascPhoneNumber: {
+    key: "ascPhoneNumber",
+    label: t("ascPhoneNumber"),
+    getValue: (job) => job.ascPhoneNumber || "-",
+  },
+  internalReferenceNumber: {
+    key: "internalReferenceNumber",
+    label: t("internalReferenceNumber"),
+    getValue: (job) => job.internalReferenceNumber || "-",
+  },
+  typeOfUsage: {
+    key: "typeOfUsage",
+    label: t("typeOfUse"),
+    getValue: (job) => (job.diagnosticInfo?.typeOfUsage ? t(job.diagnosticInfo.typeOfUsage) : "-"),
+  },
+  faultCode: {
+    key: "faultCode",
+    label: t("faultCode"),
+    getValue: (job) => job.diagnosticInfo?.faultCode || "-",
+  },
+  exchangeReason: {
+    key: "exchangeReason",
+    label: t("exchangeReason"),
+    getValue: (job) =>
+      job.diagnosticInfo?.actionType?.endsWith("_EXCHANGE") && job.diagnosticInfo.exchangeReason
+        ? t(job.diagnosticInfo.exchangeReason)
+        : "-",
+  },
+  customerType: {
+    key: "customerType",
+    label: t("customerType"),
+    getValue: (job) => (job.customer?.customerType ? t(job.customer.customerType) : "-"),
+  },
+  assetCategory: {
+    key: "assetCategory",
+    label: t("assetCategory"),
+    getValue: (job) => (job.asset?.category ? t(job.asset.category) : "-"),
   },
 });

@@ -2,6 +2,7 @@ import { Button, Checkbox, Popover } from "@bosch/react-frok";
 import { useTranslation } from "react-i18next";
 import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAnalytics, ListInteractionType } from "@/analytics";
 
 type ColumnOptionConfig<K extends string> = {
   key: K;
@@ -40,6 +41,7 @@ function CustomizeColumnsPopup<K extends string, C extends ColumnConfigBase<K>>(
 }: Readonly<CustomizeColumnsPopupProps<K, C>>) {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
   const queryClient = useQueryClient();
+  const analytics = useAnalytics();
   const [isOpen, setIsOpen] = useState(false);
 
   const [pendingConfig, setPendingConfig] = useState<C[]>(columnConfig);
@@ -56,11 +58,23 @@ function CustomizeColumnsPopup<K extends string, C extends ColumnConfigBase<K>>(
 
   const handleSave = async () => {
     const previousConfig = columnConfig;
+    const checkedKeys = (config: C[]) =>
+      config
+        .filter((col) => col.isChecked)
+        .map((col) => col.key as string)
+        .sort((a, b) => a.localeCompare(b))
+        .join();
+    const columnsActuallyChanged = checkedKeys(previousConfig) !== checkedKeys(pendingConfig);
     setColumnConfig(pendingConfig);
     setIsOpen(false);
 
     try {
       await saveVisibleColumns(pendingConfig);
+      if (columnsActuallyChanged) {
+        analytics.trackListInteraction({
+          interactionType: ListInteractionType.COLUMNS_CHANGED,
+        });
+      }
       void queryClient.invalidateQueries({ queryKey: ["user"] });
     } catch (error) {
       console.error(saveErrorMessage, error);

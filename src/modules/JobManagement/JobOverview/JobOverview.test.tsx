@@ -92,6 +92,7 @@ const analyticsMock = vi.hoisted(() => ({
   trackPreApprovalRequested: vi.fn(),
   trackDiagnosticValidated: vi.fn(),
   trackPreApprovalReviewed: vi.fn(),
+  trackActionFailed: vi.fn(),
 }));
 
 vi.mock("@/analytics", async () => {
@@ -1922,6 +1923,33 @@ describe("JobOverview mutation callbacks", () => {
         text: "errorToggleJobHold",
         type: "error",
         duration: 3000,
+      });
+    });
+  });
+
+  describe("failure tracking", () => {
+    it.each([
+      { key: "postMessage", failedAction: "note_added" },
+      { key: "startRepair", failedAction: "repair_started" },
+      { key: "finishRepair", failedAction: "repair_finished" },
+      { key: "toolDelivered", failedAction: "job_completed" },
+      { key: "approvePreApproval", failedAction: "pre_approval_reviewed" },
+      { key: "startReview", failedAction: "job_submitted_for_review" },
+      { key: "repairApproval", failedAction: "job_approved_for_repair" },
+      { key: "internalApproval", failedAction: "pre_approval_requested" },
+      { key: "validateAndSave", failedAction: "diagnostic_validated" },
+    ])("$key: records $failedAction as failed with the reason", async ({ key, failedAction }) => {
+      initialFormValuesMock.value = { jobType: "REPAIR" };
+      queryCacheMock.value = { job: { job: { jobStatus: "IN_REPAIR" } } };
+      renderWithMessages();
+
+      await runOnError(key, { response: { status: 403 } });
+
+      expect(analyticsMock.trackActionFailed).toHaveBeenCalledWith({
+        failedAction,
+        failureReason: "no_permission",
+        jobType: "REPAIR",
+        jobStatus: "IN_REPAIR",
       });
     });
   });

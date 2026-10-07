@@ -75,7 +75,7 @@ export const AnalyticsProvider = ({
   }
   const analytics = analyticsRef.current;
 
-  const handlePageResolved = useCallback((page: VirtualPageDefinition | null): void => {
+  const handlePageResolved = useCallback((page: VirtualPageDefinition): void => {
     currentPageRef.current = page;
   }, []);
 

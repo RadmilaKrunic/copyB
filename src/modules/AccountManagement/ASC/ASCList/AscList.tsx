@@ -13,6 +13,7 @@ import { getAscColumns } from "./AscList.columns.config";
 import { filterBySearchValue } from "../../AccountManagement.utils";
 import { getAllASCs } from "../../../../api/services/serviceCenters/action";
 import { ServiceCenter } from "../../../../api/services/serviceCenters/serviceCenters.types";
+import { useListTracking } from "@/analytics";
 import "./ASCList.scss";
 
 function AscList() {
@@ -50,6 +51,12 @@ function AscList() {
     () => filterBySearchValue(serviceCenters || [], searchValue),
     [serviceCenters, searchValue],
   );
+
+  useListTracking({
+    searchValue,
+    resultCount: filteredServiceCenters.length,
+    isLoading,
+  });
 
   const handlePageChange = (page: number) => {
     sessionStorage.setItem("ascList-currentPage", page.toString());

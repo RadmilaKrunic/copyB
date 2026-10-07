@@ -31,6 +31,7 @@ import {
 } from "./ClaimList.columns.utils";
 import "./ClaimList.scss";
 import ClaimListExportDialog from "./ClaimListExportDialog/ClaimListExportDialog";
+import { useListTracking } from "@/analytics";
 
 function ClaimList() {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
@@ -102,6 +103,23 @@ function ClaimList() {
     () => filterClaims(claims, quickFilters, searchValue, advancedFilters),
     [claims, quickFilters, searchValue, advancedFilters],
   );
+
+  const activeFilterKeys = useMemo(
+    () => [
+      ...quickFilters
+        .filter((filter: QuickFilter) => filter.selected)
+        .map((filter: QuickFilter) => filter.key),
+      ...advancedFilters.map((filter) => filter.name),
+    ],
+    [quickFilters, advancedFilters],
+  );
+
+  useListTracking({
+    searchValue,
+    activeFilterKeys,
+    resultCount: filteredClaims.length,
+    isLoading: isClaimsLoading,
+  });
 
   const paginatedClaims = useMemo(() => {
     const startIndex = (pagination.page - 1) * pagination.pageSize;

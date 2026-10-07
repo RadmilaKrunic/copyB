@@ -3,6 +3,7 @@ import {
   TABBED_ROUTE_RULES,
   VIRTUAL_PAGE_REGISTRY,
 } from "../config/registries";
+import { VirtualUrl } from "../domain/enums";
 import type { VirtualPageDefinition } from "../domain/types";
 
 /** Minimal location the resolver needs (a subset of the DOM/Router location). */
@@ -28,11 +29,13 @@ export const matchesRoutePattern = (pattern: string, pathname: string): boolean 
 const normalizeHash = (hash: string | undefined): string => (hash ?? "").replace(/^#/, "").trim();
 
 /**
- * Resolves the virtual page for a router location, or `null` when out of scope.
- * Tabbed routes (hash-selected) are checked first, then static routes. Holds no
- * history state, so back/forward, redirects and nested routes all work.
+ * Resolves the virtual page for a router location. Tabbed routes (hash-selected) are
+ * checked first, then static routes. Holds no history state, so back/forward, redirects
+ * and nested routes all work. An unmatched path falls back to the page-not-found page,
+ * which is only correct because every route in `Routes.tsx` is registered — a new route
+ * added without a rule will report as a 404 until it is registered too.
  */
-export const resolveVirtualPage = (location: RouteLocation): VirtualPageDefinition | null => {
+export const resolveVirtualPage = (location: RouteLocation): VirtualPageDefinition => {
   for (const rule of TABBED_ROUTE_RULES) {
     if (matchesRoutePattern(rule.pattern, location.pathname)) {
       const virtualUrl =
@@ -45,5 +48,5 @@ export const resolveVirtualPage = (location: RouteLocation): VirtualPageDefiniti
       return VIRTUAL_PAGE_REGISTRY[rule.virtualUrl];
     }
   }
-  return null;
+  return VIRTUAL_PAGE_REGISTRY[VirtualUrl.PAGE_NOT_FOUND];
 };

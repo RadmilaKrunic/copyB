@@ -3,7 +3,13 @@ import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { postClaimDecision, ClaimDecision } from "api/services/claims/action";
-import { useAnalytics, toClaimAction, toClaimStatus } from "@/analytics";
+import {
+  useAnalytics,
+  toClaimAction,
+  toClaimStatus,
+  toFailureReason,
+  AnalyticsEventName,
+} from "@/analytics";
 import "./ClaimNoteModal.scss";
 
 interface AddClaimNoteModalProps {
@@ -58,6 +64,10 @@ function ClaimNoteModal({
     },
     onError: (error) => {
       console.error(`Error posting claim decision:`, error);
+      analytics.trackActionFailed({
+        failedAction: AnalyticsEventName.CLAIM_REVIEWED,
+        failureReason: toFailureReason(error),
+      });
     },
   });
 

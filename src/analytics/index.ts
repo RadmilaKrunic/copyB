@@ -14,5 +14,6 @@ export * from "./infra/logger";
 export * from "./react/analytics-context";
 export * from "./react/useAnalytics";
 export * from "./react/useVirtualPageViews";
+export * from "./react/useListTracking";
 export * from "./react/read-user-context";
 export * from "./react/AnalyticsProvider";

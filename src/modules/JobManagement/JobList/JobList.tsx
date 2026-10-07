@@ -28,6 +28,7 @@ import {
 import { filterJobs, getJobNavigationPath } from "./JobList.utils";
 import { getJobColumns } from "./JobListTable/JobListColumns.config";
 import CustomizeColumnsPopup from "@/components/ui/List/Filters/FiltersOptionsPopup/CustomizeColumnsPopup/CustomizeColumnsPopup";
+import { useListTracking } from "@/analytics";
 
 function JobList() {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
@@ -81,6 +82,23 @@ function JobList() {
     () => filterJobs(jobs, quickFilters, searchValue, advancedFilters),
     [advancedFilters, jobs, quickFilters, searchValue],
   );
+
+  const activeFilterKeys = useMemo(
+    () => [
+      ...quickFilters
+        .filter((filter: QuickFilter) => filter.selected)
+        .map((f: QuickFilter) => f.key),
+      ...advancedFilters.map((filter) => filter.name),
+    ],
+    [quickFilters, advancedFilters],
+  );
+
+  useListTracking({
+    searchValue,
+    activeFilterKeys,
+    resultCount: filteredJobs.length,
+    isLoading: isJobsLoading,
+  });
 
   const handlePageChange = (page: number) => {
     sessionStorage.setItem("jobList-currentPage", page.toString());

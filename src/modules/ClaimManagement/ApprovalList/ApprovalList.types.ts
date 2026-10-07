@@ -1,7 +1,7 @@
-import { Job } from "modules/JobManagement/JobList/JobList.types";
+import { ApprovalJob } from "api/services/approvals/approvals.types";
 
 // Goodwill Approvals are jobs filtered by type and status
-export type GoodwillApproval = Job;
+export type GoodwillApproval = ApprovalJob;
 
 export interface GoodwillApprovalList {
   count: number;

@@ -3,6 +3,7 @@ import { PageIndicator, Dropdown } from "@bosch/react-frok";
 import { useTranslation } from "react-i18next";
 import { useState, useEffect } from "react";
 import { OptionProp, defaultPageSizeOptions, PAGINATION_IDS } from "./Pagination.data";
+import { useAnalytics, ListInteractionType } from "@/analytics";
 
 export interface PaginationProps {
   totalResults: number;
@@ -29,6 +30,7 @@ function Pagination({
   onPageChange,
 }: Readonly<PaginationProps>) {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
+  const analytics = useAnalytics();
   const [currentPageSize, setCurrentPageSize] = useState(pageSize);
 
   useEffect(() => {
@@ -40,6 +42,10 @@ function Pagination({
   const handlePageSizeChange = (selectedValue: string) => {
     const newPageSize = Number(selectedValue);
     setCurrentPageSize(newPageSize);
+    analytics.trackListInteraction({
+      interactionType: ListInteractionType.PAGE_SIZE_CHANGED,
+      resultCount: totalResults,
+    });
     onDropdownOptionChange(selectedValue);
   };
 
@@ -54,6 +60,10 @@ function Pagination({
     }
 
     if (pageNumber && !Number.isNaN(pageNumber) && pageNumber !== page) {
+      analytics.trackListInteraction({
+        interactionType: ListInteractionType.PAGE_CHANGED,
+        resultCount: totalResults,
+      });
       onPageChange(pageNumber);
     }
   };

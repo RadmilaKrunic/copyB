@@ -23,6 +23,7 @@ import {
   useReimbursementDateRangeFilter,
   useReimbursementPagination,
 } from "../ReimbursementDateFilter.utils";
+import { useListTracking } from "@/analytics";
 
 function ReimbursementList() {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
@@ -40,6 +41,7 @@ function ReimbursementList() {
   const { quickFilters, dateValues, setDateValues, handleFilterToggle } =
     useReimbursementDateRangeFilter(isAsc);
   const debouncedDateValues = useDebouncedValue(dateValues, 500);
+  const debouncedQuickFilters = useDebouncedValue(quickFilters, 500);
 
   const parsedFromDate = debouncedDateValues.fromDate
     ? new Date(debouncedDateValues.fromDate)
@@ -48,7 +50,7 @@ function ReimbursementList() {
     ? new Date(debouncedDateValues.toDate)
     : undefined;
 
-  const { data, isLoading } = useReimbursements(
+  const { data, isLoading, isFetching, isError } = useReimbursements(
     parsedFromDate,
     parsedToDate,
     debouncedSearchValue,
@@ -69,6 +71,22 @@ function ReimbursementList() {
   useEffect(() => {
     setPagination((prev) => ({ ...prev, page: 1 }));
   }, [debouncedDateValues, setPagination]);
+
+  const activeFilterKeys = useMemo(
+    () => [
+      ...debouncedQuickFilters.filter((filter) => filter.selected).map((filter) => filter.key),
+      ...(debouncedDateValues.fromDate || debouncedDateValues.toDate ? ["dateRange"] : []),
+    ],
+    [debouncedQuickFilters, debouncedDateValues],
+  );
+
+  useListTracking({
+    searchValue: debouncedSearchValue,
+    activeFilterKeys,
+    filterSignature: `${debouncedDateValues.fromDate ?? ""}|${debouncedDateValues.toDate ?? ""}`,
+    resultCount: data?.page?.totalElements ?? 0,
+    isLoading: isFetching || isError,
+  });
 
   const isPaginationVisible = (data?.page?.totalElements || 0) > pagination.pageSize;
 

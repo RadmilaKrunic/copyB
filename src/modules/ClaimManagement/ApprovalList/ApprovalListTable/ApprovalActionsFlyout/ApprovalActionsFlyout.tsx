@@ -10,7 +10,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { MessagesContext } from "contexts/messagescontext";
 import { JobOverviewItem } from "modules/JobManagement/JobList/JobList.types";
-import { useAnalytics, toJobStatus, toPreApprovalAction } from "@/analytics";
+import {
+  useAnalytics,
+  toJobStatus,
+  toPreApprovalAction,
+  toFailureReason,
+  AnalyticsEventName,
+} from "@/analytics";
 
 type DecisionType = "approved" | "rejected" | "revised" | null;
 
@@ -60,7 +66,7 @@ export default function ApprovalActionsFlyout({
         await navigate("/approval-list");
       }
     },
-    onError: () => {
+    onError: (error) => {
       scrollToTop();
       setMessages((prev) => [
         ...prev,
@@ -70,6 +76,13 @@ export default function ApprovalActionsFlyout({
           duration: 3000,
         },
       ]);
+      analytics.trackActionFailed({
+        failedAction: AnalyticsEventName.PRE_APPROVAL_REVIEWED,
+        failureReason: toFailureReason(error),
+        jobStatus: toJobStatus(
+          queryClient.getQueryData<JobOverviewItem>(["job", jobId])?.job?.jobStatus,
+        ),
+      });
     },
   });
 

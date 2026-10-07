@@ -80,6 +80,29 @@ export const serializeEventPayload = (event: AnalyticsEvent): AnalyticsParameter
       const p = event.payload; // virtual_url/page_name/module_name come from context
       return { [P.JOB_STATUS]: p.jobStatus, [P.CLAIM_STATUS]: p.claimStatus };
     }
+    case AnalyticsEventName.LIST_INTERACTION: {
+      const p = event.payload;
+      return {
+        [P.INTERACTION_TYPE]: p.interactionType,
+        [P.FILTER_NAME]: p.filterName,
+        [P.RESULT_COUNT]: p.resultCount,
+        [P.SELECTED_ROW_COUNT]: p.selectedRowCount,
+      };
+    }
+    case AnalyticsEventName.LIST_EXPORTED: {
+      const p = event.payload;
+      return { [P.EXPORTED_ROW_COUNT]: p.exportedRowCount };
+    }
+    case AnalyticsEventName.ACTION_FAILED: {
+      const p = event.payload;
+      return {
+        [P.FAILED_ACTION]: p.failedAction,
+        [P.FAILURE_REASON]: p.failureReason,
+        [P.JOB_TYPE]: p.jobType,
+        [P.JOB_STATUS]: p.jobStatus,
+        [P.CLAIM_STATUS]: p.claimStatus,
+      };
+    }
     default:
       return assertNever(event);
   }

@@ -6,9 +6,13 @@ import { resolveVirtualPage, type RouteLocation } from "../core/virtual-pages";
 
 export interface UseVirtualPageViewsOptions {
   readonly analytics: Analytics;
-  readonly onResolve?: (page: VirtualPageDefinition | null) => void;
+  readonly onResolve?: (page: VirtualPageDefinition) => void;
   readonly enabled?: boolean;
 }
+
+/** Keyed on the location, not the virtual page, so job A → job B still counts as a view. */
+const toLocationKey = (location: RouteLocation): string =>
+  `${location.pathname}#${(location.hash ?? "").replace(/^#/, "")}`;
 
 export const useVirtualPageViews = ({
   analytics,
@@ -16,7 +20,7 @@ export const useVirtualPageViews = ({
   enabled = true,
 }: UseVirtualPageViewsOptions): void => {
   const location = useLocation();
-  const lastVirtualUrlRef = useRef<string | null>(null);
+  const lastLocationKeyRef = useRef<string | null>(null);
   const onResolveRef = useRef(onResolve);
   onResolveRef.current = onResolve;
 
@@ -25,12 +29,9 @@ export const useVirtualPageViews = ({
       const page = resolveVirtualPage(routeLocation);
       onResolveRef.current?.(page);
       if (!enabled) return;
-      if (!page) {
-        lastVirtualUrlRef.current = null;
-        return;
-      }
-      if (page.virtualUrl === lastVirtualUrlRef.current) return;
-      lastVirtualUrlRef.current = page.virtualUrl;
+      const locationKey = toLocationKey(routeLocation);
+      if (locationKey === lastLocationKeyRef.current) return;
+      lastLocationKeyRef.current = locationKey;
       analytics.trackVirtualPage();
     },
     [analytics, enabled],

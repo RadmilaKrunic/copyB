@@ -3,8 +3,11 @@ import type {
   ClaimAction,
   ClaimStatus,
   CompletionType,
+  FailedAction,
+  FailureReason,
   JobStatus,
   JobType,
+  ListInteractionType,
   ModuleName,
   NoteContext,
   PageName,
@@ -36,6 +39,13 @@ export enum AnalyticsParameterKey {
   JOB_CREATION_DURATION_SECONDS = "job_creation_duration_seconds",
   CLAIM_REVIEW_DURATION_SECONDS = "claim_review_duration_seconds",
   PRE_APPROVAL_REVIEW_DURATION_SECONDS = "pre_approval_review_duration_seconds",
+  INTERACTION_TYPE = "interaction_type",
+  FILTER_NAME = "filter_name",
+  RESULT_COUNT = "result_count",
+  SELECTED_ROW_COUNT = "selected_row_count",
+  EXPORTED_ROW_COUNT = "exported_row_count",
+  FAILED_ACTION = "failed_action",
+  FAILURE_REASON = "failure_reason",
 }
 
 /** Primitive value types allowed in a push. `undefined` is stripped before pushing. */
@@ -136,6 +146,26 @@ export interface VirtualPageViewPayload {
   readonly claimStatus?: ClaimStatus;
 }
 
+export interface ListInteractionPayload {
+  readonly interactionType: ListInteractionType;
+  /** Filter key only. Filter values can hold a customer name or serial number. */
+  readonly filterName?: string;
+  readonly resultCount?: number;
+  readonly selectedRowCount?: number;
+}
+
+export interface ListExportedPayload {
+  readonly exportedRowCount?: number;
+}
+
+export interface ActionFailedPayload {
+  readonly failedAction: FailedAction;
+  readonly failureReason: FailureReason;
+  readonly jobType?: JobType;
+  readonly jobStatus?: JobStatus;
+  readonly claimStatus?: ClaimStatus;
+}
+
 export type AnalyticsEvent =
   | { readonly name: AnalyticsEventName.JOB_CREATED; readonly payload: JobCreatedPayload }
   | {
@@ -174,4 +204,7 @@ export type AnalyticsEvent =
   | {
       readonly name: AnalyticsEventName.VIRTUAL_PAGE_VIEW;
       readonly payload: VirtualPageViewPayload;
-    };
+    }
+  | { readonly name: AnalyticsEventName.LIST_INTERACTION; readonly payload: ListInteractionPayload }
+  | { readonly name: AnalyticsEventName.LIST_EXPORTED; readonly payload: ListExportedPayload }
+  | { readonly name: AnalyticsEventName.ACTION_FAILED; readonly payload: ActionFailedPayload };

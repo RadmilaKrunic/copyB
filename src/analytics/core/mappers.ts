@@ -1,6 +1,7 @@
 import {
   CLAIM_ACTIONS,
   CLAIM_STATUSES,
+  FailureReason,
   JOB_STATUSES,
   JOB_TYPES,
   PRE_APPROVAL_ACTIONS,
@@ -35,6 +36,17 @@ export const toClaimAction = makeEnumNormalizer<ClaimAction>(CLAIM_ACTIONS);
 /** `"APPROVED"` → `PreApprovalAction.APPROVED`, or `undefined`. */
 export const toPreApprovalAction = makeEnumNormalizer<PreApprovalAction>(PRE_APPROVAL_ACTIONS);
 
+const NO_PERMISSION_STATUSES: ReadonlySet<number> = new Set([401, 403]);
+const WRONG_ENTRY_STATUSES: ReadonlySet<number> = new Set([400, 409, 422]);
+
+export const toFailureReason = (error: unknown): FailureReason => {
+  const status = (error as { response?: { status?: unknown } } | null)?.response?.status;
+  if (typeof status !== "number") return FailureReason.SYSTEM_PROBLEM;
+  if (NO_PERMISSION_STATUSES.has(status)) return FailureReason.NO_PERMISSION;
+  if (WRONG_ENTRY_STATUSES.has(status)) return FailureReason.WRONG_ENTRY;
+  return FailureReason.SYSTEM_PROBLEM;
+};
+
 export interface UserRoleResolverInput {
   readonly roles?: readonly string[];
   readonly permissions?: readonly string[];
@@ -43,9 +55,19 @@ export interface UserRoleResolverInput {
 /** App ASC account-role ids → analytics roles. @see EmployeeOverview.utils.ts `rolesMap` */
 const ROLE_MAP: Readonly<Record<string, UserRole>> = Object.freeze({
   ASC_TECHNICIAN: UserRole.ASC_TECHNICIAN,
+  ASC_RECEPTIONIST: UserRole.ASC_RECEPTIONIST,
   ASC_MANAGER: UserRole.ASC_MANAGER,
   ASC_MANAGER_WITHOUT_CLAIM: UserRole.ASC_MANAGER,
   ASC_CLAIM: UserRole.ASC_MANAGER,
+});
+
+/** Picks one role when a user holds several; without it the reported role depends on array order. */
+const ROLE_RANK: Readonly<Record<UserRole, number>> = Object.freeze({
+  [UserRole.ASC_MANAGER]: 3,
+  [UserRole.ASC_TECHNICIAN]: 2,
+  [UserRole.ASC_RECEPTIONIST]: 1,
+  [UserRole.COUNTRY_MANAGER]: 0,
+  [UserRole.UNKNOWN]: 0,
 });
 
 /** Country-manager permission codes; checked only when no ASC role matched. @see Permissions.ts */
@@ -58,16 +80,16 @@ const COUNTRY_MANAGER_PERMISSIONS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Reduces roles + permissions to one {@link UserRole}. Precedence: ASC Manager ›
- * ASC Technician › country-manager › `UNKNOWN`. Overridable via the provider's `resolveRole` prop.
+ * Reduces roles + permissions to one {@link UserRole}. Precedence: ASC Manager › ASC Technician ›
+ * ASC Receptionist › country-manager › `UNKNOWN`. Overridable via the provider's `resolveRole` prop.
  */
 export const resolveUserRole = (input: UserRoleResolverInput): UserRole => {
   let mappedRole: UserRole | undefined;
   for (const role of input.roles ?? []) {
     if (typeof role !== "string") continue; // tolerate malformed data
     const candidate = ROLE_MAP[role.trim().toUpperCase()];
-    if (candidate === UserRole.ASC_MANAGER) return UserRole.ASC_MANAGER; // highest ASC role
-    if (candidate) mappedRole = candidate;
+    if (!candidate) continue;
+    if (!mappedRole || ROLE_RANK[candidate] > ROLE_RANK[mappedRole]) mappedRole = candidate;
   }
   if (mappedRole) return mappedRole;
 

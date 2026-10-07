@@ -15,6 +15,7 @@ import { HeaderUserData } from "api/services/header/action";
 import { ScrollablePopover } from "components/ui/ScrollablePopover/ScrollablePopover";
 import DeleteEmployeeDialog from "../DeleteEmployeeDialog/DeleteEmployeeDialog";
 import { filterBySearchValue } from "../../AccountManagement.utils";
+import { useListTracking } from "@/analytics";
 
 function EmployeeList() {
   const queryClient = useQueryClient();
@@ -55,6 +56,12 @@ function EmployeeList() {
     () => filterBySearchValue(employees || [], searchValue),
     [employees, searchValue],
   );
+
+  useListTracking({
+    searchValue,
+    resultCount: filteredEmployees.length,
+    isLoading,
+  });
 
   const handlePageChange = (page: number) => {
     sessionStorage.setItem("employeeList-currentPage", page.toString());

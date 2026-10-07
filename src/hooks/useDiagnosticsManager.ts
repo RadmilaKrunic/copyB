@@ -1157,10 +1157,6 @@ export const useDiagnosticsManager = ({
     if (forceRebuildRef.current) {
       setInitialFormValues((prev) => ({ ...prev, ...rowValues }));
     } else {
-      // Claim spare-parts rows are owned by useClaimMaterialsManager, which may have
-      // written fresh API values into initialFormValues earlier in this same commit.
-      // Re-applying the (still stale) Formik snapshot for those keys would reset the
-      // first claim row back to its template defaults (zero prices).
       const currentFormWithoutRowFields = Object.fromEntries(
         Object.entries(formValuesRef.current).filter(
           ([k, v]) =>

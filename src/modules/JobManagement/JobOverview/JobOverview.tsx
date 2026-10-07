@@ -5,8 +5,11 @@ import {
   toJobType,
   toJobStatus,
   toPreApprovalAction,
+  toFailureReason,
   NoteContext,
   CompletionType,
+  AnalyticsEventName,
+  type FailedAction,
   type JobEventPayload,
 } from "@/analytics";
 import { TabNavigation, Tab, Notification } from "@bosch/react-frok";
@@ -207,8 +210,9 @@ export default function JobOverview() {
         jobType: toJobType(currentJobType),
       });
     },
-    onError: () => {
+    onError: (error) => {
       setMessages((prev) => [...prev, { text: t("errorAddNote"), type: "error", duration: 3000 }]);
+      trackJobFlowFailure(AnalyticsEventName.NOTE_ADDED, error);
     },
   });
 
@@ -255,7 +259,9 @@ export default function JobOverview() {
       purchaseDate: asset.purchaseDate,
     };
     warrantyCheckMutation.mutate(payload);
-  }, [jobData, warrantyCheckMutation]);
+    // warrantyCheckMutation.mutate is stable — intentionally excluded from deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobData]);
 
   useEffect(() => {
     if (!jobData?.job?.asset?.purchaseDate) {
@@ -516,11 +522,12 @@ export default function JobOverview() {
       ]);
       emitJobFlowEvent((payload) => analytics.trackRepairStarted(payload));
     },
-    onError: () => {
+    onError: (error) => {
       setMessages((prev) => [
         ...prev,
         { text: t("errorStartRepair"), type: "error", duration: 3000 },
       ]);
+      trackJobFlowFailure(AnalyticsEventName.REPAIR_STARTED, error);
     },
   });
 
@@ -538,11 +545,12 @@ export default function JobOverview() {
       ]);
       emitJobFlowEvent((payload) => analytics.trackRepairFinished(payload));
     },
-    onError: () => {
+    onError: (error) => {
       setMessages((prev) => [
         ...prev,
         { text: t("errorFinishRepair"), type: "error", duration: 3000 },
       ]);
+      trackJobFlowFailure(AnalyticsEventName.REPAIR_FINISHED, error);
     },
   });
 
@@ -562,11 +570,12 @@ export default function JobOverview() {
         analytics.trackJobCompleted({ ...payload, completionType: CompletionType.DELIVERED }),
       );
     },
-    onError: () => {
+    onError: (error) => {
       setMessages((prev) => [
         ...prev,
         { text: t("errorToolDelivered"), type: "error", duration: 3000 },
       ]);
+      trackJobFlowFailure(AnalyticsEventName.JOB_COMPLETED, error);
     },
   });
 
@@ -589,12 +598,13 @@ export default function JobOverview() {
       }
       scrollToTop();
     },
-    onError: () => {
+    onError: (error) => {
       setMessages((prev) => [
         ...prev,
         { text: `${t("errorJobPreApprovalDecision")}`, type: "error", duration: 3000 },
       ]);
       scrollToTop();
+      trackJobFlowFailure(AnalyticsEventName.PRE_APPROVAL_REVIEWED, error);
     },
   });
 
@@ -612,11 +622,12 @@ export default function JobOverview() {
       ]);
       emitJobFlowEvent((payload) => analytics.trackJobSubmittedForReview(payload));
     },
-    onError: () => {
+    onError: (error) => {
       setMessages((prev) => [
         ...prev,
         { text: t("errorSubmitForReview"), type: "error", duration: 3000 },
       ]);
+      trackJobFlowFailure(AnalyticsEventName.JOB_SUBMITTED_FOR_REVIEW, error);
     },
   });
 
@@ -634,11 +645,12 @@ export default function JobOverview() {
       ]);
       emitJobFlowEvent((payload) => analytics.trackJobApprovedForRepair(payload));
     },
-    onError: () => {
+    onError: (error) => {
       setMessages((prev) => [
         ...prev,
         { text: t("errorApproveForRepair"), type: "error", duration: 3000 },
       ]);
+      trackJobFlowFailure(AnalyticsEventName.JOB_APPROVED_FOR_REPAIR, error);
     },
   });
 
@@ -666,6 +678,7 @@ export default function JobOverview() {
         },
       ]);
       scrollToTop();
+      trackJobFlowFailure(AnalyticsEventName.PRE_APPROVAL_REQUESTED, error);
     },
   });
 
@@ -776,6 +789,7 @@ export default function JobOverview() {
       ]);
       setArePricesValidated(false);
       scrollToTop();
+      trackJobFlowFailure(AnalyticsEventName.DIAGNOSTIC_VALIDATED, error);
     },
   });
 
@@ -897,6 +911,19 @@ export default function JobOverview() {
       if (jobType && jobStatus) emit({ jobType, jobStatus });
     },
     [currentJobType, jobId, queryClient],
+  );
+  const trackJobFlowFailure = useCallback(
+    (failedAction: FailedAction, error: unknown): void => {
+      analytics.trackActionFailed({
+        failedAction,
+        failureReason: toFailureReason(error),
+        jobType: toJobType(currentJobType),
+        jobStatus: toJobStatus(
+          queryClient.getQueryData<JobOverviewItem>(["job", jobId])?.job?.jobStatus,
+        ),
+      });
+    },
+    [analytics, currentJobType, jobId, queryClient],
   );
   useEffect(() => {
     setCurrentActionType((initialFormValues?.actionType as string) || "");
@@ -1183,7 +1210,11 @@ export default function JobOverview() {
   );
 
   const onProductDetails = useCallback(() => {
-    const updatedMaterials = syncMaterialsWithForm(materials, formValuesRef.current ?? {}, SPARE_PARTS_PREFIX);
+    const updatedMaterials = syncMaterialsWithForm(
+      materials,
+      formValuesRef.current ?? {},
+      SPARE_PARTS_PREFIX,
+    );
     setMaterials(updatedMaterials);
     setIsExplosionDrawingModalOpen(true);
   }, [materials, setMaterials]);
@@ -1435,8 +1466,16 @@ export default function JobOverview() {
       const payload = buildDiagnosticPayload(formValuesRef.current, allFieldsRef.current);
       payload.countryCode = jobData?.order?.countryCode;
       const changes: Record<string, unknown>[] = [];
+      const typeMap: Record<string, string> = {
+        type: "jobType",
+        sparePartNumber: "partNumber",
+        position: "position",
+      };
+      const type =
+        typeMap[field.fieldMapping?.originalName || ""] ??
+        field.fieldMapping?.originalName?.replace("Material", "");
       changes.push({
-        type: field.fieldMapping?.originalName?.replace("Material", ""),
+        type,
         lineId: materialId,
         value,
         scope: isMaterial

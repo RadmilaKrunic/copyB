@@ -20,15 +20,27 @@ import { HeaderUserData } from "api/services/header/action";
 import ApprovalActionsFlyout from "./ApprovalListTable/ApprovalActionsFlyout/ApprovalActionsFlyout";
 import {
   getDefaultFixedColumns,
+  getInitialApprovalColumnConfig,
   getVisibleColumns,
   getApprovalListColumns,
+  isColumnDisabled,
+  saveVisibleColumns,
   type ApprovalColumnConfiguration,
 } from "./ApprovalList.columns.utils";
 import "./ApprovalList.scss";
 import { MessagesContext } from "contexts/messagescontext";
 import { scrollToTop } from "utils/scrollToError";
 import { useListFilterHandlers } from "../../../hooks/useListFilterHandlers";
-import { useAnalytics, toJobStatus, PreApprovalAction } from "@/analytics";
+import CustomizeColumnsPopup from "@/components/ui/List/Filters/FiltersOptionsPopup/CustomizeColumnsPopup/CustomizeColumnsPopup";
+import { getApprovalColumns } from "./ApprovalListTable/ApprovalListColumns.config";
+import {
+  useAnalytics,
+  useListTracking,
+  toJobStatus,
+  toFailureReason,
+  PreApprovalAction,
+  AnalyticsEventName,
+} from "@/analytics";
 
 function ApprovalList() {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
@@ -62,11 +74,8 @@ function ApprovalList() {
     page: Number(sessionStorage.getItem("approvalList-currentPage")) || 1,
     pageSize: Number(sessionStorage.getItem("approvalList-pageSize")) || 10,
   });
-  const [columnConfig] = useState<ApprovalColumnConfiguration[]>(
-    getDefaultFixedColumns(),
-    // Temporarily bypassing user preferences to show new columns
-    // (user?.preferences?.jobColumnView as unknown as ApprovalColumnConfiguration[]) ??
-    //   getDefaultFixedColumns(),
+  const [columnConfig, setColumnConfig] = useState<ApprovalColumnConfiguration[]>(
+    getInitialApprovalColumnConfig(user?.preferences?.jobColumnView),
   );
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
   const { setMessages } = useContext(MessagesContext);
@@ -84,6 +93,23 @@ function ApprovalList() {
     () => filterApprovals(approvals, quickFilters, searchValue, advancedFilters),
     [advancedFilters, approvals, quickFilters, searchValue],
   );
+
+  const activeFilterKeys = useMemo(
+    () => [
+      ...quickFilters
+        .filter((filter: QuickFilter) => filter.selected)
+        .map((f: QuickFilter) => f.key),
+      ...advancedFilters.map((filter) => filter.name),
+    ],
+    [quickFilters, advancedFilters],
+  );
+
+  useListTracking({
+    searchValue,
+    activeFilterKeys,
+    resultCount: filteredApprovals.length,
+    isLoading: isApprovalsLoading,
+  });
 
   const handlePageChange = (page: number) => {
     sessionStorage.setItem("approvalList-currentPage", page.toString());
@@ -150,7 +176,7 @@ function ApprovalList() {
         }
       });
     },
-    onError: () => {
+    onError: (error) => {
       setMessages((prev) => [
         ...prev,
         {
@@ -160,6 +186,14 @@ function ApprovalList() {
         },
       ]);
       scrollToTop();
+      const failureReason = toFailureReason(error);
+      for (const id of selectedRows) {
+        analytics.trackActionFailed({
+          failedAction: AnalyticsEventName.PRE_APPROVAL_REVIEWED,
+          failureReason,
+          jobStatus: toJobStatus(approvals.find((approval) => approval.jobId === id)?.jobStatus),
+        });
+      }
     },
   });
 
@@ -190,6 +224,17 @@ function ApprovalList() {
         searchValue={searchValue}
         onSearchChange={setSearchValue}
         onSearchReset={() => setSearchValue("")}
+        optionsContent={
+          <CustomizeColumnsPopup
+            columnConfig={columnConfig}
+            setColumnConfig={setColumnConfig}
+            getColumnOptions={getApprovalColumns}
+            isColumnDisabled={isColumnDisabled}
+            getDefaultFixedColumns={getDefaultFixedColumns}
+            saveVisibleColumns={saveVisibleColumns}
+            saveErrorMessage={t("failedToSaveJobColumnPreferences")}
+          />
+        }
         type="approval"
       />
       <Table<Job>

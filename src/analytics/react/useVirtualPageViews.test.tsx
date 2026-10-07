@@ -16,6 +16,8 @@ function RouterHost({ analytics }: { analytics: Analytics }): React.JSX.Element 
     <>
       <button onClick={() => navigate("/job-list")}>to-job-list</button>
       <button onClick={() => navigate("/")}>to-index</button>
+      <button onClick={() => navigate("/job-overview/job-a")}>to-job-a</button>
+      <button onClick={() => navigate("/job-overview/job-b")}>to-job-b</button>
     </>
   );
 }
@@ -36,7 +38,7 @@ describe("useVirtualPageViews", () => {
     expect(analytics.trackVirtualPage).toHaveBeenCalledTimes(1);
   });
 
-  it("fires on route change and deduplicates same-virtual-URL navigations", () => {
+  it("fires once per location change", () => {
     const analytics = createMockAnalytics();
     render(
       <MemoryRouter initialEntries={["/dashboard"]}>
@@ -45,10 +47,23 @@ describe("useVirtualPageViews", () => {
     );
     expect(analytics.trackVirtualPage).toHaveBeenCalledTimes(1); // /dashboard
 
-    fireEvent.click(screen.getByText("to-index")); // "/" also maps to DASHBOARD → deduped
+    fireEvent.click(screen.getByText("to-job-list"));
+    expect(analytics.trackVirtualPage).toHaveBeenCalledTimes(2);
+
+    fireEvent.click(screen.getByText("to-job-list")); // same location → no repeat
+    expect(analytics.trackVirtualPage).toHaveBeenCalledTimes(2);
+  });
+
+  it("counts a second job opened from a first, which shares its virtual page", () => {
+    const analytics = createMockAnalytics();
+    render(
+      <MemoryRouter initialEntries={["/job-overview/job-a"]}>
+        <RouterHost analytics={analytics} />
+      </MemoryRouter>,
+    );
     expect(analytics.trackVirtualPage).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByText("to-job-list")); // JOB_LIST → new pageview
+    fireEvent.click(screen.getByText("to-job-b"));
     expect(analytics.trackVirtualPage).toHaveBeenCalledTimes(2);
   });
 

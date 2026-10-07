@@ -24,7 +24,7 @@ export const getOrderById = async (orderId: string): Promise<Order | null> => {
   }
 };
 
-export const createOrder = async (isDraft: boolean, order: Order): Promise<Order | null> => {
+export const createOrder = async (isDraft: boolean, order: Order): Promise<Order> => {
   try {
     const response: AxiosResponse<Order> = await ordersAxiosClient.post<
       Order,
@@ -35,7 +35,7 @@ export const createOrder = async (isDraft: boolean, order: Order): Promise<Order
     return response.data;
   } catch (error) {
     console.error("Error creating order:", error);
-    return null;
+    throw error;
   }
 };
 

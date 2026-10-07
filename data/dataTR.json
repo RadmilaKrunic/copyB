@@ -14504,7 +14504,7 @@
                   "isMultiple": false,
                   "permissions": [],
                   "multiSelect": false,
-                  "onValueChange": "onNonPriceFieldChange"
+                  "onValueChange": "onRecalculatePrices"
                 },
                 {
                   "name": "sparePartNumber",
@@ -14539,7 +14539,7 @@
                   "isMultiple": false,
                   "permissions": [],
                   "multiSelect": false,
-                  "onValueChange": "onNonPriceFieldChange"
+                  "onBlur": "onRecalculatePrices"
                 },
                 {
                   "name": "description",
@@ -14625,7 +14625,7 @@
                   "isMultiple": false,
                   "permissions": [],
                   "multiSelect": false,
-                  "onValueChange": "onNonPriceFieldChange"
+                  "onValueChange": "onRecalculatePrices"
                 },
                 {
                   "name": "quantity",

@@ -1,17 +1,25 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   getVisibleColumns,
   getSelectedCustomColumnsCount,
   isColumnDisabled,
   getDefaultFixedColumns,
+  getInitialApprovalColumnConfig,
   DEFAULT_COLUMN_CONFIGURATION,
   MAX_CUSTOM_COLUMNS,
+  saveVisibleColumns,
 } from "./ApprovalList.columns.utils";
 import type { ApprovalColumnConfiguration } from "./ApprovalList.columns.utils";
+import { saveApprovalListColumns } from "api/services/approvals/action";
 
 vi.mock("api/services/approvals/action", () => ({
   saveApprovalListColumns: vi.fn().mockResolvedValue(undefined),
 }));
+
+beforeEach(() => {
+  sessionStorage.clear();
+  vi.clearAllMocks();
+});
 
 const makeConfig = (
   overrides: Partial<ApprovalColumnConfiguration>[],
@@ -94,5 +102,82 @@ describe("getDefaultFixedColumns", () => {
     getDefaultFixedColumns().forEach((col) => {
       expect(col.isChecked).toBe(col.isFixed);
     });
+  });
+});
+
+describe("getInitialApprovalColumnConfig", () => {
+  it("restores Approval-only selections after save without forcing unchecked options", async () => {
+    const config = getDefaultFixedColumns().map((col) => ({
+      ...col,
+      isChecked: col.isFixed || col.key === "materialCost" || col.key === "ascPhoneNumber",
+    }));
+    await saveVisibleColumns(config);
+
+    expect(getInitialApprovalColumnConfig([{ key: "bareToolNumber", isChecked: true }])).toEqual(
+      config,
+    );
+    expect(saveApprovalListColumns).toHaveBeenCalledWith(config);
+  });
+
+  it("does not store failed saves", async () => {
+    vi.mocked(saveApprovalListColumns).mockRejectedValueOnce(new Error("save failed"));
+    await expect(saveVisibleColumns(getDefaultFixedColumns())).rejects.toThrow("save failed");
+    expect(sessionStorage.getItem("approvalList-visibleColumns")).toBeNull();
+  });
+
+  it("falls back to server preferences for corrupt session data", () => {
+    sessionStorage.setItem("approvalList-visibleColumns", "invalid json");
+    expect(
+      getInitialApprovalColumnConfig([{ key: "bareToolNumber", isChecked: true }]).find(
+        (col) => col.key === "bareToolNumber",
+      )?.isChecked,
+    ).toBe(true);
+  });
+
+  it("preserves saved custom selections for approval columns", () => {
+    const config = getInitialApprovalColumnConfig([
+      { key: "bareToolNumber", isChecked: true },
+      { key: "materialCost", isChecked: false },
+    ]);
+
+    expect(config.find((col) => col.key === "bareToolNumber")?.isChecked).toBe(true);
+    expect(config.find((col) => col.key === "materialCost")?.isChecked).toBe(false);
+  });
+
+  it("keeps approval fixed columns checked when missing from saved config", () => {
+    const config = getInitialApprovalColumnConfig([{ key: "customer", isChecked: true }]);
+
+    expect(config.find((col) => col.key === "ascName")?.isChecked).toBe(true);
+    expect(config.find((col) => col.key === "actionType")?.isChecked).toBe(true);
+    expect(config.filter((col) => col.isFixed).map((col) => col.key)).toEqual([
+      "jobId",
+      "createdAt",
+      "ascName",
+      "actionType",
+    ]);
+  });
+
+  it("offers every requested optional column in display order", () => {
+    const config = DEFAULT_COLUMN_CONFIGURATION.map((col) => ({ ...col, isChecked: true }));
+    expect(getVisibleColumns(config)).toEqual([
+      "jobId",
+      "createdAt",
+      "ascName",
+      "actionType",
+      "toolModelName",
+      "materialCost",
+      "jobStatus",
+      "ascPhoneNumber",
+      "internalReferenceNumber",
+      "bareToolNumber",
+      "typeOfUsage",
+      "faultCode",
+      "exchangeReason",
+      "customerType",
+      "assetCategory",
+    ]);
+    expect(
+      DEFAULT_COLUMN_CONFIGURATION.filter((col) => !col.isFixed).every((col) => !col.isChecked),
+    ).toBe(true);
   });
 });

@@ -24,6 +24,7 @@ import {
   useReimbursementDateRangeFilter,
   useReimbursementPagination,
 } from "../ReimbursementDateFilter.utils";
+import { useListTracking } from "@/analytics";
 
 interface ReimbursementDetailLocationState {
   ascName?: string;
@@ -67,7 +68,7 @@ function ReimbursementDetail() {
   const parsedFromDate = dateValues.fromDate ? new Date(dateValues.fromDate) : undefined;
   const parsedToDate = dateValues.toDate ? new Date(dateValues.toDate) : undefined;
 
-  const { data } = useReimbursementsByAscId(
+  const { data, isFetching, isError } = useReimbursementsByAscId(
     ascId || user?.ascId || "",
     parsedFromDate,
     parsedToDate,
@@ -85,6 +86,19 @@ function ReimbursementDetail() {
   useEffect(() => {
     setPagination((prev) => ({ ...prev, page: 1 }));
   }, [debouncedSearchValue, setPagination]);
+
+  const activeFilterKeys = useMemo(
+    () => quickFilters.filter((filter) => filter.selected).map((filter) => filter.key),
+    [quickFilters],
+  );
+
+  useListTracking({
+    searchValue: debouncedSearchValue,
+    activeFilterKeys,
+    filterSignature: `${dateValues.fromDate ?? ""}|${dateValues.toDate ?? ""}`,
+    resultCount: data?.page?.totalElements ?? 0,
+    isLoading: isFetching || isError,
+  });
 
   const isPaginationVisible = (data?.page?.totalElements || 0) > pagination.pageSize;
 

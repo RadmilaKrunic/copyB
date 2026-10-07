@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useContext, useEffect, useRef } from "react";
 import CreateJob from "./CreateJob";
 import * as ordersApi from "../../../api/services/orders/orders";
+import type { Order } from "../../../api/services/orders/orders.types";
 import { HeaderUserData } from "../../../api/services/header/action";
 import { GenericFormContext } from "../../../components/generics/Form/GenericForm.context";
 
@@ -377,6 +378,16 @@ vi.mock("../../../api/services/orders/orders", () => ({
   createOrder: vi.fn(),
   getOrderReceipt: vi.fn(),
   postWarrantyCheck: vi.fn(),
+}));
+
+const analyticsMock = vi.hoisted(() => ({
+  trackJobCreated: vi.fn(),
+  trackJobSavedAsDraft: vi.fn(),
+  trackActionFailed: vi.fn(),
+}));
+vi.mock("@/analytics", async () => ({
+  ...(await vi.importActual<Record<string, unknown>>("@/analytics")),
+  useAnalytics: () => analyticsMock,
 }));
 
 vi.mock("../../../components/generics/utils", () => ({
@@ -852,6 +863,38 @@ describe("CreateJob", () => {
       expect(screen.getByTestId("form-action-submit")).toBeInTheDocument();
 
       consoleError.mockRestore();
+    });
+
+    it("records a failed draft save with its reason", async () => {
+      const user = userEvent.setup();
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.mocked(ordersApi.createOrder).mockRejectedValue({ response: { status: 422 } });
+
+      renderComponent();
+      await user.click(await screen.findByTestId("form-action-saveAsDraft"));
+
+      await waitFor(() => {
+        expect(analyticsMock.trackActionFailed).toHaveBeenCalledTimes(1);
+      });
+      expect(analyticsMock.trackActionFailed).toHaveBeenCalledWith({
+        failedAction: "job_saved_as_draft",
+        failureReason: "wrong_entry",
+      });
+      expect(analyticsMock.trackJobSavedAsDraft).not.toHaveBeenCalled();
+      consoleError.mockRestore();
+    });
+
+    it("records no failure when the draft is saved", async () => {
+      const user = userEvent.setup();
+      vi.mocked(ordersApi.createOrder).mockResolvedValue({} as Order);
+
+      renderComponent();
+      await user.click(await screen.findByTestId("form-action-saveAsDraft"));
+
+      await waitFor(() => {
+        expect(analyticsMock.trackJobSavedAsDraft).toHaveBeenCalledTimes(1);
+      });
+      expect(analyticsMock.trackActionFailed).not.toHaveBeenCalled();
     });
   });
 

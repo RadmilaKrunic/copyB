@@ -54,10 +54,10 @@ describe("createOrder", () => {
     expect(mockPost).toHaveBeenCalledWith("", mockOrder, { params: { isDraft: true } });
   });
 
-  it("returns null on error", async () => {
-    mockPost.mockRejectedValueOnce(new Error("fail"));
-    const result = await createOrder(false, mockOrder as Order);
-    expect(result).toBeNull();
+  it("rethrows the error", async () => {
+    const error = new Error("fail");
+    mockPost.mockRejectedValueOnce(error);
+    await expect(createOrder(false, mockOrder as Order)).rejects.toBe(error);
   });
 });
 

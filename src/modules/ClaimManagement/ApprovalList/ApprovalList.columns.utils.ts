@@ -10,35 +10,27 @@ import { Job } from "modules/JobManagement/JobList/JobList.types";
 export type { ApprovalColumnConfiguration } from "./ApprovalListTable/ApprovalListColumns.config";
 
 export const MAX_CUSTOM_COLUMNS = 4;
+const COLUMN_STORAGE_KEY = "approvalList-visibleColumns";
 
 export const DEFAULT_COLUMN_CONFIGURATION: ApprovalColumnConfiguration[] = [
   { key: "jobId", isFixed: true, isChecked: true, order: 0 },
-  { key: "toolModelName", isFixed: true, isChecked: true, order: 1 },
-  { key: "jobStatus", isFixed: true, isChecked: true, order: 2 },
-  { key: "createdAt", isFixed: true, isChecked: true, order: 3 },
-  { key: "serialNumber", isFixed: false, isChecked: true, order: 4 },
-  { key: "customer", isFixed: false, isChecked: true, order: 5 },
-  { key: "updatedAt", isFixed: false, isChecked: true, order: 6 },
-  { key: "bareToolNumber", isFixed: false, isChecked: false, order: 7 },
-  { key: "assignee", isFixed: false, isChecked: true, order: 8 },
-  { key: "customerWish", isFixed: false, isChecked: false, order: 9 },
-  { key: "pickupType", isFixed: false, isChecked: false, order: 10 },
-  { key: "paymentType", isFixed: false, isChecked: false, order: 11 },
-  { key: "source", isFixed: false, isChecked: false, order: 12 },
-  { key: "ascName", isFixed: true, isChecked: true, order: 13 },
-  { key: "actionType", isFixed: true, isChecked: true, order: 14 },
-  { key: "materialCost", isFixed: true, isChecked: true, order: 15 },
+  { key: "createdAt", isFixed: true, isChecked: true, order: 1 },
+  { key: "ascName", isFixed: true, isChecked: true, order: 2 },
+  { key: "actionType", isFixed: true, isChecked: true, order: 3 },
+  { key: "toolModelName", isFixed: false, isChecked: false, order: 4 },
+  { key: "materialCost", isFixed: false, isChecked: false, order: 5 },
+  { key: "jobStatus", isFixed: false, isChecked: false, order: 6 },
+  { key: "ascPhoneNumber", isFixed: false, isChecked: false, order: 7 },
+  { key: "internalReferenceNumber", isFixed: false, isChecked: false, order: 8 },
+  { key: "bareToolNumber", isFixed: false, isChecked: false, order: 9 },
+  { key: "typeOfUsage", isFixed: false, isChecked: false, order: 10 },
+  { key: "faultCode", isFixed: false, isChecked: false, order: 11 },
+  { key: "exchangeReason", isFixed: false, isChecked: false, order: 12 },
+  { key: "customerType", isFixed: false, isChecked: false, order: 13 },
+  { key: "assetCategory", isFixed: false, isChecked: false, order: 14 },
 ];
 
-const COLUMN_DISPLAY_ORDER: ApprovalColumnKey[] = [
-  "jobId",
-  "createdAt",
-  "ascName",
-  "toolModelName",
-  "actionType",
-  "materialCost",
-  "jobStatus",
-];
+const COLUMN_DISPLAY_ORDER = DEFAULT_COLUMN_CONFIGURATION.map((col) => col.key);
 
 export function getVisibleColumns(config: ApprovalColumnConfiguration[]): ApprovalColumnKey[] {
   const visibleKeys = new Set(config.filter((col) => col.isChecked).map((col) => col.key));
@@ -76,8 +68,41 @@ export function getDefaultFixedColumns(): ApprovalColumnConfiguration[] {
   }));
 }
 
+export function getInitialApprovalColumnConfig(
+  savedConfig?: Array<{ key?: string; isChecked?: boolean }>,
+): ApprovalColumnConfiguration[] {
+  let savedColumnsByKey = new Map(savedConfig?.map((col) => [col.key, col]) ?? []);
+  try {
+    const storedKeys: unknown = JSON.parse(sessionStorage.getItem(COLUMN_STORAGE_KEY) ?? "null");
+    if (Array.isArray(storedKeys) && storedKeys.every((key) => typeof key === "string")) {
+      savedColumnsByKey = new Map(
+        DEFAULT_COLUMN_CONFIGURATION.map((col) => [
+          col.key,
+          { key: col.key, isChecked: storedKeys.includes(col.key) },
+        ]),
+      );
+    }
+  } catch {
+    sessionStorage.removeItem(COLUMN_STORAGE_KEY);
+  }
+
+  return DEFAULT_COLUMN_CONFIGURATION.map((defaultColumn) => {
+    const savedColumn = savedColumnsByKey.get(defaultColumn.key);
+    const isSavedChecked = savedColumn ? (savedColumn.isChecked ?? true) : defaultColumn.isChecked;
+
+    return {
+      ...defaultColumn,
+      isChecked: defaultColumn.isFixed || isSavedChecked,
+    };
+  });
+}
+
 export async function saveVisibleColumns(config: ApprovalColumnConfiguration[]): Promise<void> {
   await saveApprovalListColumns(config);
+  sessionStorage.setItem(
+    COLUMN_STORAGE_KEY,
+    JSON.stringify(config.filter((col) => col.isChecked).map((col) => col.key)),
+  );
 }
 
 export function getApprovalListColumns(t: (key: string) => string): Column<Job>[] {

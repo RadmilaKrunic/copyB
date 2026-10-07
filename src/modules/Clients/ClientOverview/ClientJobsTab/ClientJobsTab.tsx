@@ -10,6 +10,7 @@ import { formatDateToDisplay } from "utils/dateFormatter";
 import { CustomerJob } from "api/services/customers/customers.types";
 import { useCustomerJobs } from "api/services/customers/hooks";
 import ActivityIndicatorWithDelay from "components/ui/ActivityIndicatorWithDelay/ActivityIndicatorWithDelay";
+import { useListTracking } from "@/analytics";
 import "./ClientJobsTab.scss";
 
 const EMPTY_JOBS: CustomerJob[] = [];
@@ -27,6 +28,7 @@ function ClientJobsTab({ clientId, onRowClick, onCreateJob }: Readonly<ClientJob
   const {
     data: jobsPage,
     isLoading,
+    isFetching,
     isError,
   } = useCustomerJobs(clientId, {
     searchTerm: searchValue.trim() || undefined,
@@ -39,6 +41,12 @@ function ClientJobsTab({ clientId, onRowClick, onCreateJob }: Readonly<ClientJob
     setSearchValue(value);
     setPagination((prev) => ({ ...prev, page: 1 }));
   };
+
+  useListTracking({
+    searchValue,
+    resultCount: jobsPage?.page.totalElements ?? 0,
+    isLoading: isFetching || isError,
+  });
 
   const columns: Column<CustomerJob>[] = useMemo(
     () => [

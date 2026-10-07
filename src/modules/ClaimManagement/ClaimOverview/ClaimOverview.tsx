@@ -17,7 +17,13 @@ import { useFormValidation } from "components/generics/Form/useFormValidation";
 import { scrollToTop } from "utils/scrollToError";
 import { useTranslation } from "react-i18next";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
-import { useAnalytics, toClaimStatus, NoteContext } from "@/analytics";
+import {
+  useAnalytics,
+  toClaimStatus,
+  toFailureReason,
+  NoteContext,
+  AnalyticsEventName,
+} from "@/analytics";
 import { useBreadcrumbs } from "hooks/useBreadcrumbs";
 import { postMessage } from "api/services/jobs/action";
 import ClaimOverviewHeader from "./ClaimOverviewHeader/ClaimOverviewHeader";
@@ -155,6 +161,11 @@ export default function ClaimOverview() {
     },
     onError: (error) => {
       console.error("Failed to post message:", error);
+      analytics.trackActionFailed({
+        failedAction: AnalyticsEventName.NOTE_ADDED,
+        failureReason: toFailureReason(error),
+        claimStatus: toClaimStatus(currentStatus),
+      });
     },
   });
 

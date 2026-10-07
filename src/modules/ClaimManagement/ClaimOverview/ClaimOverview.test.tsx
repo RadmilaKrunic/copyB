@@ -26,6 +26,7 @@ const h = vi.hoisted(() => ({
   requestApproval: vi.fn(),
   invalidateQueries: vi.fn(),
   trackNoteAdded: vi.fn(),
+  trackActionFailed: vi.fn(),
   scrollToTop: vi.fn(),
   setMessages: vi.fn(),
   useClaimById: vi.fn(),
@@ -58,9 +59,14 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/analytics", () => ({
-  useAnalytics: () => ({ trackNoteAdded: h.trackNoteAdded }),
+  useAnalytics: () => ({
+    trackNoteAdded: h.trackNoteAdded,
+    trackActionFailed: h.trackActionFailed,
+  }),
   toClaimStatus: (status: string) => status,
+  toFailureReason: () => "system_problem",
   NoteContext: { CLAIM: "CLAIM" },
+  AnalyticsEventName: { NOTE_ADDED: "note_added" },
 }));
 
 vi.mock("utils/scrollToError", () => ({ scrollToTop: h.scrollToTop }));
@@ -632,6 +638,9 @@ describe("ClaimOverview post message mutation", () => {
     act(() => h.mutationOptions?.onError?.(error));
 
     expect(errorSpy).toHaveBeenCalledWith("Failed to post message:", error);
+    expect(h.trackActionFailed).toHaveBeenCalledWith(
+      expect.objectContaining({ failedAction: "note_added", failureReason: "system_problem" }),
+    );
     errorSpy.mockRestore();
   });
 });

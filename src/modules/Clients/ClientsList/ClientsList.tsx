@@ -16,6 +16,7 @@ import { HeaderUserData } from "api/services/header/action";
 import GenericForm from "components/generics/Form/GenericForm.types";
 import { getClientColumns } from "./ClientsListColumns.config";
 import { resolveCustomerTypeFilter } from "./ClientsList.utils";
+import { useListTracking } from "@/analytics";
 import "./ClientsList.scss";
 
 const QUICK_FILTERS: QuickFilter[] = [
@@ -68,7 +69,7 @@ function ClientsList() {
     setPagination((prev) => ({ ...prev, page: 1 }));
   }, [debouncedSearchValue, quickFilters, advancedFilters]);
 
-  const { data, isLoading, isError } = useClientManagementCustomers(
+  const { data, isLoading, isFetching, isError } = useClientManagementCustomers(
     { ascId: user?.ascId || "", searchTerm: debouncedSearchValue || undefined, customerTypes },
     pagination.page - 1,
     pagination.pageSize,
@@ -76,6 +77,21 @@ function ClientsList() {
 
   const CLIENT_COLUMNS = useMemo(() => getClientColumns(t), [t]);
   const visibleColumns = useMemo(() => CLIENT_COLUMNS.map((col) => col.key), [CLIENT_COLUMNS]);
+
+  const activeFilterKeys = useMemo(
+    () => [
+      ...quickFilters.filter((filter) => filter.selected).map((filter) => filter.key),
+      ...advancedFilters.map((filter) => filter.name),
+    ],
+    [quickFilters, advancedFilters],
+  );
+
+  useListTracking({
+    searchValue: debouncedSearchValue,
+    activeFilterKeys,
+    resultCount: data?.page?.totalElements ?? 0,
+    isLoading: isFetching || isError,
+  });
 
   const handlePageChange = (page: number) => {
     sessionStorage.setItem("clientList-currentPage", page.toString());

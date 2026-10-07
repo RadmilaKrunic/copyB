@@ -3,6 +3,7 @@ import {
   resolveUserRole,
   toClaimAction,
   toClaimStatus,
+  toFailureReason,
   toJobStatus,
   toJobType,
   toPreApprovalAction,
@@ -10,6 +11,7 @@ import {
 import {
   ClaimAction,
   ClaimStatus,
+  FailureReason,
   JobStatus,
   JobType,
   PreApprovalAction,
@@ -42,12 +44,62 @@ describe("workflow value mappers", () => {
   });
 });
 
+describe("toFailureReason", () => {
+  const httpError = (status: number) => ({ response: { status, data: { detail: "secret" } } });
+
+  it("maps rejected input to wrong_entry", () => {
+    for (const status of [400, 409, 422]) {
+      expect(toFailureReason(httpError(status))).toBe(FailureReason.WRONG_ENTRY);
+    }
+  });
+
+  it("maps missing rights to no_permission", () => {
+    for (const status of [401, 403]) {
+      expect(toFailureReason(httpError(status))).toBe(FailureReason.NO_PERMISSION);
+    }
+  });
+
+  it("maps server errors and other statuses to system_problem", () => {
+    for (const status of [404, 429, 500, 502, 503]) {
+      expect(toFailureReason(httpError(status))).toBe(FailureReason.SYSTEM_PROBLEM);
+    }
+  });
+
+  it("maps network errors, timeouts and non-HTTP errors to system_problem", () => {
+    expect(toFailureReason({ code: "ERR_NETWORK", message: "Network Error" })).toBe(
+      FailureReason.SYSTEM_PROBLEM,
+    );
+    expect(toFailureReason({ code: "ECONNABORTED", response: undefined })).toBe(
+      FailureReason.SYSTEM_PROBLEM,
+    );
+    expect(toFailureReason(new Error("boom"))).toBe(FailureReason.SYSTEM_PROBLEM);
+    expect(toFailureReason(null)).toBe(FailureReason.SYSTEM_PROBLEM);
+    expect(toFailureReason(undefined)).toBe(FailureReason.SYSTEM_PROBLEM);
+  });
+});
+
 describe("resolveUserRole", () => {
   it("maps ASC roles, with manager taking precedence over technician", () => {
     expect(resolveUserRole({ roles: ["ASC_TECHNICIAN"] })).toBe(UserRole.ASC_TECHNICIAN);
     expect(resolveUserRole({ roles: ["ASC_MANAGER"] })).toBe(UserRole.ASC_MANAGER);
     expect(resolveUserRole({ roles: ["ASC_MANAGER_WITHOUT_CLAIM"] })).toBe(UserRole.ASC_MANAGER);
     expect(resolveUserRole({ roles: ["ASC_TECHNICIAN", "ASC_MANAGER"] })).toBe(
+      UserRole.ASC_MANAGER,
+    );
+  });
+
+  it("maps the receptionist role instead of reporting it as unknown", () => {
+    expect(resolveUserRole({ roles: ["ASC_RECEPTIONIST"] })).toBe(UserRole.ASC_RECEPTIONIST);
+  });
+
+  it("picks the same role regardless of the order the roles arrive in", () => {
+    expect(resolveUserRole({ roles: ["ASC_RECEPTIONIST", "ASC_TECHNICIAN"] })).toBe(
+      UserRole.ASC_TECHNICIAN,
+    );
+    expect(resolveUserRole({ roles: ["ASC_TECHNICIAN", "ASC_RECEPTIONIST"] })).toBe(
+      UserRole.ASC_TECHNICIAN,
+    );
+    expect(resolveUserRole({ roles: ["ASC_MANAGER", "ASC_RECEPTIONIST"] })).toBe(
       UserRole.ASC_MANAGER,
     );
   });
@@ -59,7 +111,7 @@ describe("resolveUserRole", () => {
 
   it("returns UNKNOWN when nothing matches", () => {
     expect(resolveUserRole({})).toBe(UserRole.UNKNOWN);
-    expect(resolveUserRole({ roles: ["ASC_RECEPTIONIST"] })).toBe(UserRole.UNKNOWN);
+    expect(resolveUserRole({ roles: ["SOME_UNMAPPED_ROLE"] })).toBe(UserRole.UNKNOWN);
   });
 
   it("normalises casing/whitespace and tolerates malformed role entries", () => {

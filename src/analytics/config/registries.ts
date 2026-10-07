@@ -104,6 +104,24 @@ export const EVENT_REGISTRY: Readonly<Record<AnalyticsEventName, EventDefinition
     [...COMMON_OPTIONAL, P.JOB_STATUS, P.CLAIM_STATUS, P.JOB_TYPE],
     true,
   ),
+  // Which list this happened on is the page descriptor: every list has its own virtual page.
+  [AnalyticsEventName.LIST_INTERACTION]: define(
+    AnalyticsEventName.LIST_INTERACTION,
+    [...COMMON_REQUIRED, P.PAGE_NAME, P.MODULE_NAME, P.INTERACTION_TYPE],
+    [...COMMON_OPTIONAL, P.FILTER_NAME, P.RESULT_COUNT, P.SELECTED_ROW_COUNT],
+    true,
+  ),
+  [AnalyticsEventName.LIST_EXPORTED]: define(
+    AnalyticsEventName.LIST_EXPORTED,
+    [...COMMON_REQUIRED, P.PAGE_NAME, P.MODULE_NAME],
+    [...COMMON_OPTIONAL, P.EXPORTED_ROW_COUNT],
+    true,
+  ),
+  [AnalyticsEventName.ACTION_FAILED]: define(
+    AnalyticsEventName.ACTION_FAILED,
+    [...COMMON_REQUIRED, P.FAILED_ACTION, P.FAILURE_REASON],
+    [...COMMON_OPTIONAL, P.JOB_TYPE, P.JOB_STATUS, P.CLAIM_STATUS],
+  ),
 });
 
 export const getAllowedParameters = (name: AnalyticsEventName): readonly P[] => {
@@ -221,6 +239,30 @@ export const VIRTUAL_PAGE_REGISTRY: Readonly<Record<VirtualUrl, VirtualPageDefin
       pageName: PageName.CLIENTS,
       moduleName: ModuleName.CLIENTS,
     },
+    [VirtualUrl.CLIENT_OVERVIEW_CLIENT_INFO]: {
+      reference: "VPV_023",
+      virtualUrl: VirtualUrl.CLIENT_OVERVIEW_CLIENT_INFO,
+      pageName: PageName.CLIENT_OVERVIEW_CLIENT_INFO,
+      moduleName: ModuleName.CLIENTS_CLIENT_OVERVIEW,
+    },
+    [VirtualUrl.CLIENT_OVERVIEW_ORDERS]: {
+      reference: "VPV_040",
+      virtualUrl: VirtualUrl.CLIENT_OVERVIEW_ORDERS,
+      pageName: PageName.CLIENT_OVERVIEW_ORDERS,
+      moduleName: ModuleName.CLIENTS_CLIENT_OVERVIEW,
+    },
+    [VirtualUrl.CLIENT_OVERVIEW_JOBS]: {
+      reference: "VPV_041",
+      virtualUrl: VirtualUrl.CLIENT_OVERVIEW_JOBS,
+      pageName: PageName.CLIENT_OVERVIEW_JOBS,
+      moduleName: ModuleName.CLIENTS_CLIENT_OVERVIEW,
+    },
+    [VirtualUrl.CLIENT_OVERVIEW_ASSETS]: {
+      reference: "VPV_042",
+      virtualUrl: VirtualUrl.CLIENT_OVERVIEW_ASSETS,
+      pageName: PageName.CLIENT_OVERVIEW_ASSETS,
+      moduleName: ModuleName.CLIENTS_CLIENT_OVERVIEW,
+    },
     [VirtualUrl.REPORTS]: {
       reference: "VPV_019",
       virtualUrl: VirtualUrl.REPORTS,
@@ -233,17 +275,167 @@ export const VIRTUAL_PAGE_REGISTRY: Readonly<Record<VirtualUrl, VirtualPageDefin
       pageName: PageName.BIQIC_REPORT,
       moduleName: ModuleName.REPORTS_BIQIC,
     },
-    [VirtualUrl.REIMBURSEMENT]: {
-      reference: "VPV_021",
-      virtualUrl: VirtualUrl.REIMBURSEMENT,
-      pageName: PageName.REIMBURSEMENT,
+    [VirtualUrl.REIMBURSEMENT_ASC_LIST]: {
+      reference: "VPV_024",
+      virtualUrl: VirtualUrl.REIMBURSEMENT_ASC_LIST,
+      pageName: PageName.REIMBURSEMENT_ASC_LIST,
       moduleName: ModuleName.REIMBURSEMENT,
+    },
+    [VirtualUrl.REIMBURSEMENT_LIST]: {
+      reference: "VPV_025",
+      virtualUrl: VirtualUrl.REIMBURSEMENT_LIST,
+      pageName: PageName.REIMBURSEMENT_LIST,
+      moduleName: ModuleName.REIMBURSEMENT,
+    },
+    [VirtualUrl.ASC_REIMBURSEMENTS]: {
+      reference: "VPV_026",
+      virtualUrl: VirtualUrl.ASC_REIMBURSEMENTS,
+      pageName: PageName.ASC_REIMBURSEMENTS,
+      moduleName: ModuleName.REIMBURSEMENT,
+    },
+    [VirtualUrl.MY_REIMBURSEMENTS]: {
+      reference: "VPV_027",
+      virtualUrl: VirtualUrl.MY_REIMBURSEMENTS,
+      pageName: PageName.MY_REIMBURSEMENTS,
+      moduleName: ModuleName.REIMBURSEMENT,
+    },
+    [VirtualUrl.CREATE_REIMBURSEMENT]: {
+      reference: "VPV_028",
+      virtualUrl: VirtualUrl.CREATE_REIMBURSEMENT,
+      pageName: PageName.CREATE_REIMBURSEMENT,
+      moduleName: ModuleName.REIMBURSEMENT_CREATION,
+    },
+    [VirtualUrl.REIMBURSEMENT_CLAIMS]: {
+      reference: "VPV_029",
+      virtualUrl: VirtualUrl.REIMBURSEMENT_CLAIMS,
+      pageName: PageName.REIMBURSEMENT_CLAIMS,
+      moduleName: ModuleName.REIMBURSEMENT_CLAIMS,
+    },
+    [VirtualUrl.EMPLOYEES]: {
+      reference: "VPV_030",
+      virtualUrl: VirtualUrl.EMPLOYEES,
+      pageName: PageName.EMPLOYEES,
+      moduleName: ModuleName.ACCOUNT_MANAGEMENT_EMPLOYEES,
+    },
+    [VirtualUrl.ADD_EMPLOYEE]: {
+      reference: "VPV_031",
+      virtualUrl: VirtualUrl.ADD_EMPLOYEE,
+      pageName: PageName.ADD_EMPLOYEE,
+      moduleName: ModuleName.ACCOUNT_MANAGEMENT_EMPLOYEES,
+    },
+    [VirtualUrl.EMPLOYEE_OVERVIEW]: {
+      reference: "VPV_032",
+      virtualUrl: VirtualUrl.EMPLOYEE_OVERVIEW,
+      pageName: PageName.EMPLOYEE_OVERVIEW,
+      moduleName: ModuleName.ACCOUNT_MANAGEMENT_EMPLOYEES,
+    },
+    [VirtualUrl.ASC_PROFILES]: {
+      reference: "VPV_033",
+      virtualUrl: VirtualUrl.ASC_PROFILES,
+      pageName: PageName.ASC_PROFILES,
+      moduleName: ModuleName.ACCOUNT_MANAGEMENT_ASC,
+    },
+    [VirtualUrl.ADD_ASC]: {
+      reference: "VPV_034",
+      virtualUrl: VirtualUrl.ADD_ASC,
+      pageName: PageName.ADD_ASC,
+      moduleName: ModuleName.ACCOUNT_MANAGEMENT_ASC,
+    },
+    [VirtualUrl.EDIT_ASC]: {
+      reference: "VPV_035",
+      virtualUrl: VirtualUrl.EDIT_ASC,
+      pageName: PageName.EDIT_ASC,
+      moduleName: ModuleName.ACCOUNT_MANAGEMENT_ASC,
+    },
+    [VirtualUrl.ASC_OVERVIEW_GENERAL_INFO]: {
+      reference: "VPV_036",
+      virtualUrl: VirtualUrl.ASC_OVERVIEW_GENERAL_INFO,
+      pageName: PageName.ASC_OVERVIEW_GENERAL_INFO,
+      moduleName: ModuleName.ACCOUNT_MANAGEMENT_ASC,
+    },
+    [VirtualUrl.ASC_OVERVIEW_BANKING]: {
+      reference: "VPV_043",
+      virtualUrl: VirtualUrl.ASC_OVERVIEW_BANKING,
+      pageName: PageName.ASC_OVERVIEW_BANKING,
+      moduleName: ModuleName.ACCOUNT_MANAGEMENT_ASC,
+    },
+    [VirtualUrl.ASC_OVERVIEW_NOTIFICATIONS]: {
+      reference: "VPV_044",
+      virtualUrl: VirtualUrl.ASC_OVERVIEW_NOTIFICATIONS,
+      pageName: PageName.ASC_OVERVIEW_NOTIFICATIONS,
+      moduleName: ModuleName.ACCOUNT_MANAGEMENT_ASC,
+    },
+    [VirtualUrl.ASC_OVERVIEW_PRICING]: {
+      reference: "VPV_045",
+      virtualUrl: VirtualUrl.ASC_OVERVIEW_PRICING,
+      pageName: PageName.ASC_OVERVIEW_PRICING,
+      moduleName: ModuleName.ACCOUNT_MANAGEMENT_ASC,
+    },
+    [VirtualUrl.ASC_OVERVIEW_BOSCH_INTERNAL_CONFIGURATION]: {
+      reference: "VPV_046",
+      virtualUrl: VirtualUrl.ASC_OVERVIEW_BOSCH_INTERNAL_CONFIGURATION,
+      pageName: PageName.ASC_OVERVIEW_BOSCH_INTERNAL_CONFIGURATION,
+      moduleName: ModuleName.ACCOUNT_MANAGEMENT_ASC,
+    },
+    [VirtualUrl.ASC_OVERVIEW_REIMBURSEMENT]: {
+      reference: "VPV_047",
+      virtualUrl: VirtualUrl.ASC_OVERVIEW_REIMBURSEMENT,
+      pageName: PageName.ASC_OVERVIEW_REIMBURSEMENT,
+      moduleName: ModuleName.ACCOUNT_MANAGEMENT_ASC,
+    },
+    [VirtualUrl.ASC_PROFILE_GENERAL_INFO]: {
+      reference: "VPV_037",
+      virtualUrl: VirtualUrl.ASC_PROFILE_GENERAL_INFO,
+      pageName: PageName.ASC_PROFILE_GENERAL_INFO,
+      moduleName: ModuleName.ACCOUNT_MANAGEMENT_ASC,
+    },
+    [VirtualUrl.ASC_PROFILE_BANKING]: {
+      reference: "VPV_048",
+      virtualUrl: VirtualUrl.ASC_PROFILE_BANKING,
+      pageName: PageName.ASC_PROFILE_BANKING,
+      moduleName: ModuleName.ACCOUNT_MANAGEMENT_ASC,
+    },
+    [VirtualUrl.ASC_PROFILE_NOTIFICATIONS]: {
+      reference: "VPV_049",
+      virtualUrl: VirtualUrl.ASC_PROFILE_NOTIFICATIONS,
+      pageName: PageName.ASC_PROFILE_NOTIFICATIONS,
+      moduleName: ModuleName.ACCOUNT_MANAGEMENT_ASC,
+    },
+    [VirtualUrl.ASC_PROFILE_PRICING]: {
+      reference: "VPV_050",
+      virtualUrl: VirtualUrl.ASC_PROFILE_PRICING,
+      pageName: PageName.ASC_PROFILE_PRICING,
+      moduleName: ModuleName.ACCOUNT_MANAGEMENT_ASC,
+    },
+    [VirtualUrl.ASC_PROFILE_BOSCH_INTERNAL_CONFIGURATION]: {
+      reference: "VPV_051",
+      virtualUrl: VirtualUrl.ASC_PROFILE_BOSCH_INTERNAL_CONFIGURATION,
+      pageName: PageName.ASC_PROFILE_BOSCH_INTERNAL_CONFIGURATION,
+      moduleName: ModuleName.ACCOUNT_MANAGEMENT_ASC,
+    },
+    [VirtualUrl.ASC_PROFILE_REIMBURSEMENT]: {
+      reference: "VPV_052",
+      virtualUrl: VirtualUrl.ASC_PROFILE_REIMBURSEMENT,
+      pageName: PageName.ASC_PROFILE_REIMBURSEMENT,
+      moduleName: ModuleName.ACCOUNT_MANAGEMENT_ASC,
+    },
+    [VirtualUrl.SYSTEM_CONFIGURATION]: {
+      reference: "VPV_038",
+      virtualUrl: VirtualUrl.SYSTEM_CONFIGURATION,
+      pageName: PageName.SYSTEM_CONFIGURATION,
+      moduleName: ModuleName.SYSTEM_CONFIGURATION,
     },
     [VirtualUrl.USER_MANAGEMENT]: {
       reference: "VPV_022",
       virtualUrl: VirtualUrl.USER_MANAGEMENT,
       pageName: PageName.USER_MANAGEMENT,
       moduleName: ModuleName.USER_MANAGEMENT,
+    },
+    [VirtualUrl.PAGE_NOT_FOUND]: {
+      reference: "VPV_039",
+      virtualUrl: VirtualUrl.PAGE_NOT_FOUND,
+      pageName: PageName.PAGE_NOT_FOUND,
+      moduleName: ModuleName.ERROR,
     },
   });
 
@@ -262,7 +454,7 @@ interface TabbedRouteRule {
   readonly defaultVirtualUrl: VirtualUrl;
 }
 
-/** Routes with no virtual page in scope are intentionally absent (no pageview). */
+/** Every route in `Routes.tsx` is registered; an unmatched path is a real 404. */
 export const STATIC_ROUTE_RULES: readonly StaticRouteRule[] = Object.freeze([
   { pattern: "/", virtualUrl: VirtualUrl.DASHBOARD },
   { pattern: "/dashboard", virtualUrl: VirtualUrl.DASHBOARD },
@@ -271,11 +463,23 @@ export const STATIC_ROUTE_RULES: readonly StaticRouteRule[] = Object.freeze([
   { pattern: "/edit-order/:orderId", virtualUrl: VirtualUrl.EDIT_JOB },
   { pattern: "/claim-list", virtualUrl: VirtualUrl.CLAIM_LIST },
   { pattern: "/approval-list", virtualUrl: VirtualUrl.PRE_APPROVAL_LIST },
-  { pattern: "/pre-approval-list", virtualUrl: VirtualUrl.PRE_APPROVAL_LIST },
   { pattern: "/clients", virtualUrl: VirtualUrl.CLIENTS },
   { pattern: "/reports", virtualUrl: VirtualUrl.REPORTS },
   { pattern: "/biqic-report", virtualUrl: VirtualUrl.BIQIC_REPORT },
-  { pattern: "/reimbursement", virtualUrl: VirtualUrl.REIMBURSEMENT },
+  { pattern: "/reimbursement-detail/:ascId", virtualUrl: VirtualUrl.ASC_REIMBURSEMENTS },
+  { pattern: "/reimbursements", virtualUrl: VirtualUrl.MY_REIMBURSEMENTS },
+  { pattern: "/create-reimbursement", virtualUrl: VirtualUrl.CREATE_REIMBURSEMENT },
+  {
+    pattern: "/reimbursement-claims/:reimbursementId",
+    virtualUrl: VirtualUrl.REIMBURSEMENT_CLAIMS,
+  },
+  { pattern: "/employee-list", virtualUrl: VirtualUrl.EMPLOYEES },
+  { pattern: "/add-employee", virtualUrl: VirtualUrl.ADD_EMPLOYEE },
+  { pattern: "/employee-overview/:employeeId", virtualUrl: VirtualUrl.EMPLOYEE_OVERVIEW },
+  { pattern: "/asc-profiles", virtualUrl: VirtualUrl.ASC_PROFILES },
+  { pattern: "/add-asc", virtualUrl: VirtualUrl.ADD_ASC },
+  { pattern: "/edit-asc/:ascId", virtualUrl: VirtualUrl.EDIT_ASC },
+  { pattern: "/system-configuration", virtualUrl: VirtualUrl.SYSTEM_CONFIGURATION },
   { pattern: "/user-management", virtualUrl: VirtualUrl.USER_MANAGEMENT },
 ]);
 
@@ -301,6 +505,48 @@ export const TABBED_ROUTE_RULES: readonly TabbedRouteRule[] = Object.freeze([
       diagnosticData: VirtualUrl.CLAIM_OVERVIEW_DIAGNOSTIC_DATA,
       claims: VirtualUrl.CLAIM_OVERVIEW_CLAIMS,
       notes: VirtualUrl.CLAIM_OVERVIEW_NOTES,
+    },
+  },
+  {
+    pattern: "/reimbursement",
+    defaultVirtualUrl: VirtualUrl.REIMBURSEMENT_ASC_LIST,
+    tabHashToVirtualUrl: {
+      "asc-list": VirtualUrl.REIMBURSEMENT_ASC_LIST,
+      "reimbursement-list": VirtualUrl.REIMBURSEMENT_LIST,
+    },
+  },
+  {
+    pattern: "/client-overview/:clientId",
+    defaultVirtualUrl: VirtualUrl.CLIENT_OVERVIEW_CLIENT_INFO,
+    tabHashToVirtualUrl: {
+      clientInfo: VirtualUrl.CLIENT_OVERVIEW_CLIENT_INFO,
+      Orders: VirtualUrl.CLIENT_OVERVIEW_ORDERS,
+      Jobs: VirtualUrl.CLIENT_OVERVIEW_JOBS,
+      Assets: VirtualUrl.CLIENT_OVERVIEW_ASSETS,
+    },
+  },
+  {
+    pattern: "/asc-overview/:ascId",
+    defaultVirtualUrl: VirtualUrl.ASC_OVERVIEW_GENERAL_INFO,
+    tabHashToVirtualUrl: {
+      generalInfo: VirtualUrl.ASC_OVERVIEW_GENERAL_INFO,
+      banking: VirtualUrl.ASC_OVERVIEW_BANKING,
+      notifications: VirtualUrl.ASC_OVERVIEW_NOTIFICATIONS,
+      pricing: VirtualUrl.ASC_OVERVIEW_PRICING,
+      boschInternalConfiguration: VirtualUrl.ASC_OVERVIEW_BOSCH_INTERNAL_CONFIGURATION,
+      reimbursement: VirtualUrl.ASC_OVERVIEW_REIMBURSEMENT,
+    },
+  },
+  {
+    pattern: "/asc-profile",
+    defaultVirtualUrl: VirtualUrl.ASC_PROFILE_GENERAL_INFO,
+    tabHashToVirtualUrl: {
+      generalInfo: VirtualUrl.ASC_PROFILE_GENERAL_INFO,
+      banking: VirtualUrl.ASC_PROFILE_BANKING,
+      notifications: VirtualUrl.ASC_PROFILE_NOTIFICATIONS,
+      pricing: VirtualUrl.ASC_PROFILE_PRICING,
+      boschInternalConfiguration: VirtualUrl.ASC_PROFILE_BOSCH_INTERNAL_CONFIGURATION,
+      reimbursement: VirtualUrl.ASC_PROFILE_REIMBURSEMENT,
     },
   },
 ]);

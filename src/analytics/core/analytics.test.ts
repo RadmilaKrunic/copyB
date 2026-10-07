@@ -6,8 +6,10 @@ import {
   ClaimAction,
   ClaimStatus,
   CompletionType,
+  FailureReason,
   JobStatus,
   JobType,
+  ListInteractionType,
   NoteContext,
   PreApprovalAction,
 } from "../domain/enums";
@@ -199,6 +201,33 @@ describe("Analytics facade — every business event", () => {
     });
   });
 
+  it("action_failed carries only the failed action, reason, job context and common context", () => {
+    harness.analytics.trackActionFailed({
+      failedAction: AnalyticsEventName.REPAIR_FINISHED,
+      failureReason: FailureReason.SYSTEM_PROBLEM,
+      jobType: JobType.WARRANTY,
+      jobStatus: JobStatus.IN_REPAIR,
+    });
+    expect(harness.transport.last).toEqual({
+      event: "action_failed",
+      failed_action: "repair_finished",
+      failure_reason: "system_problem",
+      job_type: "warranty",
+      job_status: "in_repair",
+      virtual_url: "/dashboard",
+      ...commonContext,
+    });
+  });
+
+  it("action_failed with an unknown reason fails validation", () => {
+    harness.analytics.trackActionFailed({
+      failedAction: AnalyticsEventName.NOTE_ADDED,
+      failureReason: "server said no" as FailureReason,
+    });
+    const [pushed] = harness.transport.events;
+    expect(validator.validate(pushed).valid).toBe(false);
+  });
+
   it("produces a valid push for every event (registry contract satisfied)", () => {
     harness.analytics.trackJobCreated({
       jobType: JobType.WARRANTY,
@@ -250,6 +279,15 @@ describe("Analytics facade — every business event", () => {
       jobStatus: JobStatus.READY_FOR_REPAIR,
     });
     harness.analytics.trackHelpCenterClicked();
+    harness.analytics.trackListInteraction({
+      interactionType: ListInteractionType.SEARCH,
+      resultCount: 12,
+    });
+    harness.analytics.trackListExported({ exportedRowCount: 120 });
+    harness.analytics.trackActionFailed({
+      failedAction: AnalyticsEventName.LIST_EXPORTED,
+      failureReason: FailureReason.SYSTEM_PROBLEM,
+    });
 
     const tracked = new Set(harness.transport.events.map((event) => event.event));
     for (const businessEvent of BUSINESS_EVENT_NAMES) {

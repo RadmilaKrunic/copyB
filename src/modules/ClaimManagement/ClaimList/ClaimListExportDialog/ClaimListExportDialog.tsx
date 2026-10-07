@@ -5,6 +5,7 @@ import axiosClient from "../../../../api/axios-client/axiosClient";
 import { useContext } from "react";
 import { MessagesContext } from "../../../../contexts/messagescontext";
 import { useTranslation } from "react-i18next";
+import { useAnalytics, toFailureReason, AnalyticsEventName } from "@/analytics";
 import "./ClaimListExportDialog.scss";
 import { dateRangeField } from "./ClaimListExportDialog.data";
 interface ClaimExportFormValues {
@@ -17,6 +18,7 @@ function ClaimListExportDialog({
   readonly setIsExportOpen: (isOpen: boolean) => void;
 }) {
   const { setMessages } = useContext(MessagesContext);
+  const analytics = useAnalytics();
   const { t } = useTranslation("translation", { keyPrefix: "app" });
 
   const exportClaimsCsv = async (
@@ -62,8 +64,14 @@ function ClaimListExportDialog({
       anchor.remove();
 
       setTimeout(() => URL.revokeObjectURL(url), 10000);
-    } catch {
+
+      analytics.trackListExported();
+    } catch (error) {
       setMessages((prev) => [...prev, { type: "error", text: t("errorExportClaims") }]);
+      analytics.trackActionFailed({
+        failedAction: AnalyticsEventName.LIST_EXPORTED,
+        failureReason: toFailureReason(error),
+      });
     } finally {
       setIsExportOpen(false);
     }

@@ -207,9 +207,13 @@ describe("AnalyticsProvider", () => {
   // ── page tracking ────────────────────────────────────────────────────────
 
   describe("page tracking", () => {
-    it("does not fire a pageview for an unrecognised route", () => {
+    it("reports an unrecognised route as the page-not-found page", () => {
       renderProvider(transport, { path: "/this-route-does-not-exist" });
-      expect(transport.events).toHaveLength(0);
+      expect(transport.last).toMatchObject({
+        event: "virtual_page_view",
+        virtual_url: "/page-not-found",
+        page_name: "Page Not Found",
+      });
     });
 
     it("fires a second pageview when navigating to a different virtual URL", async () => {

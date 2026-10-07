@@ -116,10 +116,17 @@ vi.mock("./ApprovalListTable/ApprovalActionsFlyout/ApprovalActionsFlyout", () =>
 vi.mock("utils/scrollToError", () => ({
   scrollToTop: vi.fn(),
 }));
+const trackActionFailedMock = vi.hoisted(() => vi.fn());
 vi.mock("@/analytics", () => ({
-  useAnalytics: () => ({ trackPreApprovalReviewed: vi.fn() }),
+  useAnalytics: () => ({
+    trackPreApprovalReviewed: vi.fn(),
+    trackActionFailed: trackActionFailedMock,
+  }),
+  useListTracking: vi.fn(),
   toJobStatus: (status: string) => status,
+  toFailureReason: () => "system_problem",
   PreApprovalAction: { APPROVED: "APPROVED" },
+  AnalyticsEventName: { PRE_APPROVAL_REVIEWED: "pre_approval_reviewed" },
 }));
 
 import ApprovalList from "./ApprovalList";

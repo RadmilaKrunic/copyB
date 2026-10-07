@@ -36,6 +36,7 @@ interface AutoCompleteProps {
   readonly size?: number;
   readonly pageNumber?: number;
   readonly incompatibleSelectionMessage?: string;
+  readonly onBlur?: () => void;
 }
 
 export default function AutoComplete({
@@ -48,6 +49,7 @@ export default function AutoComplete({
   onSetFieldTouched,
   onClearFieldError,
   onValidation,
+  onBlur,
   minLength = 1,
   debounceMs = 300,
   isInfoIcon = false,
@@ -287,6 +289,7 @@ export default function AutoComplete({
         onSetFieldTouched?.(name, true);
       }
     }
+    onBlur?.();    
   };
 
   return (

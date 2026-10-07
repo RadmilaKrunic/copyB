@@ -9,6 +9,7 @@ import {
 import "./Table.scss";
 import { useTranslation } from "react-i18next";
 import { TableProps } from "./Table.types";
+import { useAnalytics, ListInteractionType } from "@/analytics";
 
 function Table<T>({
   data,
@@ -25,6 +26,7 @@ function Table<T>({
 }: Readonly<TableProps<T>>) {
   const visibleColumnDefs = columns.filter((col) => visibleColumns.includes(col.key));
   const { t } = useTranslation("translation", { keyPrefix: "app" });
+  const analytics = useAnalytics();
 
   const allRowKeys = data.map(getRowKey);
   const selectableRowKeys = isRowSelectable
@@ -35,18 +37,34 @@ function Table<T>({
     selectableRowKeys.length > 0 &&
     selectableRowKeys.every((key) => selectedRows.includes(key));
 
+  const trackSelection = (nextSelection: string[]) => {
+    analytics.trackListInteraction({
+      interactionType: ListInteractionType.ROWS_SELECTED,
+      selectedRowCount: nextSelection.length,
+    });
+  };
+
   const handleSelectAll = () => {
     if (!onSelectionChange) return;
-    onSelectionChange(allSelected ? [] : selectableRowKeys);
+    const next = allSelected ? [] : selectableRowKeys;
+    if (selectableRowKeys.length > 0) trackSelection(next);
+    onSelectionChange(next);
   };
 
   const handleSelectRow = (rowKey: string) => {
     if (!onSelectionChange) return;
-    onSelectionChange(
-      selectedRows.includes(rowKey)
-        ? selectedRows.filter((key) => key !== rowKey)
-        : [...selectedRows, rowKey],
-    );
+    const next = selectedRows.includes(rowKey)
+      ? selectedRows.filter((key) => key !== rowKey)
+      : [...selectedRows, rowKey];
+    trackSelection(next);
+    onSelectionChange(next);
+  };
+
+  // Wraps onRowClick so the click and the Enter-key path are both counted from one place.
+  const handleRowOpen = (row: T) => {
+    if (!onRowClick) return;
+    analytics.trackListInteraction({ interactionType: ListInteractionType.ROW_OPENED });
+    onRowClick(row);
   };
 
   return (
@@ -85,7 +103,7 @@ function Table<T>({
                 tabIndex={onRowClick ? 0 : -1}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
-                    onRowClick?.(row);
+                    handleRowOpen(row);
                   }
                 }}
               >
@@ -112,7 +130,7 @@ function Table<T>({
                     key={column.key}
                     data-testid={`body-${column.key}`}
                     onClick={() => {
-                      onRowClick?.(row);
+                      handleRowOpen(row);
                     }}
                   >
                     {column.render(row)}

@@ -11,6 +11,7 @@ import { useReimbursementASCs } from "../../../api/services/reimbursements/hooks
 
 import { ReimbursementAsc } from "api/services/reimbursements/reimbursements.types";
 import SearchCreateReimbursementBtns from "../SearchCreateReimbursementBtns/SearchCreateReimbursementBtns";
+import { useListTracking } from "@/analytics";
 
 function ReimbursementASCList() {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
@@ -23,7 +24,7 @@ function ReimbursementASCList() {
     pageSize: Number(sessionStorage.getItem("reimbursementASCList-pageSize")) || 10,
   });
 
-  const { data, isLoading } = useReimbursementASCs(
+  const { data, isLoading, isFetching, isError } = useReimbursementASCs(
     debouncedSearchValue,
     pagination.page - 1,
     pagination.pageSize,
@@ -35,6 +36,12 @@ function ReimbursementASCList() {
   useEffect(() => {
     setPagination((prev) => ({ ...prev, page: 1 }));
   }, [debouncedSearchValue]);
+
+  useListTracking({
+    searchValue: debouncedSearchValue,
+    resultCount: data?.page?.totalElements ?? 0,
+    isLoading: isFetching || isError,
+  });
 
   const handlePageChange = (page: number) => {
     sessionStorage.setItem("reimbursementASCList-currentPage", page.toString());

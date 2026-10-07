@@ -15,7 +15,7 @@ const COMMON = [
 describe("EVENT_REGISTRY", () => {
   it("defines every event and requires the common context on each", () => {
     const names = Object.values(AnalyticsEventName);
-    expect(names).toHaveLength(14); // 13 business events + virtual_page_view
+    expect(names).toHaveLength(17); // 16 business events + virtual_page_view
     for (const name of names) {
       const definition = EVENT_REGISTRY[name];
       expect(definition.name).toBe(name);
@@ -23,7 +23,7 @@ describe("EVENT_REGISTRY", () => {
     }
   });
 
-  it("requires page descriptors only for pageview and help events", () => {
+  it("requires page descriptors for pageview, help and list events but not job events", () => {
     expect(EVENT_REGISTRY[AnalyticsEventName.VIRTUAL_PAGE_VIEW].requiresPageDescriptor).toBe(true);
     expect(EVENT_REGISTRY[AnalyticsEventName.HELP_CENTER_CLICKED].requiresPageDescriptor).toBe(
       true,
@@ -71,10 +71,10 @@ describe("EVENT_REGISTRY", () => {
 describe("VIRTUAL_PAGE_REGISTRY", () => {
   const definitions = Object.values(VIRTUAL_PAGE_REGISTRY);
 
-  it("defines exactly one entry for every one of the 22 documented virtual URLs", () => {
+  it("defines exactly one entry for every one of the 51 documented virtual URLs", () => {
     const urls = Object.values(VirtualUrl);
-    expect(urls).toHaveLength(22);
-    expect(definitions).toHaveLength(22);
+    expect(urls).toHaveLength(51);
+    expect(definitions).toHaveLength(51);
     for (const url of urls) {
       const definition = VIRTUAL_PAGE_REGISTRY[url];
       expect(definition).toBeDefined();

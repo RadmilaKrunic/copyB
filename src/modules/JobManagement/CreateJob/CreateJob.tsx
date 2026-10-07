@@ -7,7 +7,7 @@ import GenericAction from "../../../components/generics/Action/GenericAction";
 import "./CreateJob.scss";
 import { useTranslation } from "react-i18next";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { useAnalytics, JobStatus } from "@/analytics";
+import { useAnalytics, JobStatus, AnalyticsEventName, toFailureReason } from "@/analytics";
 import {
   getAssetCollapsedTitle,
   getCustomerCollapsedTitle,
@@ -436,12 +436,17 @@ function CreateJob() {
 
       isSubmittingOrderRef.current = true;
       setIsSubmittingOrder(true);
+      let isOrderCreated = false;
+      const failedAction = isDraft
+        ? AnalyticsEventName.JOB_SAVED_AS_DRAFT
+        : AnalyticsEventName.JOB_CREATED;
 
       try {
         const payload = prepareForAPI(formValues);
         const response = await createOrder(isDraft, payload as unknown as Order);
 
         if (response) {
+          isOrderCreated = true;
           if (isDraft) {
             analytics.trackJobSavedAsDraft({ jobStatus: JobStatus.DRAFT });
           } else {
@@ -468,6 +473,9 @@ function CreateJob() {
         }
       } catch (error: unknown) {
         console.error("Failed to create order:", error);
+        if (!isOrderCreated) {
+          analytics.trackActionFailed({ failedAction, failureReason: toFailureReason(error) });
+        }
       } finally {
         isSubmittingOrderRef.current = false;
         setIsSubmittingOrder(false);

@@ -1,5 +1,6 @@
 import { AnalyticsEventName } from "../domain/enums";
 import type {
+  ActionFailedPayload,
   AnalyticsContextSnapshot,
   AnalyticsEvent,
   ClaimReviewedPayload,
@@ -11,6 +12,8 @@ import type {
   JobCreatedPayload,
   JobSavedAsDraftPayload,
   JobSubmittedForReviewPayload,
+  ListExportedPayload,
+  ListInteractionPayload,
   NoteAddedPayload,
   PreApprovalRequestedPayload,
   PreApprovalReviewedPayload,
@@ -42,6 +45,9 @@ export interface Analytics {
   trackNoteAdded(payload: NoteAddedPayload): void;
   trackHelpCenterClicked(payload?: HelpCenterClickedPayload): void;
   trackVirtualPage(payload?: VirtualPageViewPayload): void;
+  trackListInteraction(payload: ListInteractionPayload): void;
+  trackListExported(payload?: ListExportedPayload): void;
+  trackActionFailed(payload: ActionFailedPayload): void;
 }
 
 export interface AnalyticsContextSource {
@@ -93,6 +99,15 @@ class AnalyticsFacade implements Analytics {
   trackVirtualPage(payload: VirtualPageViewPayload = {}): void {
     this.sink.track({ name: AnalyticsEventName.VIRTUAL_PAGE_VIEW, payload });
   }
+  trackListInteraction(payload: ListInteractionPayload): void {
+    this.sink.track({ name: AnalyticsEventName.LIST_INTERACTION, payload });
+  }
+  trackListExported(payload: ListExportedPayload = {}): void {
+    this.sink.track({ name: AnalyticsEventName.LIST_EXPORTED, payload });
+  }
+  trackActionFailed(payload: ActionFailedPayload): void {
+    this.sink.track({ name: AnalyticsEventName.ACTION_FAILED, payload });
+  }
 }
 
 export const createNoopAnalytics = (): Analytics =>
@@ -111,6 +126,9 @@ export const createNoopAnalytics = (): Analytics =>
     trackNoteAdded: () => {},
     trackHelpCenterClicked: () => {},
     trackVirtualPage: () => {},
+    trackListInteraction: () => {},
+    trackListExported: () => {},
+    trackActionFailed: () => {},
   });
 
 interface AnalyticsTrackerDependencies {
