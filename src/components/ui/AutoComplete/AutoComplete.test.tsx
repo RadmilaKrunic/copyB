@@ -261,10 +261,39 @@ describe("AutoComplete", () => {
     fireEvent.blur(screen.getByLabelText("Spare part"));
 
     await waitFor(() =>
-      expect(onSelect).toHaveBeenCalledWith({ id: "1", label: "Option One", value: "OPTION_ONE" }),
+      expect(onSelect).toHaveBeenCalledWith(
+        { id: "1", label: "Option One", value: "OPTION_ONE" },
+        { isUnchanged: false },
+      ),
     );
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSetFieldError).not.toHaveBeenCalled();
+  });
+
+  it("marks a re-entered spare part number (dots and spaces ignored) as unchanged", async () => {
+    vi.mocked(getAutocompleteOptions).mockResolvedValue([
+      { partNumber: "1600A000012" },
+      { partNumber: "1600A00001" },
+    ] as never);
+    const onSelect = vi.fn();
+    renderWithProviders(
+      React.createElement(AutoComplete, {
+        name: "sparePartNumber",
+        label: "Spare part",
+        value: "1600A00001",
+        onSelect,
+      }),
+      { ascId: "ASC", countryCode: "ZA" },
+    );
+
+    const input = screen.getByLabelText("Spare part");
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.change(input, { target: { value: "1600.A0000 1" } });
+    fireEvent.blur(input);
+
+    await waitFor(() =>
+      expect(onSelect).toHaveBeenCalledWith({ partNumber: "1600A00001" }, { isUnchanged: true }),
+    );
   });
 
   it("sets a not-found error on blur for sparePartNumber when nothing matches", async () => {

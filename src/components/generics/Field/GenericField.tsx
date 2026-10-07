@@ -632,10 +632,11 @@ function renderAutocompleteField(ctx: FieldRenderCtx): ReactElement {
 
   /**
    * Spare part number sequence, run once a part is resolved (picked from the list, or the
-   * first match on blur): fill the row from the part, stop on a not-belongs-to-tool error,
-   * otherwise run the field's configured price action (recalculate prices).
+   * match on blur): fill the row from the part, stop on a not-belongs-to-tool error, and
+   * otherwise run the field's configured price action (recalculate prices), unless the part
+   * is the one the row already had (re-entered, or typed with "." or spaces).
    */
-  const commitSparePart = async (option: BareToolOption) => {
+  const commitSparePart = async (option: BareToolOption, isUnchanged: boolean) => {
     if (sparePartNotBelongsToTool) {
       sparePartNotBelongsToTool.current[name] = option?.notBelongsToTool === true;
     }
@@ -652,6 +653,7 @@ function renderAutocompleteField(ctx: FieldRenderCtx): ReactElement {
       void formikContext.setFieldTouched(name, true, false);
       return;
     }
+    if (isUnchanged) return;
     await waitForFormCommit();
     const partNumber = option?.partNumber ?? "";
     invokeFieldAction(actionCallbacks, "onValueChange", field.onValueChange, name, partNumber);
@@ -677,7 +679,12 @@ function renderAutocompleteField(ctx: FieldRenderCtx): ReactElement {
           }
 
           if (!value) {
-            void handleResetAutoCompleteFields(field, setFieldValue, allFields, handleChange);
+            // A cleared spare part number is not committed yet, so it runs no field action.
+            const resetChange = isSparePart
+              ? (fieldName: string, fieldValue: string) =>
+                  setFieldValue(fieldName, fieldValue).then(() => undefined)
+              : handleChange;
+            void handleResetAutoCompleteFields(field, setFieldValue, allFields, resetChange);
           } else if (isSparePart) {
             // Typing only updates the value; actions run in commitSparePart.
             void setFieldValue(name, value);
@@ -685,10 +692,10 @@ function renderAutocompleteField(ctx: FieldRenderCtx): ReactElement {
             void handleChange(name, value);
           }
         }}
-        onSelect={(option: AutoCompleteOption) => {
+        onSelect={(option: AutoCompleteOption, meta?: { isUnchanged: boolean }) => {
           void (async () => {
             if (isSparePart) {
-              await commitSparePart(option as BareToolOption);
+              await commitSparePart(option as BareToolOption, meta?.isUnchanged === true);
               return;
             }
             await handleAutoCompleteSelect(option, field, setFieldValue, allFields);
