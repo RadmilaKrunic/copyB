@@ -228,6 +228,7 @@ describe("formValidation", () => {
         valueIsLessThanMinValue: "Value is less than minimum value",
         valueExceedsMaxValue: "Value exceeds maximum value",
         toolModelNameNotFound: "Tool model name '{{name}}' not found.",
+        sparePartNumberNotFound: "Part number '{{id}}' not found.",
         incompatibleWarrantyType: "Incompatible part/material. Warranty not applicable",
         incompatibleServiceOfferingType:
           "Incompatible part/material. Service offering not applicable",
@@ -964,6 +965,46 @@ describe("formValidation", () => {
 
       expect(errors.exchangeReason).toBeUndefined();
       expect(errors.actionType).toBeUndefined();
+    });
+
+    describe("sparePartNumber autocomplete validation", () => {
+      const fields = [
+        createMockField({
+          name: "row0_sparePartNumber",
+          type: "autocomplete",
+          fieldMapping: { originalName: "sparePartNumber" },
+        }),
+      ];
+
+      it("keeps a not-found error while the typed part number is unresolved", () => {
+        const errors: ValidationErrors = {};
+        validateByAction({
+          errors,
+          mandatoryFields: [],
+          values: { row0_sparePartNumber: "XYZ12" },
+          fields,
+          t: mockT,
+          autocompleteValidationRef: { current: { row0_sparePartNumber: false } },
+        });
+
+        expect(errors.row0_sparePartNumber).toBe("Part number 'XYZ12' not found.");
+      });
+
+      it("clears the error once the part number is resolved", () => {
+        const errors: ValidationErrors = {
+          row0_sparePartNumber: "Part number 'XYZ12' not found.",
+        };
+        validateByAction({
+          errors,
+          mandatoryFields: [],
+          values: { row0_sparePartNumber: "1600A00001" },
+          fields,
+          t: mockT,
+          autocompleteValidationRef: { current: { row0_sparePartNumber: true } },
+        });
+
+        expect(errors.row0_sparePartNumber).toBeUndefined();
+      });
     });
 
     describe("toolModelName autocomplete validation", () => {

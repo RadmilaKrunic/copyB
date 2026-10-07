@@ -19,6 +19,7 @@ import {
   updateDependentFields,
   handleFaultCodeSelection,
   resolveIsRequired,
+  applyPositionRules,
 } from "./GenericField.utils";
 import { useContext, useState } from "react";
 import useFieldVisibilityReset from "./useFieldVisibilityReset";
@@ -38,6 +39,7 @@ import { CountryConfig } from "api/services/countryConfiguration/countryConfigur
 import { BareToolOption } from "api/services/orders/orders.types";
 import FieldError from "./components/FieldError";
 import { INELIGIBLE_JOB_TYPES } from "modules/JobManagement/warranty.utils";
+import { getPositionAutofill } from "hooks/useDiagnosticsManager";
 
 type GenericFieldProps = {
   field: Field;
@@ -60,6 +62,7 @@ interface FieldRenderCtx {
   t: TFunction<"translation", "app">;
   handleChange: (name: string, newValue: FieldValueType) => Promise<void>;
   handleBlur: (name: string, newValue: FieldValueType) => Promise<void>;
+  actionCallbacks: Record<string, ActionCallback>;
   isPriceFocused: boolean;
   setIsPriceFocused: (v: boolean) => void;
   isPriceFocusedZero: boolean;
@@ -120,6 +123,34 @@ const fieldValueChanged = async (
   }
 };
 
+/**
+ * Runs the action a field config names for a trigger. onValueChange handlers declared with a
+ * single parameter receive only the value; every other handler gets (name, value).
+ */
+const invokeFieldAction = (
+  actionCallbacks: Record<string, ActionCallback>,
+  trigger: "onValueChange" | "onBlur",
+  actionName: string | undefined,
+  name: string,
+  newValue: FieldValueType,
+): void => {
+  if (!actionName) return;
+  const handler = actionCallbacks[actionName] as ((...args: unknown[]) => unknown) | undefined;
+  if (typeof handler !== "function") return;
+  const result =
+    trigger === "onValueChange" && handler.length <= 1
+      ? handler(newValue)
+      : handler(name, newValue);
+  if (result instanceof Promise) {
+    result.catch((error: unknown) => {
+      console.error(`${trigger} ${actionName} failed:`, error);
+    });
+  }
+};
+
+/** Lets Formik commit pending setFieldValue calls before an action reads the form values. */
+const waitForFormCommit = () => new Promise((resolve) => setTimeout(resolve, 0));
+
 const handleFieldChangeAsync = async (
   name: string,
   newValue: FieldValueType,
@@ -133,25 +164,7 @@ const handleFieldChangeAsync = async (
   actionCallbacks: Record<string, ActionCallback>,
 ): Promise<void> => {
   await fieldValueChanged(name, newValue, setFieldValue, allFields, field, formikContext);
-  if (field.onValueChange) {
-    const handler = actionCallbacks[field.onValueChange] as
-      | ((...args: unknown[]) => unknown)
-      | undefined;
-    if (typeof handler === "function") {
-      let result;
-      if (handler.length > 1) {
-        result = handler(name, newValue);
-      } else {
-        result = handler(newValue);
-      }
-
-      if (result instanceof Promise) {
-        result.catch((error: unknown) => {
-          console.error(`onValueChange ${field.onValueChange} failed:`, error);
-        });
-      }
-    }
-  }
+  invokeFieldAction(actionCallbacks, "onValueChange", field.onValueChange, name, newValue);
 };
 const handleFieldBlurAsync = async (
   name: string,
@@ -166,17 +179,7 @@ const handleFieldBlurAsync = async (
   actionCallbacks: Record<string, ActionCallback>,
 ): Promise<void> => {
   await fieldValueChanged(name, newValue, setFieldValue, allFields, field, formikContext);
-  if (field.onBlur) {
-    const handler = actionCallbacks[field.onBlur] as ((...args: unknown[]) => unknown) | undefined;
-    if (typeof handler === "function") {
-      const result = handler(name, newValue);
-      if (result instanceof Promise) {
-        result.catch((error: unknown) => {
-          console.error(`onBlur ${field.onBlur} failed:`, error);
-        });
-      }
-    }
-  }
+  invokeFieldAction(actionCallbacks, "onBlur", field.onBlur, name, newValue);
 };
 
 function resolvePriceFieldText(
@@ -408,6 +411,7 @@ function renderDropdownField(ctx: FieldRenderCtx): ReactElement {
     handleChange,
     warrantyPanelInfo,
     allowedPositions,
+    actionCallbacks,
   } = ctx;
   const { name, label, subtype, defaultValue } = field;
   const isMulti = field.multiSelect === true;
@@ -438,6 +442,25 @@ function renderDropdownField(ctx: FieldRenderCtx): ReactElement {
         className={`a-dropdown ${fullWidth}`}
         value={dropdownValue}
         onChange={(value) => {
+          if (subtype === "diagnosticPosition" && typeof value === "string") {
+            void (async () => {
+              // Diagnostic rules first (allowed position, quantity, autofill), prices after.
+              const isAllowed = await applyPositionRules({
+                field,
+                position: value,
+                allFields,
+                values,
+                allowedPositions,
+                positionAutofill: getPositionAutofill(t),
+                setFieldValue,
+              });
+              if (!isAllowed) return;
+              await fieldValueChanged(name, value, setFieldValue, allFields, field, formikContext);
+              await waitForFormCommit();
+              invokeFieldAction(actionCallbacks, "onValueChange", field.onValueChange, name, value);
+            })();
+            return;
+          }
           if (typeof value === "string")
             updateDependentFields(field, formikContext, allFields, t, value);
           handleChange(name, value);
@@ -559,6 +582,7 @@ function renderAutocompleteField(ctx: FieldRenderCtx): ReactElement {
     handleChange,
     autocompleteValidation,
     sparePartNotBelongsToTool,
+    actionCallbacks,
   } = ctx;
   const { name, label } = field;
   const effectiveIsRequired = resolveIsRequired(field, values);
@@ -606,6 +630,34 @@ function renderAutocompleteField(ctx: FieldRenderCtx): ReactElement {
     sparePartNotBelongsToTool?.current,
   );
 
+  /**
+   * Spare part number sequence, run once a part is resolved (picked from the list, or the
+   * first match on blur): fill the row from the part, stop on a not-belongs-to-tool error,
+   * otherwise run the field's configured price action (recalculate prices).
+   */
+  const commitSparePart = async (option: BareToolOption) => {
+    if (sparePartNotBelongsToTool) {
+      sparePartNotBelongsToTool.current[name] = option?.notBelongsToTool === true;
+    }
+    await handleAutoCompleteSelect(option, field, setFieldValue, allFields);
+    await validateForm();
+    const notBelongsToToolError = getSparePartCompatibilityMessage(
+      field,
+      name,
+      values,
+      allFields,
+      sparePartNotBelongsToTool?.current,
+    );
+    if (notBelongsToToolError) {
+      void formikContext.setFieldTouched(name, true, false);
+      return;
+    }
+    await waitForFormCommit();
+    const partNumber = option?.partNumber ?? "";
+    invokeFieldAction(actionCallbacks, "onValueChange", field.onValueChange, name, partNumber);
+    invokeFieldAction(actionCallbacks, "onBlur", field.onBlur, name, partNumber);
+  };
+
   return (
     <span className={`${fullWidth} ${className || ""}`} {...restProps}>
       <AutoComplete
@@ -619,24 +671,25 @@ function renderAutocompleteField(ctx: FieldRenderCtx): ReactElement {
         bareTool={bareTool}
         incompatibleSelectionMessage={incompatibleSelectionMessage}
         onChange={(value: string) => {
-          const isSparePartNumberField = name?.toLowerCase().includes("sparepartnumber");
-          if (isSparePartNumberField && sparePartNotBelongsToTool && !isSPExchange) {
+          // A typed spare part number is unresolved until it is selected or blurred.
+          if (isSparePart && sparePartNotBelongsToTool && !isSPExchange) {
             sparePartNotBelongsToTool.current[name] = true;
           }
 
-          if (value) {
-            void handleChange(name, value);
+          if (!value) {
+            void handleResetAutoCompleteFields(field, setFieldValue, allFields, handleChange);
+          } else if (isSparePart) {
+            // Typing only updates the value; actions run in commitSparePart.
+            void setFieldValue(name, value);
           } else {
-            void (async () => {
-              await handleResetAutoCompleteFields(field, setFieldValue, allFields, handleChange);
-            })();
+            void handleChange(name, value);
           }
         }}
         onSelect={(option: AutoCompleteOption) => {
           void (async () => {
-            if (name?.toLowerCase().includes("sparepartnumber") && sparePartNotBelongsToTool) {
-              sparePartNotBelongsToTool.current[name] =
-                (option as BareToolOption)?.notBelongsToTool === true;
+            if (isSparePart) {
+              await commitSparePart(option as BareToolOption);
+              return;
             }
             await handleAutoCompleteSelect(option, field, setFieldValue, allFields);
             await validateForm();
@@ -826,6 +879,7 @@ function GenericField({ field, className, ...restProps }: Readonly<GenericFieldP
   const renderer = FIELD_RENDERERS[type];
   const ctx: FieldRenderCtx = {
     field,
+    actionCallbacks,
     fullWidth,
     className,
     restProps,
