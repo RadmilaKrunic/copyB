@@ -20,7 +20,8 @@ interface AutoCompleteProps {
   readonly label: string;
   readonly value?: string;
   readonly onChange?: (value: string) => void;
-  readonly onSelect?: (option: AutoCompleteOption) => void;
+  /** For spare part numbers, isUnchanged is true when the resolved part is the one already set. */
+  readonly onSelect?: (option: AutoCompleteOption, meta?: { isUnchanged: boolean }) => void;
   readonly onSetFieldError?: (fieldName: string, message: string) => void;
   readonly onSetFieldTouched?: (fieldName: string, touched: boolean) => void;
   readonly onClearFieldError?: (fieldName: string) => void;
@@ -39,6 +40,9 @@ interface AutoCompleteProps {
   readonly incompatibleSelectionMessage?: string;
   readonly onBlur?: () => void;
 }
+
+/** Part numbers compare without separators: "1600.A00 1" and "1600A001" are the same part. */
+const sanitizePartNumber = (value: string) => value.replaceAll(/[^a-zA-Z0-9]/g, "").toUpperCase();
 
 export default function AutoComplete({
   name,
@@ -78,6 +82,10 @@ export default function AutoComplete({
   const isExternalUpdateRef = useRef(!!value);
   const isUserEditingRef = useRef(false);
   const lastValidValueRef = useRef<string>(value);
+  // Spare part number last set on the row (loaded or selected); kept while the user clears
+  // and retypes, so re-entering the same part does not count as a change.
+  const committedPartNumberRef = useRef<string>(value);
+  const hasEditedRef = useRef(false);
   const latestInputRef = useRef(input);
   latestInputRef.current = input;
 
@@ -96,6 +104,7 @@ export default function AutoComplete({
       setInput(value);
       if (value && isToolLookupField) {
         lastValidValueRef.current = value;
+        committedPartNumberRef.current = value;
         onValidation?.(true);
       }
     }
@@ -181,6 +190,7 @@ export default function AutoComplete({
     isSelectionRef.current = false;
     isExternalUpdateRef.current = false;
     isUserEditingRef.current = true;
+    hasEditedRef.current = true;
     setInput(newValue);
     onChange?.(newValue);
 
@@ -243,12 +253,21 @@ export default function AutoComplete({
       : getAutoCompleteValue(option, name);
     isSelectionRef.current = true;
     isUserEditingRef.current = false;
+    hasEditedRef.current = false;
     lastValidValueRef.current = newValue;
     setInput(newValue);
     setOpen(false);
 
     onChange?.(newValue);
-    onSelect?.(option);
+    if (isSparePartLookupField) {
+      const isUnchanged =
+        !!newValue &&
+        sanitizePartNumber(newValue) === sanitizePartNumber(committedPartNumberRef.current);
+      committedPartNumberRef.current = newValue;
+      onSelect?.(option, { isUnchanged });
+    } else {
+      onSelect?.(option);
+    }
 
     if (isToolLookupField) {
       onValidation?.(true);
@@ -262,14 +281,14 @@ export default function AutoComplete({
   };
 
   /**
-   * Spare part number on blur: an unchanged value is kept as is; otherwise the first
-   * autocomplete match for the typed text is selected (the same path as picking it from the
-   * list), and when there is no match the field gets a not-found error.
+   * Spare part number on blur: a field that was not edited is kept as is; otherwise the
+   * autocomplete match for the typed text is selected (the exact part number when listed, else
+   * the first match), the same path as picking it from the list. No match is a not-found error.
    */
   const resolveSparePartOnBlur = async () => {
     const typedValue = input.trim();
     if (!typedValue) return;
-    if (typedValue === lastValidValueRef.current.trim()) {
+    if (!hasEditedRef.current) {
       onClearFieldError?.(name);
       onValidation?.(true);
       return;
@@ -286,8 +305,13 @@ export default function AutoComplete({
     // The user went back into the field and kept typing while the search ran.
     if (latestInputRef.current.trim() !== typedValue) return;
 
-    if (matches.length > 0) {
-      handleOptionSelect(matches[0]);
+    const typedKey = sanitizePartNumber(typedValue);
+    const match =
+      matches.find(
+        (option) => sanitizePartNumber((option as BareToolOption)?.partNumber ?? "") === typedKey,
+      ) ?? matches[0];
+    if (match) {
+      handleOptionSelect(match);
       return;
     }
     if (isExchange) {
