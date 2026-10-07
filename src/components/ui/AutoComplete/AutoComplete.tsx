@@ -368,9 +368,7 @@ export default function AutoComplete({
       {isInfoIcon && <InfoIconWithTooltip name={name} infoText={infoText || ""} />}
 
       {open && enabled && typedOptions.length > 0 && (
-        // Keep focus in the input while an option is clicked, so the click is the only
-        // selection (blur would otherwise resolve a match of its own first).
-        <div className="auto-complete-dropdown" onMouseDown={(e) => e.preventDefault()}>
+        <div className="auto-complete-dropdown">
           {typedOptions.map((opt, i) => (
             <div
               key={`${name}-${i}`}
