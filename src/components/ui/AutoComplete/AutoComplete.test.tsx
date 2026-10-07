@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -243,18 +243,45 @@ describe("AutoComplete", () => {
     expect(onSetFieldTouched).toHaveBeenCalledWith("bareToolNumber", true);
   });
 
-  it("calls set field error on blur for unmatched sparePartNumber (multiple results, none auto-selected)", () => {
-    // Default beforeEach mock returns two options — not exactly one, so blur's
-    // auto-select doesn't fire and this falls through to the not-found validation.
+  it("selects the first autocomplete match on blur for sparePartNumber", async () => {
+    const onSelect = vi.fn();
     const onSetFieldError = vi.fn();
-    const onSetFieldTouched = vi.fn();
     renderWithProviders(
       React.createElement(AutoComplete, {
         name: "sparePartNumber",
         label: "Spare part",
         value: "seed",
+        onSelect,
+        onSetFieldError,
+      }),
+      { ascId: "ASC", countryCode: "ZA" },
+    );
+
+    fireEvent.change(screen.getByLabelText("Spare part"), { target: { value: "16090" } });
+    fireEvent.blur(screen.getByLabelText("Spare part"));
+
+    await waitFor(() =>
+      expect(onSelect).toHaveBeenCalledWith({ id: "1", label: "Option One", value: "OPTION_ONE" }),
+    );
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onSetFieldError).not.toHaveBeenCalled();
+  });
+
+  it("sets a not-found error on blur for sparePartNumber when nothing matches", async () => {
+    vi.mocked(getAutocompleteOptions).mockResolvedValue([] as never);
+    const onSelect = vi.fn();
+    const onSetFieldError = vi.fn();
+    const onSetFieldTouched = vi.fn();
+    const onValidation = vi.fn();
+    renderWithProviders(
+      React.createElement(AutoComplete, {
+        name: "sparePartNumber",
+        label: "Spare part",
+        value: "seed",
+        onSelect,
         onSetFieldError,
         onSetFieldTouched,
+        onValidation,
       }),
       { ascId: "ASC", countryCode: "ZA" },
     );
@@ -262,8 +289,33 @@ describe("AutoComplete", () => {
     fireEvent.change(screen.getByLabelText("Spare part"), { target: { value: "UNKNOWN" } });
     fireEvent.blur(screen.getByLabelText("Spare part"));
 
-    expect(onSetFieldError).toHaveBeenCalledWith("sparePartNumber", "sparePartNumberNotFound");
+    await waitFor(() =>
+      expect(onSetFieldError).toHaveBeenCalledWith("sparePartNumber", "sparePartNumberNotFound"),
+    );
     expect(onSetFieldTouched).toHaveBeenCalledWith("sparePartNumber", true);
+    expect(onValidation).toHaveBeenLastCalledWith(false);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("does not resolve a sparePartNumber on blur when the value is unchanged", async () => {
+    const onSelect = vi.fn();
+    const onClearFieldError = vi.fn();
+    renderWithProviders(
+      React.createElement(AutoComplete, {
+        name: "sparePartNumber",
+        label: "Spare part",
+        value: "seed",
+        onSelect,
+        onClearFieldError,
+      }),
+      { ascId: "ASC", countryCode: "ZA" },
+    );
+
+    fireEvent.blur(screen.getByLabelText("Spare part"));
+
+    await waitFor(() => expect(onClearFieldError).toHaveBeenCalledWith("sparePartNumber"));
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(getAutocompleteOptions).not.toHaveBeenCalled();
   });
 
   it("is disabled when disabled prop is true", () => {

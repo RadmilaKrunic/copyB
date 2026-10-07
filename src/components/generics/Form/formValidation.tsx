@@ -294,20 +294,23 @@ function validateAutocompleteField({
   touchedFields: Record<string, boolean> | undefined;
   t: (key: string) => string;
 }): void {
-  if (
-    field.type !== "autocomplete" ||
-    (!fieldName?.toLowerCase().includes("baretoolnumber") &&
-      !fieldName?.toLowerCase().includes("toolmodelname"))
-  ) {
+  const lowerName = fieldName?.toLowerCase() ?? "";
+  const isBareTool = lowerName.includes("baretoolnumber");
+  const isToolModel = lowerName.includes("toolmodelname");
+  const isSparePart = lowerName.includes("sparepartnumber");
+  if (field.type !== "autocomplete" || (!isBareTool && !isToolModel && !isSparePart)) {
     return;
   }
 
   if (hasValue && typeof value === "string") {
     const isValidated = autocompleteValidationRef?.current[fieldName];
     if (isValidated === false) {
-      const isBareTool = fieldName?.toLowerCase().includes("baretoolnumber");
-      const message = isBareTool ? t("bareToolNumberNotFound") : t("toolModelNameNotFound");
-      errors[fieldName] = message.replace(isBareTool ? "{{id}}" : "{{name}}", value);
+      if (isToolModel) {
+        errors[fieldName] = t("toolModelNameNotFound").replace("{{name}}", value);
+      } else {
+        const messageKey = isBareTool ? "bareToolNumberNotFound" : "sparePartNumberNotFound";
+        errors[fieldName] = t(messageKey).replace("{{id}}", value);
+      }
     } else if (isValidated === true) {
       delete errors[fieldName];
     }

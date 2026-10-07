@@ -3,6 +3,7 @@ import { TFunction } from "i18next";
 import { getManufacturedDate } from "../../../api/services/orders/orders";
 import Field from "./GenericField.types";
 import type { AllowedPosition } from "api/services/countryConfiguration/countryConfiguration";
+import { resolveQuantityForPosition } from "hooks/useDiagnosticsManager";
 
 export const getSerialNumberErrorKey = (
   value: string,
@@ -161,6 +162,68 @@ export const handleFaultCodeSelection = (
   if (qtyField) {
     void setFieldValue(qtyField.name, labourQty);
   }
+};
+
+/**
+ * Applies the matched diagnostic rule to a spare-parts row whose position is changing, before
+ * any price action runs (positions the rule does not list are left alone):
+ * - rejects a position the rule caps (maxCount already used by the other rows);
+ * - sets the quantity the rule prescribes for the position (DEFAULT / FAULT_CODES sources);
+ * - fills the fixed part number and description of autofilled positions (LA, FR).
+ * Returns false when the position is rejected; the row is left unchanged in that case.
+ */
+export const applyPositionRules = async ({
+  field,
+  position,
+  allFields,
+  values,
+  allowedPositions,
+  positionAutofill,
+  setFieldValue,
+}: {
+  field: Field;
+  position: string;
+  allFields: Field[];
+  values: Record<string, unknown>;
+  allowedPositions?: AllowedPosition[];
+  positionAutofill: Record<string, { partNumber: string; description: string }>;
+  setFieldValue: (field: string, value: unknown) => Promise<void | FormikErrors<unknown>>;
+}): Promise<boolean> => {
+  const rowPrefix = field.fieldMapping?.nameStartsWith;
+  const rowFields = rowPrefix
+    ? allFields.filter((f) => f.fieldMapping?.nameStartsWith === rowPrefix)
+    : [];
+  const rowField = (subtype: string) => rowFields.find((f) => f.subtype === subtype);
+  const positionRule = allowedPositions?.find((p) => p.position === position);
+  // Positions outside the matched rule (e.g. special-material SP, claim rows) have no rules.
+  if (!positionRule || !allowedPositions) return true;
+
+  const usedByOtherRows = allFields.filter(
+    (f) =>
+      f.subtype === "diagnosticPosition" && f.name !== field.name && values[f.name] === position,
+  ).length;
+  if (usedByOtherRows >= positionRule.maxCount) return false;
+
+  const quantity = resolveQuantityForPosition(
+    allowedPositions,
+    position,
+    values.faultCode as string | undefined,
+    Number(values.faultCodeLabourQuantity) || 0,
+  );
+  const quantityField = rowField("diagnosticQuantity");
+  if (quantity !== undefined && quantityField) {
+    await setFieldValue(quantityField.name, quantity);
+  }
+
+  const autofill = positionAutofill[position];
+  if (autofill) {
+    const partNumberField = rowField("diagnosticPartNumber");
+    const descriptionField = rowField("diagnosticDescription");
+    if (partNumberField) await setFieldValue(partNumberField.name, autofill.partNumber);
+    if (descriptionField) await setFieldValue(descriptionField.name, autofill.description);
+  }
+
+  return true;
 };
 
 export const resolveIsRequired = (

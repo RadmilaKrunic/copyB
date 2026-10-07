@@ -177,6 +177,49 @@ enum QuantitySource {
   FAULT_CODES = "FAULT_CODES",
   USER = "USER",
 }
+
+const resolveFaultCodesQuantity = (
+  position: string,
+  faultCodeValue: string | undefined,
+  faultCodeLabourQuantity: number | undefined,
+  defaultQuantity: number,
+): number => {
+  if (position === "LA" && faultCodeLabourQuantity !== undefined && faultCodeLabourQuantity !== 0)
+    return faultCodeLabourQuantity;
+  if (!faultCodeValue) return defaultQuantity;
+  const parts = faultCodeValue.split(":");
+  if (parts.length > 1) {
+    const parsed = Number(parts[1]);
+    return Number.isNaN(parsed) ? defaultQuantity : parsed;
+  }
+  return defaultQuantity;
+};
+
+/**
+ * Quantity the matched diagnostic rule prescribes for a position, or undefined when the
+ * position is not configured or its quantity is user-entered (quantitySource USER).
+ */
+export const resolveQuantityForPosition = (
+  allowedPositions: AllowedPosition[],
+  position: string,
+  faultCodeValue?: string,
+  faultCodeLabourQuantity?: number,
+): number | undefined => {
+  const posConfig = allowedPositions.find((p) => p.position === position);
+  if (!posConfig) return undefined;
+  const source = posConfig.quantity.quantitySource;
+  if (source === (QuantitySource.USER as string)) return undefined;
+  if (source === (QuantitySource.FAULT_CODES as string)) {
+    return resolveFaultCodesQuantity(
+      position,
+      faultCodeValue,
+      faultCodeLabourQuantity,
+      posConfig.quantity.defaultQuantity,
+    );
+  }
+  return posConfig.quantity.defaultQuantity;
+};
+
 const buildEmptyMaterial = (
   position: string,
   jobType: string,
@@ -692,57 +735,19 @@ export const useDiagnosticsManager = ({
     [allowedPositions],
   );
 
-  const resolveFaultCodesQuantity = useCallback(
-    (
-      position: string,
-      quantitySource: string,
-      faultCodeValue: string | undefined,
-      faultCodeLabourQuantity: number | undefined,
-      defaultQuantity: number,
-    ): number => {
-      if (quantitySource === (QuantitySource.DEFAULT as string)) {
-        return defaultQuantity;
-      }
-      if (
-        position === "LA" &&
-        faultCodeLabourQuantity !== undefined &&
-        faultCodeLabourQuantity !== 0
-      )
-        return faultCodeLabourQuantity;
-      if (!faultCodeValue) return defaultQuantity;
-      const parts = faultCodeValue.split(":");
-      if (parts.length > 1) {
-        const parsed = Number(parts[1]);
-        return Number.isNaN(parsed) ? defaultQuantity : parsed;
-      }
-      return defaultQuantity;
-    },
-    [],
-  );
-
   const getQuantityForPosition = useCallback(
     (
       position: string,
       faultCodeValue?: string,
       faultCodeLabourQuantity?: number,
-    ): number | undefined => {
-      const posConfig = allowedPositions.find((p) => p.position === position);
-      if (!posConfig) return undefined;
-      const source = posConfig.quantity.quantitySource;
-      if (source === (QuantitySource.USER as string)) return undefined;
-      if (source === (QuantitySource.DEFAULT as string)) return posConfig.quantity.defaultQuantity;
-      if (source === (QuantitySource.FAULT_CODES as string)) {
-        return resolveFaultCodesQuantity(
-          position,
-          source,
-          faultCodeValue,
-          faultCodeLabourQuantity,
-          posConfig.quantity.defaultQuantity,
-        );
-      }
-      return posConfig.quantity.defaultQuantity;
-    },
-    [allowedPositions, resolveFaultCodesQuantity],
+    ): number | undefined =>
+      resolveQuantityForPosition(
+        allowedPositions,
+        position,
+        faultCodeValue,
+        faultCodeLabourQuantity,
+      ),
+    [allowedPositions],
   );
 
   const [materials, setMaterials] = useState<MaterialItem[]>([]);

@@ -4,6 +4,7 @@ import {
   onBlurActions,
   handleFaultCodeSelection,
   resolveIsRequired,
+  applyPositionRules,
 } from "./GenericField.utils";
 import type { FormikContextType } from "formik";
 import type { TFunction } from "i18next";
@@ -505,5 +506,151 @@ describe("resolveIsRequired", () => {
       requiredDependentFields: { byValueAnd: [], byValueOr: [] } as any,
     });
     expect(resolveIsRequired(field, {})).toBe(false);
+  });
+});
+
+describe("applyPositionRules", () => {
+  const rowFields = (prefix: string) => [
+    makeField(`${prefix}position`, "diagnosticPosition", {
+      fieldMapping: {
+        originalName: "position",
+        map: "position",
+        parentMap: [],
+        prefixes: [],
+        nameStartsWith: prefix,
+      },
+    } as Partial<Field>),
+    makeField(`${prefix}quantity`, "diagnosticQuantity", {
+      fieldMapping: {
+        originalName: "quantity",
+        map: "quantity",
+        parentMap: [],
+        prefixes: [],
+        nameStartsWith: prefix,
+      },
+    } as Partial<Field>),
+    makeField(`${prefix}partNumber`, "diagnosticPartNumber", {
+      fieldMapping: {
+        originalName: "sparePartNumber",
+        map: "partNumber",
+        parentMap: [],
+        prefixes: [],
+        nameStartsWith: prefix,
+      },
+    } as Partial<Field>),
+    makeField(`${prefix}description`, "diagnosticDescription", {
+      fieldMapping: {
+        originalName: "description",
+        map: "description",
+        parentMap: [],
+        prefixes: [],
+        nameStartsWith: prefix,
+      },
+    } as Partial<Field>),
+  ];
+  const allFields = [...rowFields("row0_"), ...rowFields("row1_")];
+  const positionField = allFields[4];
+  const allowedPositions = [
+    {
+      position: "SP",
+      minCount: 0,
+      maxCount: 5,
+      quantity: { quantitySource: "USER", defaultQuantity: 1 },
+      unitPriceSource: "USER",
+    },
+    {
+      position: "AC",
+      minCount: 0,
+      maxCount: 1,
+      quantity: { quantitySource: "DEFAULT", defaultQuantity: 3 },
+      unitPriceSource: "USER",
+    },
+    {
+      position: "FR",
+      minCount: 0,
+      maxCount: 1,
+      quantity: { quantitySource: "DEFAULT", defaultQuantity: 1 },
+      unitPriceSource: "SYSTEM",
+    },
+  ];
+  const positionAutofill = { FR: { partNumber: "1609888888", description: "Freight" } };
+
+  it("sets the rule quantity for the new position", async () => {
+    const setFieldValue = vi.fn().mockResolvedValue(undefined);
+    const allowed = await applyPositionRules({
+      field: positionField,
+      position: "AC",
+      allFields,
+      values: { row0_position: "SP", row1_position: "SP" },
+      allowedPositions,
+      positionAutofill,
+      setFieldValue,
+    });
+
+    expect(allowed).toBe(true);
+    expect(setFieldValue).toHaveBeenCalledWith("row1_quantity", 3);
+  });
+
+  it("leaves a user-entered quantity alone", async () => {
+    const setFieldValue = vi.fn().mockResolvedValue(undefined);
+    await applyPositionRules({
+      field: positionField,
+      position: "SP",
+      allFields,
+      values: { row0_position: "SP", row1_position: "AC" },
+      allowedPositions,
+      positionAutofill,
+      setFieldValue,
+    });
+
+    expect(setFieldValue).not.toHaveBeenCalled();
+  });
+
+  it("fills part number and description for an autofilled position", async () => {
+    const setFieldValue = vi.fn().mockResolvedValue(undefined);
+    await applyPositionRules({
+      field: positionField,
+      position: "FR",
+      allFields,
+      values: { row0_position: "SP", row1_position: "SP" },
+      allowedPositions,
+      positionAutofill,
+      setFieldValue,
+    });
+
+    expect(setFieldValue).toHaveBeenCalledWith("row1_partNumber", "1609888888");
+    expect(setFieldValue).toHaveBeenCalledWith("row1_description", "Freight");
+  });
+
+  it("rejects a position whose maxCount is already used by other rows", async () => {
+    const setFieldValue = vi.fn().mockResolvedValue(undefined);
+    const allowed = await applyPositionRules({
+      field: positionField,
+      position: "AC",
+      allFields,
+      values: { row0_position: "AC", row1_position: "SP" },
+      allowedPositions,
+      positionAutofill,
+      setFieldValue,
+    });
+
+    expect(allowed).toBe(false);
+    expect(setFieldValue).not.toHaveBeenCalled();
+  });
+
+  it("allows a position the matched rule does not list without touching the row", async () => {
+    const setFieldValue = vi.fn().mockResolvedValue(undefined);
+    const allowed = await applyPositionRules({
+      field: positionField,
+      position: "PN",
+      allFields,
+      values: { row0_position: "SP", row1_position: "SP" },
+      allowedPositions,
+      positionAutofill,
+      setFieldValue,
+    });
+
+    expect(allowed).toBe(true);
+    expect(setFieldValue).not.toHaveBeenCalled();
   });
 });

@@ -10,7 +10,11 @@ import {
   type RadioSourceCallback,
 } from "../Form/GenericForm.context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { handleFaultCodeSelection, updateDependentFields } from "./GenericField.utils";
+import {
+  applyPositionRules,
+  handleFaultCodeSelection,
+  updateDependentFields,
+} from "./GenericField.utils";
 import type { AllowedPosition } from "api/services/countryConfiguration/countryConfiguration";
 import {
   handleAutoCompleteSelect,
@@ -421,6 +425,7 @@ vi.mock("./GenericField.utils", () => ({
   updateDependentFields: vi.fn(() => false),
   handleFaultCodeSelection: vi.fn(),
   resolveIsRequired: vi.fn((field: { isRequired?: boolean }) => field.isRequired),
+  applyPositionRules: vi.fn(() => Promise.resolve(true)),
 }));
 
 vi.mock("../../ui/AutoComplete/AutoComplete.helper", () => ({
@@ -1208,6 +1213,122 @@ describe("GenericField", () => {
       await user.click(screen.getByTestId("autocomplete-validate-customerName"));
 
       expect(autocompleteValidation.current["customerName"]).toBeUndefined();
+    });
+  });
+
+  describe("Spare part number sequence", () => {
+    const sparePartField = (overrides: Partial<Field> = {}): Field => ({
+      name: "row0_sparePartNumber",
+      label: "Spare Part",
+      type: "autocomplete",
+      isRequired: false,
+      fieldMapping: { originalName: "sparePartNumber" },
+      ...overrides,
+    });
+
+    it("only updates the value while typing and runs no field action", async () => {
+      const user = userEvent.setup();
+      const onRecalculatePrices = vi.fn();
+      renderWithContext(
+        sparePartField({ onValueChange: "onRecalculatePrices", onBlur: "onRecalculatePrices" }),
+        { actionCallbacks: { onRecalculatePrices } },
+      );
+
+      await user.type(screen.getByTestId("autocomplete-row0_sparePartNumber"), "160");
+
+      expect(screen.getByTestId("autocomplete-row0_sparePartNumber")).toHaveValue("160");
+      expect(onRecalculatePrices).not.toHaveBeenCalled();
+    });
+
+    it("recalculates prices once a part that belongs to the tool is resolved", async () => {
+      const user = userEvent.setup();
+      const calls: unknown[][] = [];
+      const onRecalculatePrices = (name: unknown, value: unknown) => {
+        calls.push([name, value]);
+      };
+      renderWithContext(sparePartField({ onBlur: "onRecalculatePrices" }), {
+        actionCallbacks: { onRecalculatePrices },
+        sparePartNotBelongsToTool: { current: {} },
+      });
+
+      await user.click(screen.getByTestId("autocomplete-select-belongs-row0_sparePartNumber"));
+
+      await waitFor(() => expect(calls).toEqual([["row0_sparePartNumber", ""]]));
+      expect(handleAutoCompleteSelect).toHaveBeenCalled();
+    });
+
+    it("stops before recalculating prices when the part does not belong to the tool", async () => {
+      const user = userEvent.setup();
+      const onRecalculatePrices = vi.fn();
+      vi.mocked(getSparePartCompatibilityMessage).mockImplementation((_field, _name, _v, _f, ref) =>
+        ref?.["row0_sparePartNumber"] ? "incompatibleWarrantyType" : "",
+      );
+      renderWithContext(sparePartField({ onBlur: "onRecalculatePrices" }), {
+        actionCallbacks: { onRecalculatePrices },
+        sparePartNotBelongsToTool: { current: {} },
+      });
+
+      await user.click(
+        screen.getByTestId("autocomplete-select-not-belongs-row0_sparePartNumber"),
+      );
+
+      await waitFor(() => expect(handleAutoCompleteSelect).toHaveBeenCalled());
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(onRecalculatePrices).not.toHaveBeenCalled();
+      vi.mocked(getSparePartCompatibilityMessage).mockImplementation(() => "");
+    });
+  });
+
+  describe("Position change", () => {
+    const positionField: Field = {
+      name: "row0_position",
+      label: "Position",
+      type: "dropdown",
+      subtype: "diagnosticPosition",
+      isRequired: false,
+      onValueChange: "onRecalculatePrices",
+      options: [
+        { value: "SP", name: "SP" },
+        { value: "AC", name: "AC" },
+      ],
+      fieldMapping: { originalName: "position", nameStartsWith: "row0_" },
+    } as Field;
+
+    it("applies the diagnostic rules before recalculating prices", async () => {
+      const order: string[] = [];
+      vi.mocked(applyPositionRules).mockImplementationOnce(() => {
+        order.push("rules");
+        return Promise.resolve(true);
+      });
+      const onRecalculatePrices = (name: unknown, value: unknown) => {
+        order.push(`recalculate:${String(name)}:${String(value)}`);
+      };
+      renderWithContext(
+        positionField,
+        { actionCallbacks: { onRecalculatePrices } },
+        { row0_position: "SP" },
+      );
+
+      fireEvent.change(screen.getByTestId("dropdown-row0_position"), { target: { value: "AC" } });
+
+      await waitFor(() => expect(order).toEqual(["rules", "recalculate:row0_position:AC"]));
+    });
+
+    it("does not change the position or recalculate when the rules reject it", async () => {
+      vi.mocked(applyPositionRules).mockImplementationOnce(() => Promise.resolve(false));
+      const onRecalculatePrices = vi.fn();
+      renderWithContext(
+        positionField,
+        { actionCallbacks: { onRecalculatePrices } },
+        { row0_position: "SP" },
+      );
+
+      fireEvent.change(screen.getByTestId("dropdown-row0_position"), { target: { value: "AC" } });
+
+      await waitFor(() => expect(applyPositionRules).toHaveBeenCalled());
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(onRecalculatePrices).not.toHaveBeenCalled();
+      expect(screen.getByTestId("dropdown-row0_position")).toHaveValue("SP");
     });
   });
 

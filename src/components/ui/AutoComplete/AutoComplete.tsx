@@ -13,6 +13,7 @@ import { DEFAULT_GC_TIME_MS, DEFAULT_STALE_TIME_MS } from "utils/queryConstants"
 import { useTranslation } from "react-i18next";
 import InfoIconWithTooltip from "../TooltipContent/InfoIconWithTooltip";
 import { HeaderUserData } from "api/services/header/action";
+import { BareToolOption } from "api/services/orders/orders.types";
 
 interface AutoCompleteProps {
   readonly name: string;
@@ -77,6 +78,8 @@ export default function AutoComplete({
   const isExternalUpdateRef = useRef(!!value);
   const isUserEditingRef = useRef(false);
   const lastValidValueRef = useRef<string>(value);
+  const latestInputRef = useRef(input);
+  latestInputRef.current = input;
 
   const isToolLookupField =
     name?.toLowerCase().includes("baretoolnumber") ||
@@ -98,6 +101,13 @@ export default function AutoComplete({
     }
   }, [value, input, isToolLookupField, onValidation]);
 
+  // A spare part number that arrives with the row (loaded from the API, imported, or shifted
+  // into this row after a delete) counts as resolved until the user edits it.
+  useEffect(() => {
+    if (isSparePartLookupField && value) onValidation?.(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount
+  }, []);
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
@@ -118,10 +128,10 @@ export default function AutoComplete({
     !disabled &&
     !!value;
 
-  const { data: options = [], isFetching } = useQuery({
-    queryKey: ["autocomplete", name, query, brand, position, isExchange, bareTool],
+  const getOptionsQuery = (searchValue: string) => ({
+    queryKey: ["autocomplete", name, searchValue, brand, position, isExchange, bareTool],
     queryFn: () =>
-      getAutocompleteOptions(name, query, user?.ascId || "", {
+      getAutocompleteOptions(name, searchValue, user?.ascId || "", {
         countryCode: user?.countryCode,
         languageCode: user?.language || "en",
         brand,
@@ -131,9 +141,13 @@ export default function AutoComplete({
         size,
         pageNumber,
       }),
-    enabled,
     staleTime: DEFAULT_STALE_TIME_MS,
     gcTime: DEFAULT_GC_TIME_MS,
+  });
+
+  const { data: options = [], isFetching } = useQuery({
+    ...getOptionsQuery(query),
+    enabled,
     refetchOnWindowFocus: false,
   });
 
@@ -224,7 +238,9 @@ export default function AutoComplete({
       queryClient.setQueryData(["selectedCustomer"], option);
     }
 
-    const newValue = getAutoCompleteValue(option, name);
+    const newValue = isSparePartLookupField
+      ? ((option as BareToolOption)?.partNumber ?? "")
+      : getAutoCompleteValue(option, name);
     isSelectionRef.current = true;
     isUserEditingRef.current = false;
     lastValidValueRef.current = newValue;
@@ -245,9 +261,53 @@ export default function AutoComplete({
     }
   };
 
+  /**
+   * Spare part number on blur: an unchanged value is kept as is; otherwise the first
+   * autocomplete match for the typed text is selected (the same path as picking it from the
+   * list), and when there is no match the field gets a not-found error.
+   */
+  const resolveSparePartOnBlur = async () => {
+    const typedValue = input.trim();
+    if (!typedValue) return;
+    if (typedValue === lastValidValueRef.current.trim()) {
+      onClearFieldError?.(name);
+      onValidation?.(true);
+      return;
+    }
+
+    let matches: AutoCompleteOption[] = [];
+    try {
+      matches = (await queryClient.fetchQuery(
+        getOptionsQuery(typedValue),
+      )) as AutoCompleteOption[];
+    } catch {
+      matches = [];
+    }
+    // The user went back into the field and kept typing while the search ran.
+    if (latestInputRef.current.trim() !== typedValue) return;
+
+    if (matches.length > 0) {
+      handleOptionSelect(matches[0]);
+      return;
+    }
+    if (isExchange) {
+      onValidation?.(true);
+      return;
+    }
+    onValidation?.(false);
+    onSetFieldError?.(name, t("sparePartNumberNotFound", { id: typedValue }));
+    onSetFieldTouched?.(name, true);
+  };
+
   const handleBlur = () => {
     setIsInputFocused(false);
     isUserEditingRef.current = false;
+
+    if (isSparePartLookupField) {
+      setOpen(false);
+      void resolveSparePartOnBlur().finally(() => onBlur?.());
+      return;
+    }
 
     // Auto-select on blur: if the user leaves the field without explicitly picking an
     // option, and exactly one search result is available (fresh or from the query
@@ -261,8 +321,7 @@ export default function AutoComplete({
 
     const isBareToolNumber = name?.toLowerCase().includes("baretoolnumber");
     const isToolModelName = name?.toLowerCase().includes("toolmodelname");
-    const isSparePartNumber = name?.toLowerCase().includes("sparepartnumber");
-    const isLookupField = isBareToolNumber || isToolModelName || isSparePartNumber;
+    const isLookupField = isBareToolNumber || isToolModelName;
     if (
       isLookupField &&
       input.trim().length > 0 &&
@@ -278,18 +337,14 @@ export default function AutoComplete({
 
       let errorMessage: string;
       if (!isExchange) {
-        if (isBareToolNumber) {
-          errorMessage = t("bareToolNumberNotFound", { id: currentValue });
-        } else if (isToolModelName) {
-          errorMessage = t("toolModelNameNotFound", { name: currentValue });
-        } else {
-          errorMessage = t("sparePartNumberNotFound", { id: currentValue });
-        }
+        errorMessage = isBareToolNumber
+          ? t("bareToolNumberNotFound", { id: currentValue })
+          : t("toolModelNameNotFound", { name: currentValue });
         onSetFieldError?.(name, errorMessage);
         onSetFieldTouched?.(name, true);
       }
     }
-    onBlur?.();    
+    onBlur?.();
   };
 
   return (
@@ -313,7 +368,9 @@ export default function AutoComplete({
       {isInfoIcon && <InfoIconWithTooltip name={name} infoText={infoText || ""} />}
 
       {open && enabled && typedOptions.length > 0 && (
-        <div className="auto-complete-dropdown">
+        // Keep focus in the input while an option is clicked, so the click is the only
+        // selection (blur would otherwise resolve a match of its own first).
+        <div className="auto-complete-dropdown" onMouseDown={(e) => e.preventDefault()}>
           {typedOptions.map((opt, i) => (
             <div
               key={`${name}-${i}`}
