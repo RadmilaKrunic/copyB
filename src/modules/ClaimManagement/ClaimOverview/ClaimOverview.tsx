@@ -34,10 +34,7 @@ import { useResourceUIConfiguration } from "hooks/useUIConfiguration";
 import { User } from "types/user.type";
 import { useClaimDecisionPermissions } from "hooks/useClaimDecisionPermissions";
 import { ImportedMaterial, useDiagnosticsManager } from "hooks/useDiagnosticsManager";
-import {
-  useClaimMaterialsManager,
-  claimMaterialToMaterialItem,
-} from "hooks/useClaimMaterialsManager";
+import { useClaimMaterialsManager } from "hooks/useClaimMaterialsManager";
 import { DiagnosticsContext } from "modules/JobManagement/JobOverview/DiagnosticsContext";
 import { ClaimContext } from "./ClaimContext";
 import {
@@ -51,9 +48,7 @@ import { PositionItem } from "modules/JobManagement/JobOverview/ExplosionDiagram
 import { MessagesContext } from "contexts/messagescontext";
 import { ClaimItem } from "./Claims.types";
 import { makeFieldGetter } from "./ClaimOverview.utils";
-const SPARE_PARTS_PREFIX = "claimData_claimSpareParts#";
-// Archived spare parts prefix for form synchronization
-//const ARCHIVED_SPARE_PARTS_PREFIX = "claimData_archivedClaimSpareParts#";
+const SPARE_PARTS_PREFIX = "claims_claimSpareParts#";
 function FormikClaimSync({
   setCurrentActionType,
   setCurrentJobType,
@@ -256,40 +251,20 @@ export default function ClaimOverview() {
   });
 
   useEffect(() => {
-  
-    if (!claimData) return claimData;
-    // if (formValuesRef.current !== initialFormValues) {
-    //   setInitialFormValues(formValuesRef?.current);
-    //   return;
-    // };
-  console.log("FclaimData:", claimData);
-    if (!claimData?.claimPriceSummaryDetailed && claimData?.claimPriceSummary) {
-        console.log("FclaimData:", claimData);
+    if (!claimData) return;
+    if (!claimData.claimPriceSummaryDetailed && claimData.claimPriceSummary) {
       claimData.claimPriceSummaryDetailed = {
-        total: claimData?.claimPriceSummary,
+        total: claimData.claimPriceSummary,
       };
     }
-    if (!claimData?.claimPriceSummary && claimData?.claimPriceSummaryDetailed) {
+    if (!claimData.claimPriceSummary && claimData.claimPriceSummaryDetailed) {
       const detailedTotal = claimData.claimPriceSummaryDetailed.total;
       if (detailedTotal !== undefined) {
         claimData.claimPriceSummary = detailedTotal;
       }
     }
-    const cmList = claimData?.materials?.map((m) => claimMaterialToMaterialItem(m)) || [];
-    console.log("ClaimData after processing:", cmList);
-
-
-    setClaimFullData(claimData ?? null);
-  
-    const syncedMaterials = syncMaterialsWithForm(
-      claimData?.materials?.map((m) => claimMaterialToMaterialItem(m)) || [],
-      formValuesRef.current ?? {},
-      SPARE_PARTS_PREFIX,
-    );
-    console.log("Synced materials:", syncedMaterials);
-    console.log("Form values ref:", formValuesRef.current);
-
-  }, [initialFormValues, claimData, formValuesRef, setInitialFormValues]);
+    setClaimFullData(claimData);
+  }, [claimData]);
 
   // Wrap markRowDirty to also flag that user has unsaved changes
   const markRowDirty = useCallback(
@@ -607,10 +582,14 @@ export default function ClaimOverview() {
   );
 
   const onProductDetails = useCallback(() => {
-    const updatedMaterials = syncMaterialsWithForm(materials, formValuesRef.current ?? {}, SPARE_PARTS_PREFIX);
+    const updatedMaterials = syncMaterialsWithForm(
+      materials,
+      formValuesRef.current ?? {},
+      SPARE_PARTS_PREFIX,
+    );
     setMaterials(updatedMaterials);
     setIsExplosionDrawingModalOpen(true);
-  }, []);
+  }, [materials, setMaterials]);
 
   // Parts picked from the explosion drawing are confirmed to belong to the
   useEffect(() => {

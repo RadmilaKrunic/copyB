@@ -343,7 +343,6 @@ vi.mock("hooks/useDiagnosticsManager", () => ({
       if (!key.endsWith("_type")) return false;
       return value === "WARRANTY" || value === "SERVICE_OFFERING";
     }),
-  syncMaterialsWithForm: <T,>(materials: T[]) => materials,
 }));
 
 vi.mock("components/generics/Form/useFormValidation", () => ({
@@ -357,6 +356,7 @@ vi.mock("components/generics/Form/useFormValidation", () => ({
 }));
 
 vi.mock("components/generics/utils", () => ({
+  syncMaterialsWithForm: <T,>(materials: T[]) => materials,
   convertAPIDataToFormValues: vi.fn(() => ({})),
   setSectionDisabledState: vi.fn((s: unknown) => s),
   mapValuesToAPI: vi.fn(() => ({

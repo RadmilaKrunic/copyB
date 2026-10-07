@@ -196,6 +196,7 @@ vi.mock("components/generics/Form/useFormValidation", () => ({
 vi.mock("components/generics/utils", () => ({
   convertAPIDataToFormValues: (...args: unknown[]) => h.convertAPIDataToFormValues(...args),
   setSectionDisabledState: (...args: unknown[]) => h.setSectionDisabledState(...args),
+  syncMaterialsWithForm: <T,>(materials: T[]) => materials,
 }));
 vi.mock("components/generics/Action/actionDependency", () => ({
   areAllActionsDisabled: (...args: unknown[]) => h.areAllActionsDisabled(...args),
