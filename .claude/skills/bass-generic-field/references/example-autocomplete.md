@@ -1,110 +1,36 @@
-# Example: AutoComplete Field with Auto-Fill
+# Example: Spare Part Number Autocomplete
 
-Source: `src/components/generics/Field/GenericField.tsx` (line ~400)
+Source: `src/components/generics/Field/GenericField.tsx` (`commitSparePart`, autocomplete branch) and `src/components/ui/AutoComplete/AutoComplete.tsx`. Read those by symbol; this file is a map, not a copy.
 
-This shows how the `autocomplete` field type implements auto-fill functionality in BASS-Next.
+## Metadata
 
-## Field Metadata
-
-```typescript
+```json
 {
-  name: "partNumber",
-  label: "Part Number",
-  type: "autocomplete",
-  autoFillFields: ["partName", "unitPrice", "dealerPrice"],
-  optionsEndpoint: {
-    url: "/v1/spare-parts",
-    method: "GET",
-    queryParams: [],
-  },
-  attributeMapping: "diagnosticData.spareParts[].partNumber",
-  isRequired: true,
+  "name": "sparePartNumber",
+  "type": "autocomplete",
+  "subtype": "diagnosticPartNumber",
+  "autoFillFields": ["description", "unitPrice"],
+  "onBlur": "onRecalculatePrices"
 }
 ```
 
-## Rendering Logic
+## Sequence
 
-```typescript
-case "autocomplete":
-  return (
-    <span className={`${fullWidth} generic-field-autocomplete ${className || ""}`} {...restProps}>
-      {isInfoIcon && infoText && <InfoIconWithTooltip text={infoText} />}
-      <AutoComplete
-        disabled={effectiveIsDisabled}
-        label={displayLabel}
-        field={field}
-        onSelect={(option: AutoCompleteOption) => {
-          handleAutoCompleteSelect(option, field, setFieldValue).catch((error: unknown) => {
-            console.error("AutoComplete onSelect error:", error);
-          });
-        }}
-        onReset={(option: AutoCompleteOption) => {
-          handleResetAutoCompleteFields(option, field, setFieldValue).catch((error: unknown) => {
-            console.error("AutoComplete onReset error:", error);
-          });
-        }}
-        autocompleteValidation={autocompleteValidation}
-        sparePartnotnotnotnotnotnotBelongsToTool={sparePartBelongsToTool}
-      />
-      {sparePartBelongsToTool && (
-        <StatusIndicator
-          sparePartBelongsToTool={sparePartBelongsToTool}
-          name={field.name}
-          compatibilityMessage={getSparePartCompatibilityMessage(
-            sparePartBelongsToTool,
-            field.name,
-            t,
-          )}
-        />
-      )}
-      <FieldError name={field.name} />
-    </span>
-  );
-```
+1. `onChange` (typing): sets the value only and marks the part unresolved in `sparePartNotBelongsToTool` (except `SPARE_PARTS_EXCHANGE`). No field action.
+2. Empty value: `handleResetAutoCompleteFields` clears the row. No field action until a part is committed.
+3. Commit = option click (option buttons keep input focus on mousedown, so no blur fires first) or blur (exact normalized part-number match preferred, else first suggestion; no match -> `sparePartNumberNotFound`).
+4. `onSelect(option, { isUnchanged })` -> `commitSparePart`:
+   - `handleAutoCompleteSelect(option, field, setFieldValue, allFields)` fills `autoFillFields`.
+   - `validateForm()`.
+   - `getSparePartCompatibilityMessage(...)` non-empty -> touch field, stop.
+   - `isUnchanged` (same part via `isSamePartNumber`) -> stop.
+   - `waitForFormCommit()` -> `invokeFieldAction(onValueChange)` -> `invokeFieldAction(onBlur)`.
+5. `onRecalculatePrices` (JobOverview) skips rows without a saved `materialId`.
 
-## Auto-Fill Handler
+## Validation
 
-From `src/components/ui/AutoComplete/AutoComplete.helper.ts`:
+- `autocompleteValidation` ref (page-owned `useRef`, passed through `GenericFormContext`) marks not-found values; `formValidation.tsx` turns `false` into `bareToolNumberNotFound` / `toolModelNameNotFound` / `sparePartNumberNotFound`.
 
-```typescript
-export const handleAutoCompleteSelect = async (
-  option: AutoCompleteOption,
-  field: Field,
-  setFieldValue: (field: string, value: unknown) => Promise<void>,
-): Promise<void> => {
-  // Set the selected value
-  await setFieldValue(field.name, option.value);
+## Tests
 
-  // Auto-fill sibling fields
-  if (field.autoFillFields && option.autoFillData) {
-    for (const siblingFieldName of field.autoFillFields) {
-      const autoFillValue = option.autoFillData[siblingFieldName];
-      if (autoFillValue != null) {
-        await setFieldValue(siblingFieldName, autoFillValue);
-      }
-    }
-  }
-};
-```
-
-**Key points:**
-
-- **`autoFillFields`**: array of sibling field names to auto-populate
-- **`option.autoFillData`**: object containing values for each sibling field
-- **Async flow**: `await setFieldValue()` for each field sequentially
-- **Null safety**: only set values that exist in `autoFillData`
-
-## Validation Integration
-
-Autocomplete fields support **validation via `autocompleteValidation` ref**:
-
-```typescript
-const autocompleteValidation = useRef<Record<string, boolean>>({});
-
-// In AutoComplete component:
-if (autocompleteValidation?.current) {
-  autocompleteValidation.current[field.name] = isValid;
-}
-```
-
-This is used by `useFormValidation` hook to block submission if autocomplete selections are invalid.
+`GenericField.test.tsx` (spare part commit, unchanged part, not-belongs), `AutoComplete.test.tsx` (blur match, mousedown focus).

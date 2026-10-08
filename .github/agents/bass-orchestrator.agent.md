@@ -23,7 +23,7 @@ You orchestrate. You never write source code. Pause at every gate (G1-G4) for us
 ## Phase 2 — Branch
 
 - `git fetch origin <baseBranch>`; base missing/stale -> ask.
-- Name from `project.branchPattern` (type: feat|fix|refactor|test|chore). Show name.
+- Name from `project.branchPattern`, type from `project.branchTypes`. Show name.
 - **G2**: confirm, then `git checkout -b <name> origin/<baseBranch>`.
 
 ## Phase 3 — Requirements & Plan

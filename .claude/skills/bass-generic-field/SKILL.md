@@ -262,27 +262,21 @@ Wildcard visibility (show if any non-empty value):
 
 ## AutoComplete with Auto-Fill
 
-Auto-populate sibling fields when an autocomplete option is selected:
+Real example: spare part number in `data/data<CC>.json` (`diagnosticsSpareParts` area):
 
-```typescript
+```json
 {
-  name: "partNumber",
-  label: "Part Number",
-  type: "autocomplete",
-  autoFillFields: ["partName", "unitPrice", "dealerPrice"],
-  optionsEndpoint: {
-    url: "/v1/spare-parts",
-    method: "GET",
-    queryParams: [],
-  },
-  attributeMapping: "diagnosticData.spareParts[].partNumber",
+  "name": "sparePartNumber",
+  "type": "autocomplete",
+  "subtype": "diagnosticPartNumber",
+  "autoFillFields": ["description", "unitPrice"],
+  "onBlur": "onRecalculatePrices"
 }
 ```
 
-When user selects an option, the handler in `AutoComplete.helper.ts` auto-fills:
-- `partName` ← `option.label`
-- `unitPrice` ← `option.unitPrice`
-- `dealerPrice` ← `option.dealerPrice`
+- Selecting an option runs `handleAutoCompleteSelect(option, field, setFieldValue, allFields)` (`AutoComplete.helper.ts`), which fills `autoFillFields` siblings.
+- Spare part numbers use a commit sequence (select or blur -> fill row -> `validateForm` -> not-belongs-to-tool check -> skip if same normalized part -> run `onValueChange` then `onBlur` once). Typing or clearing runs no action. See `references/example-autocomplete.md`.
+- Other autocompletes (bare tool, tool model, customer) set value + autofill on select and validate via `autocompleteValidation`.
 
 ## Testing
 
@@ -339,7 +333,7 @@ describe("GenericField", () => {
 
 - **All generic components consume Formik context** — `useFormikContext()`, never prop-drill
 - **Permission check via `useHasPermission(field.permissions || [])`** — empty array = always visible
-- **Conditional visibility via `isFieldVisible(field, values, dependFieldCondition)`**
+- **Conditional visibility via `isFieldVisible(field, allFields, values)`**
 - **`attributeMapping` is the source of truth** for API serialization via `mapValuesToAPI()`
 - **Never use `any`** — type field values as `FieldValueType` or `unknown` with guards
 - **Return `null` for invisible/unauthorized fields** — don't render hidden markup

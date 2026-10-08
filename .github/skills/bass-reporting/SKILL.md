@@ -21,7 +21,7 @@ description: "Optional minimal task report. Load only when ai-workflow.yml repor
 ```md
 ## 2026-10-08 — <short title>
 
-- Ticket: PTBASS-1234 | Branch: fix/PTBASS-1234-slug
+- Ticket: PTBASS-1234 | Branch: bugfix/PTBASS-1234-slug
 - Changed: `path/a.ts`, `path/b.tsx` (+N tests)
 - Root cause / goal: <1 line>
 - Result: <1 line>

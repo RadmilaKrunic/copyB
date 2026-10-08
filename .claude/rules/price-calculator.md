@@ -2,133 +2,34 @@
 paths:
   - "src/utils/priceCalculator.ts"
   - "src/hooks/useDiagnosticsManager.ts"
+  - "src/hooks/useClaimMaterialsManager.ts"
+  - "src/modules/JobManagement/JobOverview/**"
+  - "src/modules/ClaimManagement/ClaimOverview/**"
 ---
 
-# Price Calculator — BASS-Next
+# Pricing — BASS-Next
 
-## Purpose
+Backend is authoritative. Full rules: `.github/skills/bass-diagnostics/SKILL.md` (job) and `.github/skills/bass-claims/SKILL.md` (claim).
 
-> **Backend is authoritative.** Final price calculation (recalculate + validate/save) happens server-side via `usePostRecalculatePrices` and `usePostValidateAndSave` (`api/services/jobs/hooks.ts`); responses include `priceSummaryDetailed` / `diagnostic` and are written to `queryClient.setQueryData(["diagnostic", jobId], ...)` through `extractDiagnosticFromValidateResponse`. The functions below are local helpers for client-side previews and stale-price detection only — never persist their output over a value returned by the backend.
+## Where prices come from
 
-Located in:
+- Job: field action `onRecalculatePrices` -> `POST /v1/diagnostic/prices/recalculate` with `changes: [{ type, lineId, value, scope }]`; validate -> `POST /v2/jobs/flow/validate-and-save` with the accumulated `changes`.
+- Both responses -> `extractDiagnosticFromValidateResponse(data, jobId)` (`JobOverview.utils.ts`) -> `queryClient.setQueryData(["diagnostic", jobId], ...)` -> rows + `priceSummaryDetailed` re-sync.
+- Triggers (UIConfiguration): row price fields + `sparePartNumber` + summary fields `onBlur`; `position` + `type` `onValueChange`. Rows without `materialId` skip recalculation until validate.
+- Claim: `PUT /v1/claims/{id}/prices` on validate.
 
-- **`src/utils/priceCalculator.ts`** — pure functions for preview calculation
-- **`src/hooks/useDiagnosticsManager.ts`** — React hook consuming priceCalculator for UI previews/stale detection
+## `src/utils/priceCalculator.ts` (display math + tests only)
 
-## Key Calculations
+Real exports: `roundToTwo`, `calculatePrices(inputs, changedField, changedValue, mode)`, `resetRowPrices`, `aggregateRowPrices`, `SUMMARY_TYPE_FILTER`, `calculateSummaryTotalAmountDistribution`, `calculateSummaryNetAmountDistribution`, `calculateSummaryDiscountDistribution`, `DISTRIBUTABLE_POSITIONS` (`SP`,`PN`,`AC`), `distributeGrossToRows`, `distributeNetToRows`.
 
-From `src/utils/priceCalculator.ts`:
+- `GROSS_PRICE`: `suggestedNet = net = qty*unit` -> tax -> `gross` -> `discount = gross*%` -> `total`.
+- `NET_PRICE`: `suggestedNet = qty*unit` -> `discount = suggestedNet*%` -> `net` -> tax -> `gross = total`.
+- Clamp negatives to 0; tax 0..100; back-calculated negative discount -> 0.
+- Mode = `discountBase` (`GROSS_PRICE | NET_PRICE`) from `useDiagnosticsContext()` / `useClaimContext()`. Missing in country config -> managers use `NET_PRICE`.
 
-### Gross → Net (discount applied)
+## Rules
 
-```typescript
-export const calculateNetAmount = (gross: number, discount: number): number => {
-  return gross - (gross * discount) / 100;
-};
-```
-
-### Net → Gross (reverse discount)
-
-```typescript
-export const calculateGrossAmount = (net: number, discount: number): number => {
-  return discount === 100 ? 0 : net / (1 - discount / 100);
-};
-```
-
-### Line Item Total
-
-```typescript
-export const calculateLineTotal = (
-  quantity: number,
-  unitPrice: number,
-  discount: number,
-): number => {
-  const gross = quantity * unitPrice;
-  return calculateNetAmount(gross, discount);
-};
-```
-
-## CountryConfig Rules
-
-From `.github/skills/bass-country-config/SKILL.md` — discount base varies by country:
-
-```typescript
-interface CountryConfig {
-  diagnosticsConfiguration: {
-    rules: Array<{
-      discountBase: "DEALER_PRICE" | "RETAIL_PRICE"; // Which price to discount from
-      allowedPositions: string[]; // Position codes (e.g., ["001", "002"])
-    }>;
-  };
-}
-```
-
-**Germany (`DE`)**: `discountBase: "DEALER_PRICE"` — discount applied to dealer price
-**Other countries**: `discountBase: "RETAIL_PRICE"` — discount applied to retail price
-
-## useDiagnosticsManager Hook
-
-Manages diagnostics spare parts state and price calculations:
-
-```typescript
-import {
-  calculateNetAmount,
-  calculateGrossAmount,
-  calculateLineTotal,
-} from "utils/priceCalculator";
-import { useQueryClient } from "@tanstack/react-query";
-
-export const useDiagnosticsManager = (jobId: string) => {
-  const queryClient = useQueryClient();
-  const countryConfig = queryClient.getQueryData<CountryConfig>([
-    "countryConfiguration",
-    countryCode,
-  ]);
-
-  const handleDiscountChange = (rowIndex: number, newDiscount: number) => {
-    const row = rows[rowIndex];
-    const { quantity, unitPrice } = row;
-    const netAmount = calculateLineTotal(quantity, unitPrice, newDiscount);
-
-    updateRow(rowIndex, {
-      discount: newDiscount,
-      netAmount,
-      grossAmount: quantity * unitPrice,
-    });
-  };
-
-  const handleNetAmountChange = (rowIndex: number, newNet: number) => {
-    const row = rows[rowIndex];
-    const { quantity, unitPrice, discount } = row;
-    const grossAmount = quantity * unitPrice;
-    const calculatedDiscount = ((grossAmount - newNet) / grossAmount) * 100;
-
-    updateRow(rowIndex, {
-      netAmount: newNet,
-      discount: calculatedDiscount,
-    });
-  };
-
-  return { handleDiscountChange, handleNetAmountChange, rows };
-};
-```
-
-## Summary Area Aggregation
-
-`SummaryArea` component (custom area) aggregates totals from all spare part rows:
-
-```typescript
-const totalGross = rows.reduce((sum, row) => sum + row.grossAmount, 0);
-const totalNet = rows.reduce((sum, row) => sum + row.netAmount, 0);
-const totalDiscount = totalGross > 0 ? ((totalGross - totalNet) / totalGross) * 100 : 0;
-```
-
-## Critical Rules
-
-- **Backend values win** — on `postRecalculatePrices`/`postValidateAndSave` success, render the returned `priceSummaryDetailed`/`diagnostic` values; do not overwrite them with local `priceCalculator` output.
-- **Always use `priceCalculator` functions for local/preview math** — never inline discount math
-- **Discount base depends on country** — check `countryConfig.diagnosticsConfiguration.rules[].discountBase`
-- **Net/Gross are derived** — never store both independently, calculate one from the other
-- **Precision**: `.toFixed(2)` for display, store as `number` in state
-- **Discount is percentage** — 0-100, not 0-1
-- **Stale detection, not recomputation** — if `roundToTwo(qty*unitPrice) != suggestedNetPrice`, trigger a recalculate API call rather than locally overwriting the price
+- Never persist client math over a server value. Never inline formulas; use the helpers.
+- `useSparePartPriceCalculation` and `distribute*ToRows` are not wired into any screen. Do not re-wire without a ticket.
+- Stale row (`roundToTwo(qty*unit) !== suggestedNetPrice`) -> flag / recalc via backend, not a stored local value.
+- Tests mock `postRecalculatePrices` / `postValidateAndSave` and assert calls, cache writes and rendered server values.

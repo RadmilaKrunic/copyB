@@ -7,6 +7,9 @@
 | `AGENTS_GUIDE.md`            | Which agent for which task                                                   |
 | `agents/*.agent.md`          | Agent definitions                                                           |
 | `skills/*/SKILL.md`          | Domain rules, loaded on demand                                              |
+| `../CLAUDE.md`               | Claude entry point; imports `copilot-instructions.md`                       |
+| `../.claude/rules`, `skills` | Claude path rules + skills (spare-part rows, fields, areas, feature-workflow) |
+| `../.claudboard/catalog.json`| claudboard source for `/analyse` -> `/generate` (regeneration overwrites hand fixes) |
 
 ## Common Switches
 

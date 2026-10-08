@@ -8,10 +8,10 @@ paths:
 
 ## Imports
 
-Import order enforced by linter:
+Import order (convention, not lint-enforced):
 - External dependencies (`react`, `axios`, `@tanstack/react-query`, etc.)
 - Internal path aliases (`@/`, `api/`, `components/`, `modules/`, `hooks/`, `utils/`, `types/`)
-- Relative imports — **PROHIBITED** (zero relative imports enforced - use path aliases only)
+- Relative imports — prefer aliases in new code; ~90 existing files still use `../` imports, do not churn them
 
 Path aliases configured in `tsconfig.json`:
 - `@/` → `src/`
@@ -65,9 +65,5 @@ interface Field {
 
 ## Console Logging
 
-**PROHIBITED in production code** — no `console.log`, `console.warn`, `console.error`
-
-Exceptions:
-- Error boundaries catching errors
-- Axios interceptors logging 401/403 responses
-- `catch` blocks for debugging (must be removed before commit)
+- No `console.log` in production code.
+- `console.error` is the existing pattern in API `action.ts` catch blocks (log + rethrow) and for failed async field actions; `console.warn` for the missing local UIConfiguration file. Keep to these cases.

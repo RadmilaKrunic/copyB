@@ -72,51 +72,23 @@ export default NotesTimelineArea;
 
 ### 2. Add Routing in CustomAreasMapper
 
-File: `src/components/generics/Area/CustomAreasMapper.tsx`
+File: `src/components/generics/Area/CustomAreasMapper.tsx`. It is an `if` chain on `area.name.includes(...)`; first match wins, so put a specific name (e.g. `claimNotesList`) before the generic one (`notesList`).
 
-```typescript
-import Area from "./GenericArea.types";
-import AccessoryArea from "modules/JobManagement/CreateJob/AssetData/AccessoryArea/AccessoryArea";
-import DocumentTabArea from "modules/JobManagement/JobOverview/DocumentsTab/DocumentTabArea";
-import NotesList from "modules/JobManagement/JobOverview/NotesList/NotesList";
-import SparePartsArea from "modules/JobManagement/JobOverview/SparePartsArea/SparePartsArea";
-import SummaryArea from "modules/JobManagement/JobOverview/SummaryArea/SummaryArea";
-import NotesTimelineArea from "modules/JobManagement/JobOverview/NotesTimelineArea/NotesTimelineArea";  // ← NEW
-
-interface CustomAreasMapperProps {
-  area: Area;
-  readOnly?: boolean;
-}
-
-const CustomAreasMapper = ({ area, readOnly }: CustomAreasMapperProps) => {
-  const areaName = area.name.includes("#") 
-    ? area.name.split("#")[1].split("_")[0]
-    : area.name;
-
-  switch (areaName) {
-    case "accessory":
-      return <AccessoryArea area={area} readOnly={readOnly} />;
-    case "documentList":
-      return <DocumentTabArea area={area} />;
-    case "notesList":
-      return <NotesList area={area} />;
-    case "diagnosticsSpareParts":
-      return <SparePartsArea area={area} readOnly={readOnly} />;
-    case "diagnosticsSummary":
-      return <SummaryArea area={area} />;
-    case "notesTimeline":  // ← NEW
-      return <NotesTimelineArea area={area} readOnly={readOnly} />;
-    default:
-      return null;  // Falls back to GenericArea rendering
+```tsx
+export const getCustomArea = (area: Area) => {
+  // ...existing checks: accessory, claimDocumentList, documentList, claimNotesList, notesList,
+  // claimArchivedSpareParts, claimSpareParts, diagnosticsSpareParts, claimDiagnosticsSummary,
+  // diagnosticsSummary, archivedSpareParts, AscReimbursementArea
+  if (area.name.includes("notesTimeline")) {
+    return <NotesTimelineArea area={area} />; // NEW
   }
+  return null; // default GenericArea rendering
 };
-
-export default CustomAreasMapper;
 ```
 
 ### 3. Add Area to Form Metadata
 
-File: `src/components/generics/Form/GenericForm.data.ts`
+Production metadata: `data/data<CC>.json` (dev) / UIConfiguration API. `src/components/generics/Form/GenericForm.data.ts` is only a static reference.
 
 ```typescript
 export const jobOverview: GenericForm = {

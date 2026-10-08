@@ -1,7 +1,11 @@
 {
   "git": {
-    "branchTypes": ["feature", "bugfix", "hotfix"],
-    "branchPattern": "{type}/{slug}",
+    "branchTypes": [
+      "feature",
+      "bugfix",
+      "hotfix"
+    ],
+    "branchPattern": "{type}/{ticket}-{slug}",
     "ticketRegex": "[A-Z]+-[0-9]+"
   },
   "clarify": {

@@ -3,7 +3,7 @@
 # Source this file: `source "$(dirname "$0")/lib.sh"`
 #
 # Provides:
-#   detect_main_branch  — echoes "main" or "master" (or whatever origin/HEAD points at)
+#   detect_main_branch  — echoes project.baseBranch from .github/ai-workflow.yml, else origin/HEAD, main or master
 #   load_ticket_regex   — echoes the ticket regex from config.json, with fallback
 #   resolve_repo_root   — echoes the repo root to operate in (workspace mode support)
 #
@@ -24,8 +24,13 @@ resolve_repo_root() {
 detect_main_branch() {
   local repo_root
   repo_root="$(resolve_repo_root)"
-  local main
-  main=$(git -C "$repo_root" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@')
+  local main=""
+  # Shared switchboard wins: project.baseBranch in .github/ai-workflow.yml
+  local cfg="$repo_root/.github/ai-workflow.yml"
+  if [ -f "$cfg" ]; then
+    main=$(sed -n 's/^[[:space:]]*baseBranch:[[:space:]]*\([^[:space:]#]*\).*/\1/p' "$cfg" | head -1)
+  fi
+  [ -z "$main" ] && main=$(git -C "$repo_root" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@')
   if [ -z "$main" ]; then
     if git -C "$repo_root" show-ref --verify --quiet refs/heads/main; then
       main="main"

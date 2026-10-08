@@ -5,7 +5,8 @@
 project:
   ticketPrefix: PTBASS # commit + branch key, e.g. PTBASS-1234
   baseBranch: master # ticket branches start here; never infer from origin/HEAD
-  branchPattern: "{type}/{ticket}-{slug}" # e.g. fix/PTBASS-1234-claim-row-prices
+  branchTypes: [feature, bugfix, hotfix]
+  branchPattern: "{type}/{ticket}-{slug}" # e.g. bugfix/PTBASS-1234-claim-row-prices; keep equal to .claude/skills/feature-workflow/config.json
   commit: npm run commit # Commitizen; direct git commit fails hooks
 
 checks: # fast local checks, run in this order, stop on first failure
