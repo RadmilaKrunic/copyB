@@ -1463,6 +1463,7 @@ export default function JobOverview() {
         )?.name ?? "";
 
       const materialId = formValuesRef.current?.[matrerialIdFieldName];
+      if (!materialId) return;
       const payload = buildDiagnosticPayload(formValuesRef.current, allFieldsRef.current);
       payload.countryCode = jobData?.order?.countryCode;
       const changes: Record<string, unknown>[] = [];
@@ -1526,31 +1527,7 @@ export default function JobOverview() {
       recalculatedPricesChanges,
     ],
   );
-  const onNonPriceFieldChange = useCallback(
-    (fieldName: string, value: unknown) => {
-      if (recalculatePricesMutation.isPending) return;
-      if (!allFieldsRef.current) return;
-      if (value === undefined) return;
-      const field = allFieldsRef.current?.find((f) => f.name === fieldName);
-      if (!field) return;
-      const sameRowFields = allFieldsRef.current?.filter(
-        (f) => f.fieldMapping?.nameStartsWith === field.fieldMapping?.nameStartsWith,
-      );
-      const matrerialIdFieldName =
-        sameRowFields.find((f) => f.subtype === "diagnosticMaterialId")?.name ?? "";
-      setFieldValueRef?.current?.(matrerialIdFieldName, null);
 
-      const fildsPriceForReset = sameRowFields.filter((f) => f.type === "price");
-      fildsPriceForReset.forEach((fld) => {
-        setFieldValueRef?.current?.(fld.name, 0);
-      });
-      const statusFieldName =
-        sameRowFields.find((f) => f.subtype === "diagnosticMaterialStatus")?.name ?? "";
-      setFieldValueRef?.current?.(statusFieldName, "PENDING");
-      setArePricesValidated(false);
-    },
-    [recalculatePricesMutation],
-  );
   const onHold = useCallback(() => {
     if (!jobId) return;
     preToggleHoldStateRef.current = jobFullData?.job?.isOnHold ?? false;
@@ -1994,7 +1971,6 @@ export default function JobOverview() {
         onToolDelivered,
         onCreateCostEstimate,
         onRecalculatePrices: onRecalculatePrices as (...args: unknown[]) => void,
-        onNonPriceFieldChange: onNonPriceFieldChange as (...args: unknown[]) => void,
       },
       radioSourceCallbacks: {
         getRadioButtonsForSummaryType: () => summaryTypeOptions,
@@ -2060,7 +2036,6 @@ export default function JobOverview() {
       warrantyPanelInfo,
       isRepairAnswerLocked,
       onRecalculatePrices,
-      onNonPriceFieldChange,
     ],
   );
 

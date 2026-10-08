@@ -296,9 +296,7 @@ export default function AutoComplete({
 
     let matches: AutoCompleteOption[] = [];
     try {
-      matches = (await queryClient.fetchQuery(
-        getOptionsQuery(typedValue),
-      )) as AutoCompleteOption[];
+      matches = await queryClient.fetchQuery(getOptionsQuery(typedValue));
     } catch {
       matches = [];
     }

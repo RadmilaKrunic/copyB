@@ -44,11 +44,14 @@ Spare part number (`subtype: diagnosticPartNumber`, autocomplete):
 
 ## Pricing (source of truth = backend)
 
-- `onRecalculatePrices(fieldName, value)` -> `buildDiagnosticPayload` + `changes: [{ type, lineId, value, scope }]` -> `POST /v1/diagnostic/prices/recalculate`.
+- `onRecalculatePrices(fieldName, value)` -> skip if pending, material field empty, or no `materialId` -> `buildDiagnosticPayload` + `changes: [{ type, lineId, value, scope }]` -> `POST /v1/diagnostic/prices/recalculate`.
   - `type` map: `type`->`jobType`, `sparePartNumber`->`partNumber`, `position`->`position`; summary fields `<x>Material` -> `<x>`.
   - Summary (`...Material`) changes carry `scope: { positions: ["SP","PN","AC"], jobTypes: ["CHARGEABLE"] }`; empty value -> no call.
   - Sets `arePricesValidated = false`; ignored while mutation pending.
   - Changes accumulate in `recalculatedPricesChanges` and are re-sent on validate.
+- Field triggers (UIConfiguration `data/data<CC>.json`): row price fields (quantity, unitPrice, suggestedNetPrice, netAmount, tax, taxAmount, grossAmount, discount, discountNet, totalAmount), `sparePartNumber` and summary fields -> `onBlur: onRecalculatePrices`; `position` and `type` -> `onValueChange: onRecalculatePrices`. `onNonPriceFieldChange` was removed; do not reintroduce it.
+- Row without `materialId` (new, never saved) -> `onRecalculatePrices` returns early; its prices arrive on validate-and-save.
+- Responses: recalculate + validate both pass through `extractDiagnosticFromValidateResponse(data, jobId)` (`JobOverview.utils.ts`) -> `queryClient.setQueryData(["diagnostic", jobId], ...)`; rows/summary (`priceSummaryDetailed`, `priceSummaryDetailedByJobType`) re-sync from that cache. Render server values; never persist client math over them.
 - `onValidate` -> blur active element, `buildDiagnosticPayload` + accumulated `changes` -> `handleActionWithValidation("validate", ...)` -> `POST /v2/jobs/flow/validate-and-save`.
 - `isValidating` (validate or recalculate pending) locks all row inputs.
 - Summary (`SummaryArea`): editable only for summary type `chargeable`; discount/total editable only in `WAITING_FOR_APPROVAL` with chargeable pending rows + `CAN_EDIT_TOTAL_DISCOUNT` / `CAN_EDIT_TOTAL_AMOUNT`; net amount summary only in `NET_PRICE`.

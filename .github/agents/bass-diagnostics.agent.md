@@ -14,6 +14,8 @@ Diagnostics pricing & materials specialist. Load `bass-diagnostics` (+ `bass-cla
 - Spare part number: commit -> not-belongs check -> unchanged part skip -> price action once. Cleared value = no action.
 - Summary edits: chargeable only, scope `SP/PN/AC` + `CHARGEABLE`; status + permission gates (`D_TE`, `D_AE`).
 - Editability: protected `LA/FR/PC` editable only on `CHARGEABLE`; material rows summary-controlled.
+- Triggers: price fields + part number on blur, position + type on change, all `onRecalculatePrices`; rows without `materialId` wait for validate. Responses normalized by `extractDiagnosticFromValidateResponse`.
+- Tests: mock `postRecalculatePrices` / `postValidateAndSave`; assert calls, cache writes and rendered server values, not client math sequences.
 - Lifecycle: `arePricesValidated = false` on any price-affecting change; `isValidating` locks inputs.
 - Row reset bugs: check `MANAGED_ROW_KEY_PREFIXES` and `resolvePartNumberChangeAction`.
 - Stale row: `roundToTwo(qty*unitPrice) !== suggestedNetPrice`.

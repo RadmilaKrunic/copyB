@@ -1,0 +1,172 @@
+{
+  "schema_version": "1",
+  "generated_at": "2026-07-01T00:00:00Z",
+  "from_audit": false,
+  "repo": "C:\\Projects\\Bass\\bassnext.web",
+  "umbrella_root": "C:\\Projects\\Bass\\bassnext.web",
+  "mode": "single-project",
+  "stacks": [
+    {
+      "id": "react-ts",
+      "service_count": 1,
+      "reference_service": null,
+      "applicable_paths": [
+        "src/**/*.ts",
+        "src/**/*.tsx"
+      ],
+      "exemplar_paths": {
+        "react_component": "src/modules/JobManagement/JobOverview/JobOverview.tsx",
+        "generic_field": "src/components/generics/Field/GenericField.tsx",
+        "api_action": "src/api/services/jobs/action.ts",
+        "api_hooks": "src/api/services/jobs/hooks.ts",
+        "api_types": "src/api/services/jobs/jobs.types.ts",
+        "custom_hook": "src/hooks/useDiagnosticsManager.ts",
+        "util_function": "src/utils/priceCalculator.ts",
+        "test_component": "src/api/services/jobs/hooks.test.ts"
+      }
+    }
+  ],
+  "conventions": {
+    "di_style": null,
+    "logging": "browser console - no structured logging framework",
+    "error_handling": "try-catch with error boundaries per route - ErrorBoundary wrappers in Routes.tsx",
+    "test_framework": "Vitest + React Testing Library with vitest/globals",
+    "naming": "PascalCase components/interfaces, camelCase functions/variables, kebab-case SCSS files",
+    "import_style": "path aliases only - @/, api/, components/, modules/, hooks/, utils/ - zero relative imports",
+    "formatting": "Prettier enforced via pre-commit hooks - semi: true, singleQuote: false, printWidth: 100"
+  },
+  "patterns": {
+    "metadata_driven_form": {
+      "exemplar_path": "src/components/generics/Form/GenericForm.types.ts",
+      "frequency": 4,
+      "variations": [
+        "GenericForm",
+        "GenericSection",
+        "GenericArea",
+        "GenericField"
+      ],
+      "applicable_paths": [
+        "src/components/generics/**"
+      ]
+    },
+    "api_domain_pattern": {
+      "exemplar_path": "src/api/services/jobs/action.ts",
+      "frequency": 15,
+      "variations": [
+        "action.ts - raw axios calls",
+        "hooks.ts - React Query wrappers",
+        "{domain}.types.ts - request/response types"
+      ],
+      "applicable_paths": [
+        "src/api/services/**"
+      ]
+    },
+    "custom_hook": {
+      "exemplar_path": "src/hooks/useDiagnosticsManager.ts",
+      "frequency": 23,
+      "variations": [
+        "useDiagnosticsManager",
+        "useAccessoriesManager",
+        "useClaimMaterialsManager",
+        "useFormInitialization",
+        "useFormValidation"
+      ],
+      "applicable_paths": [
+        "src/hooks/**"
+      ]
+    },
+    "price_calculator": {
+      "exemplar_path": "src/utils/priceCalculator.ts",
+      "frequency": 1,
+      "variations": [],
+      "applicable_paths": [
+        "src/utils/priceCalculator.ts",
+        "src/hooks/useDiagnosticsManager.ts"
+      ]
+    }
+  },
+  "proposed_artifacts": [
+    {
+      "type": "rule",
+      "name": "typescript-conventions",
+      "paths": [
+        "src/**/*.ts",
+        "src/**/*.tsx"
+      ],
+      "exemplar": null,
+      "depth_signal": "medium"
+    },
+    {
+      "type": "rule",
+      "name": "react-conventions",
+      "paths": [
+        "src/components/**/*.tsx",
+        "src/modules/**/*.tsx"
+      ],
+      "exemplar": "src/modules/JobManagement/JobOverview/JobOverview.tsx",
+      "depth_signal": "medium"
+    },
+    {
+      "type": "rule",
+      "name": "api-domain-pattern",
+      "paths": [
+        "src/api/services/**"
+      ],
+      "exemplar": "src/api/services/jobs/action.ts",
+      "depth_signal": "full"
+    },
+    {
+      "type": "rule",
+      "name": "metadata-driven-forms",
+      "paths": [
+        "src/components/generics/**"
+      ],
+      "exemplar": "src/components/generics/Form/GenericForm.types.ts",
+      "depth_signal": "full"
+    },
+    {
+      "type": "rule",
+      "name": "price-calculator",
+      "paths": [
+        "src/utils/priceCalculator.ts",
+        "src/hooks/useDiagnosticsManager.ts"
+      ],
+      "exemplar": "src/utils/priceCalculator.ts",
+      "depth_signal": "medium"
+    },
+    {
+      "type": "rule",
+      "name": "testing",
+      "paths": [
+        "src/**/*.test.ts",
+        "src/**/*.test.tsx"
+      ],
+      "exemplar": "src/api/services/jobs/hooks.test.ts",
+      "depth_signal": "medium"
+    },
+    {
+      "type": "skill",
+      "name": "bass-generic-field",
+      "paths": null,
+      "exemplar": "src/components/generics/Field/GenericField.tsx",
+      "depth_signal": "full"
+    },
+    {
+      "type": "skill",
+      "name": "bass-custom-area",
+      "paths": null,
+      "exemplar": "src/modules/JobManagement/CreateJob/AssetData/AccessoryArea/AccessoryArea.tsx",
+      "depth_signal": "full"
+    },
+    {
+      "type": "skill",
+      "name": "bass-diagnostics-material",
+      "paths": null,
+      "exemplar": "src/modules/JobManagement/JobOverview/SparePartsRow/SparePartsRow.tsx",
+      "depth_signal": "full"
+    }
+  ],
+  "adaptive_depth": {
+    "react-ts": "medium"
+  }
+}

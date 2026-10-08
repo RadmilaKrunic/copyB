@@ -17,11 +17,12 @@ Senior frontend engineer for BASS-Next React SPA. Follow `.github/copilot-instru
 
 ## Diagnostics & Claims (load `bass-diagnostics` / `bass-claims`)
 
-- Backend owns prices: field changes -> `onRecalculatePrices` -> `/v1/diagnostic/prices/recalculate`; validate -> `/v2/jobs/flow/validate-and-save` (job) or `PUT /v1/claims/{id}/prices` (claim).
+- Backend owns prices: price/position/type/part-number fields -> `onRecalculatePrices` (needs saved `materialId`) -> `/v1/diagnostic/prices/recalculate`; validate -> `/v2/jobs/flow/validate-and-save` (job) or `PUT /v1/claims/{id}/prices` (claim).
 - Keep sequences: position = rules first, price action after; spare part number = commit (select/blur) -> not-belongs check -> skip if same part -> price action once.
 - Compare part numbers with `isSamePartNumber` / `normalizePartNumber`.
 - New repeated-row prefix -> add to `MANAGED_ROW_KEY_PREFIXES`.
-- Read `discountBase` from context; never hardcode mode. Math only via `priceCalculator` helpers.
+- Normalize recalc/validate responses with `extractDiagnosticFromValidateResponse` before writing `["diagnostic", jobId]`.
+- Read `discountBase` from context; never hardcode mode. Client math (preview/tests only) via `priceCalculator` helpers.
 
 ## Verify
 
