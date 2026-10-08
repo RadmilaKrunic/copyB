@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash \"C:/Users/RNR9FE/.claude/plugins/cache/claudboard/claudboard/4.0.0-beta.14/skills/claudboard-workflow/scripts/detect.sh\" \"C:/Projects/Bass/bassnext.web\")",
+      "Bash(git *)",
+      "Bash(bash \"C:\\\\Users\\\\RNR9FE\\\\.claude\\\\plugins\\\\cache\\\\claudboard\\\\claudboard\\\\4.0.0-beta.14\\\\skills\\\\claudboard-workflow\\\\scripts\\\\detect.sh\" \"C:\\\\Projects\\\\Bass\\\\bassnext.web\")",
+      "Bash(cp 'C:\\\\Users\\\\RNR9FE\\\\.claude\\\\plugins\\\\cache\\\\claudboard\\\\claudboard\\\\4.0.0-beta.14\\\\skills\\\\claudboard-workflow\\\\references\\\\feature-workflow.template/scripts/lib.sh' .claude/skills/feature-workflow/scripts/)",
+      "Bash(cp 'C:\\\\Users\\\\RNR9FE\\\\.claude\\\\plugins\\\\cache\\\\claudboard\\\\claudboard\\\\4.0.0-beta.14\\\\skills\\\\claudboard-workflow\\\\references\\\\feature-workflow.template/scripts/prepare-commit.sh' .claude/skills/feature-workflow/scripts/)",
+      "Bash(cp 'C:\\\\Users\\\\RNR9FE\\\\.claude\\\\plugins\\\\cache\\\\claudboard\\\\claudboard\\\\4.0.0-beta.14\\\\skills\\\\claudboard-workflow\\\\references\\\\feature-workflow.template/scripts/prepare-pr.sh' .claude/skills/feature-workflow/scripts/)",
+      "Bash(cp 'C:\\\\Users\\\\RNR9FE\\\\.claude\\\\plugins\\\\cache\\\\claudboard\\\\claudboard\\\\4.0.0-beta.14\\\\skills\\\\claudboard-workflow\\\\references\\\\feature-workflow.template/scripts/prepare-squash.sh' .claude/skills/feature-workflow/scripts/)",
+      "Bash(cp 'C:\\\\Users\\\\RNR9FE\\\\.claude\\\\plugins\\\\cache\\\\claudboard\\\\claudboard\\\\4.0.0-beta.14\\\\skills\\\\claudboard-workflow\\\\references\\\\feature-workflow.template/scripts/compute-cost.sh' .claude/skills/feature-workflow/scripts/)",
+      "Bash(npm run *)",
+      "Bash(npx tsc *)",
+      "Bash(date +%s)",
+      "Bash(date -u +%Y-%m-%dT%H:%M:%SZ)",
+      "Bash(echo WORKFLOW_START=__CMDSUB_OUTPUT__)",
+      "Bash(echo PHASE_1_START=__TRACKED_VAR__)",
+      "Bash(xargs grep -l \"Reimbursement\")",
+      "Bash(awk -F'|' '{print $1, $2}')",
+      "Bash(sort -t'|' -k2 -n)",
+      "Bash(npm test *)"
+    ]
+  }
+}
