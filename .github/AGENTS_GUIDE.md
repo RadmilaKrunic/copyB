@@ -1,48 +1,53 @@
 # BASS-Next AI Agents Guide
 
-Purpose: fast agent selection with minimal tokens.
+Fast agent selection, minimal tokens. Works for GitHub Copilot custom agents (`.github/agents/*.agent.md`) and Claude Code (same files are readable as subagent briefs).
+
+## Switchboard
+
+`.github/ai-workflow.yml` controls: base branch, checks, reports on/off, Jira / Confluence / Azure DevOps / SonarQube on/off. Agents read it once per task. Every integration is optional; agents fall back to user input + git.
 
 ## Agent Matrix
 
-| Agent                   | Primary Use                            | Key Tools                                       |
-| ----------------------- | -------------------------------------- | ----------------------------------------------- |
-| BASS-Next Orchestrator  | ticket-driven workflow coordination    | execute, agent, todo, jira/\*                   |
-| BASS-Next Developer     | feature/fix implementation             | read, edit, search, execute, todo               |
-| BASS-Next Planner       | implementation planning                | read, search, todo                              |
-| BASS-Next Reviewer      | compliance/code review                 | read, search, todo                              |
-| BASS-Next Tester        | test strategy and execution            | read, execute, todo                             |
-| BASS-Next SonarQube     | Sonar issue triage and fixes           | read, edit, search, execute, todo, sonarqube/\* |
-| BASS-Next Diagnostics   | diagnostics pricing/material workflows | read, search, execute, todo                     |
-| BASS-Next Validator     | data/form validation workflows         | read, search, execute, todo                     |
-| BASS-Next Reporter      | report/export generation               | read, search, execute, todo                     |
-| BASS-Next Data Audit    | consistency/integrity audits           | read, search, execute, todo                     |
-| BASS-Next Release Notes | release docs/changelog summaries       | read, search, execute, todo                     |
+| Agent                             | Use for                                               | Writes code | Integrations used (optional)   |
+| --------------------------------- | ----------------------------------------------------- | ----------- | ------------------------------ |
+| BASS-Next Orchestrator            | ticket -> branch -> plan -> implement -> verify       | no          | Jira or Azure DevOps           |
+| BASS-Next Requirements            | turn request/ticket into testable requirements        | no          | Jira or Azure DevOps (read)    |
+| BASS-Next Planner                 | file-level plan, risks, skills to load                | no          | —                              |
+| BASS-Next Developer               | features & fixes                                      | yes         | —                              |
+| BASS-Next Debugger                | root cause + minimal confirmed patch                  | minimal     | tracker (read)                 |
+| BASS-Next Reviewer                | strict diff review (BLOCK/WARN/INFO)                  | no          | —                              |
+| BASS-Next Tester                  | Vitest tests                                          | tests only  | —                              |
+| BASS-Next Diagnostics             | diagnostics & claim pricing/material audit            | no          | —                              |
+| BASS-Next Validator               | UIConfiguration / data / rules validation             | no          | —                              |
+| BASS-Next Data Audit              | integrity, orphans, duplicates, status checks         | no          | —                              |
+| BASS-Next Reporter                | business data reports (jobs, pricing, claims)         | no          | —                              |
+| BASS-Next SonarQube               | Sonar triage + minimal fixes                          | yes         | SonarQube                      |
+| BASS-Next Release Notes Publisher | release notes (canonical)                             | no          | Jira/ADO + Confluence/ADO wiki |
+| BASS-Next Release Notes           | wrapper -> Publisher                                  | no          | —                              |
+| BASS Changelog                    | changelog since ref                                   | no          | tracker + docs                 |
+| BASS Sprint Monitor               | sprint health table                                   | no          | Jira or Azure DevOps           |
+| BASS Triage                       | propose type/priority/estimate                        | no          | Jira or Azure DevOps           |
+| BASS Comment Cleanup              | delete agent comments by marker                       | no          | Jira or Azure DevOps           |
 
-## Selection Rules
+## Routing
 
-1. Use Orchestrator for Jira-first flow and approval gates.
-2. Use Developer for code changes.
-3. Use Planner before large multi-file work.
-4. Use Reviewer for review-only requests.
-5. Use Tester when user asks tests/coverage/quality checks.
-6. Use SonarQube for rule-based static analysis issues.
-7. Use Diagnostics for job-overview pricing and materials.
-8. Use Validator for mandatory fields/dependencies/schema checks.
-9. Use Reporter for summaries and exports.
-10. Use Data Audit for anomaly/orphan/duplicate checks.
+1. Ticket key or "do ticket X" -> Orchestrator.
+2. Vague request -> Requirements -> Planner.
+3. Bug with symptom -> Debugger; bigger fix -> Developer.
+4. Small clear change -> Developer directly (skip Planner).
+5. "Review" -> Reviewer. "Tests/coverage" -> Tester.
+6. Pricing / spare parts / claims numbers -> Diagnostics first.
+7. Sonar rule ids -> SonarQube.
+
+## Token Savers
+
+- Skip Planner for 1-2 file changes. Skip Requirements when AC are clear.
+- Delegate with self-contained prompts (ticket, AC, plan step, skill names); do not forward whole transcripts.
+- Load one matching skill; read big files by symbol.
+- Reports off by default (`reporting.enabled: false`).
 
 ## Shared Constraints
 
-- Follow .github/copilot-instructions.md.
-- Follow matching .github/skills/\*/SKILL.md before domain edits.
-- Keep edits minimal and pattern-consistent.
-- Use npm run commit (never git commit directly).
-
-## Key Skills
-
-- .github/skills/bass-diagnostics/SKILL.md
-- .github/skills/bass-country-config/SKILL.md
-- .github/skills/bass-form-validation/SKILL.md
-- .github/skills/bass-uiconfig-system/SKILL.md
-- .github/skills/bass-multiple-sections/SKILL.md
-- .github/skills/bass-api-domain/SKILL.md
+- Follow `.github/copilot-instructions.md` + matching `.github/skills/*/SKILL.md`.
+- External writes (comments, publish, field updates, Sonar resolve) only after explicit user confirmation.
+- Commits via `npm run commit`; never push unless asked.

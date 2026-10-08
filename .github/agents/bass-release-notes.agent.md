@@ -1,6 +1,9 @@
-Compatibility wrapper. Canonical release workflow lives in `.github/agents/conf-release.agent.md`.
+---
+description: "Compatibility wrapper: forwards to BASS-Next Release Notes Publisher (conf-release.agent.md)."
+name: "BASS-Next Release Notes"
+tools: [agent]
+agents: ["BASS-Next Release Notes Publisher"]
+argument-hint: "version, e.g. v2.5.0"
+---
 
-## Redirect Rules
-
-1. Collect required input: version string, optional Confluence space key, optional parent page ID.
-2. Forward data parameters and execute the canonical flow inside `conf-release.agent.md`.
+Wrapper only. Collect version (+ optional space key / parent page id) and forward to `BASS-Next Release Notes Publisher`. Do not duplicate its logic.

@@ -1,0 +1,47 @@
+# BASS-Next AI workflow switchboard.
+# Read by every agent (Copilot, Claude Code) before any workflow step.
+# One file controls reports and integrations. Change values here, not in agent files.
+
+project:
+  ticketPrefix: PTBASS # commit + branch key, e.g. PTBASS-1234
+  baseBranch: master # ticket branches start here; never infer from origin/HEAD
+  branchPattern: "{type}/{ticket}-{slug}" # e.g. fix/PTBASS-1234-claim-row-prices
+  commit: npm run commit # Commitizen; direct git commit fails hooks
+
+checks: # fast local checks, run in this order, stop on first failure
+  - npm run typecheck
+  - npm run lint
+  - npm run test -- --run {changedTestFiles}
+
+reporting:
+  enabled: false # true = write a task report after each finished task
+  level: minimal # minimal | standard (standard adds time estimates)
+  dir: performance-reports
+  fileName: "report-{ticket}.md" # one file per ticket, sessions appended
+  # Skill: .github/skills/bass-reporting/SKILL.md
+
+integrations:
+  # Each integration is optional. enabled: false or MCP server missing -> agent skips it
+  # and works from user input + git only. Never fail a task because an integration is off.
+  tracker: auto # auto | jira | azureDevOps | none ; auto = first enabled + reachable
+  jira:
+    enabled: true
+    mcpServer: jira # tool prefix, e.g. jira/* or mcp-jira-confluence
+    projectKey: PTBASS
+  confluence:
+    enabled: true
+    mcpServer: confluence
+    spaceKey: BASS
+    parentPageId: "" # optional default for release notes / changelog
+  azureDevOps:
+    enabled: false
+    mcpServer: azure-devops # tool prefix, e.g. azure-devops/*
+    organization: ""
+    project: BASSNext
+    wiki: "" # optional; used instead of Confluence when confluence.enabled is false
+  sonarqube:
+    enabled: true
+    mcpServer: sonarqube
+    server: https://sonarqube.dev.bosch.com
+    projectKey: com.bosch.pt.bass.web
+  # Skill: .github/skills/bass-integrations/SKILL.md

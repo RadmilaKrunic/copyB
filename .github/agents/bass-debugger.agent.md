@@ -22,7 +22,7 @@ the issue when possible; otherwise, establish it through code-path analysis.
 1. **Understand the symptom**
    - Identify what is expected versus what actually happens.
    - Extract relevant error messages, stack traces, affected user flow, and reproduction steps when provided.
-   - If the user provides a PTBASS ticket, inspect the available ticket context before investigating code.
+   - If the user provides a ticket key, read it via the tracker in `.github/ai-workflow.yml` when available (see `bass-integrations`); otherwise use the description the user gave.
 
 2. **Locate the affected component**
    - Use `search` / `grep_search` to locate error strings, components, hooks, API calls, state, and domain symbols involved in the bug.
@@ -57,7 +57,9 @@ the issue when possible; otherwise, establish it through code-path analysis.
 - Check React Query cache keys when stale or incorrect server data is suspected.
 - Check Formik field names and `fieldMapping` when form values are missing, misplaced, or unexpectedly reset.
 - Check [`bass-uiconfig-system`](../skills/bass-uiconfig-system/SKILL.md) when the bug involves UI configuration or field mappings.
-- For diagnostics/pricing bugs, load [`bass-diagnostics`](../skills/bass-diagnostics/SKILL.md) and [`bass-country-config`](../skills/bass-country-config/SKILL.md) before concluding that the problem is arithmetic or pricing logic.
+- For diagnostics/pricing bugs, load [`bass-diagnostics`](../skills/bass-diagnostics/SKILL.md) and [`bass-country-config`](../skills/bass-country-config/SKILL.md) before concluding that the problem is arithmetic or pricing logic. Prices are backend-driven: check the recalculate / validate request (`changes`) and response sync before blaming `priceCalculator.ts`.
+- For ClaimOverview bugs, load [`bass-claims`](../skills/bass-claims/SKILL.md). Rows reset to zero prices -> check `MANAGED_ROW_KEY_PREFIXES` and effect ordering between the two managers.
+- For autocomplete / spare part number bugs, trace the commit sequence (select or blur -> not-belongs check -> unchanged-part skip -> field action) in `GenericField.tsx` and `AutoComplete.tsx`.
 - Distinguish stale-cache issues from actual business-logic bugs before concluding.
 - Prefer existing BASS-Next abstractions over assuming a new implementation is required.
 - When a bug appears after an entity, route, or selection changes, trace state reset and stale-state behavior.

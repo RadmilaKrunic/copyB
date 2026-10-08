@@ -1,25 +1,20 @@
-# BASS-Next Agents Documentation
+# BASS-Next AI Setup
 
-This folder contains agent definitions and supporting guidance.
+| File / folder                | Purpose                                                                     |
+| ---------------------------- | --------------------------------------------------------------------------- |
+| `ai-workflow.yml`            | Switchboard: base branch, checks, reports on/off, integrations on/off       |
+| `copilot-instructions.md`    | Always-loaded rules (short). Shared by Copilot and Claude Code              |
+| `AGENTS_GUIDE.md`            | Which agent for which task                                                   |
+| `agents/*.agent.md`          | Agent definitions                                                           |
+| `skills/*/SKILL.md`          | Domain rules, loaded on demand                                              |
 
-## Primary Documents
+## Common Switches
 
-- AGENTS_GUIDE.md: agent selection matrix and shared constraints
-- NEW_AGENTS_QUICK_START.md: rapid routing guide
-- IMPLEMENTATION_SUMMARY.md: concise history and outcomes
+- Turn task reports on: `reporting.enabled: true`.
+- Work without Jira/Confluence: set `integrations.jira.enabled` / `confluence.enabled` to `false` (or just don't connect the MCP server).
+- Use Azure DevOps: `integrations.azureDevOps.enabled: true`, fill `organization`/`project`, optionally `tracker: azureDevOps`.
 
-## Agent Definitions
+## Keeping Docs Current
 
-See .github/agents/ for all agent files.
-
-## Skills
-
-See .github/skills/ for domain-specific constraints and hazards.
-
-## Working Rule
-
-Always prioritize:
-
-1. .github/copilot-instructions.md
-2. matching skill file
-3. minimal, pattern-consistent edits
+- Change code that a skill describes -> update that skill in the same PR.
+- Skills state current behavior only; history goes in commit messages.
