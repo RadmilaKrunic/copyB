@@ -43,6 +43,7 @@ import {
   getSummaryDetailedRowValues,
   buildSummaryDetailedRowValues,
   getSummaryTotalRowValues,
+  keepLocallyResetStatuses,
   syncMaterialStatusesFromAPI,
   useDiagnosticsManager,
   type MaterialItem,
@@ -2532,6 +2533,33 @@ describe("syncMaterialStatusesFromAPI", () => {
 
     expect(syncMaterialStatusesFromAPI(materials, [{ id: "m1", status: "APPROVED" }])).toBe(
       materials,
+    );
+  });
+});
+
+describe("keepLocallyResetStatuses", () => {
+  const rowArea = (i: number) =>
+    makeArea(`diagnosticData_diagnosticsSpareParts#${i}`, [
+      makeField(`row${i}_status`, "diagnosticMaterialStatus"),
+    ]);
+  const material = (status: string, statusResetLocally?: boolean) =>
+    ({ status, statusResetLocally }) as MaterialItem;
+
+  it("keeps PENDING on a locally reset row when server data says REVISED", () => {
+    const result = keepLocallyResetStatuses(
+      { row0_status: "REVISED", row1_status: "REVISED" },
+      [material("PENDING", true), material("REVISED")],
+      [rowArea(0), rowArea(1)],
+    );
+
+    expect(result).toEqual({ row0_status: "PENDING", row1_status: "REVISED" });
+  });
+
+  it("leaves APPROVED and untouched rows as they are", () => {
+    const values = { row0_status: "APPROVED" };
+
+    expect(keepLocallyResetStatuses(values, [material("PENDING", true)], [rowArea(0)])).toBe(
+      values,
     );
   });
 });

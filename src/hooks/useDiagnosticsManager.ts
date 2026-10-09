@@ -47,6 +47,8 @@ export interface MaterialItem {
   totalAmount: number;
   suggestedNetPrice?: number;
   status?: string;
+  /** True once the user edited a REVISED/REJECTED row, so it shows PENDING until saved. */
+  statusResetLocally?: boolean;
   materialId?: string;
   origin?: "specialMaterial" | "explosionDrawing";
   isValidated?: boolean;
@@ -579,6 +581,30 @@ export function syncMaterialStatusesFromAPI(
 }
 
 /**
+ * Keeps PENDING on rows the user reset from REVISED/REJECTED when server data (syncData
+ * after recalculate, or the jobFullData resync) would write REVISED/REJECTED back onto
+ * the form. `areas` are the spare-part areas in row order, matching `materials`.
+ * Returns `values` unchanged when no row needs it.
+ */
+export function keepLocallyResetStatuses(
+  values: Record<string, unknown>,
+  materials: MaterialItem[],
+  areas: Area[],
+): Record<string, unknown> {
+  let result = values;
+  areas.forEach((area, index) => {
+    if (!materials[index]?.statusResetLocally) return;
+    const statusField = area.fields.find((f) => f.subtype === "diagnosticMaterialStatus");
+    if (!statusField) return;
+    const value = values[statusField.name];
+    if (typeof value !== "string" || !RESETTABLE_MATERIAL_STATUSES.has(value)) return;
+    if (result === values) result = { ...values };
+    result[statusField.name] = "PENDING";
+  });
+  return result;
+}
+
+/**
  * Returns the shifted key after deleting row `deletedIndex`.
  * Returns null  → key belonged to the deleted row (drop it).
  * Returns same  → key index < deletedIndex (keep as-is).
@@ -687,6 +713,8 @@ export interface UseDiagnosticsManagerReturn {
   enableValidate: () => boolean;
   // resyncMaterialsFromAPI: (markValidated?: boolean) => void;
   setRevisedRejectedRowPending: (areaName: string) => void;
+  /** Re-applies PENDING on locally reset rows in values about to be written to the form. */
+  applyLocalStatusResets: (values: Record<string, unknown>) => Record<string, unknown>;
   canArchiveOnDelete: boolean;
 }
 
@@ -1752,7 +1780,9 @@ export const useDiagnosticsManager = ({
 
   const markAllValidated = useCallback(() => {
     setArePricesValidated(true);
-    setMaterials((prev) => prev.map((m) => ({ ...m, isValidated: true })));
+    setMaterials((prev) =>
+      prev.map((m) => ({ ...m, isValidated: true, statusResetLocally: false })),
+    );
 
     pendingArchivedDeletionsRef.current = 0;
   }, [setArePricesValidated]);
@@ -1790,10 +1820,24 @@ export const useDiagnosticsManager = ({
       setMaterials((prev) => {
         const item = prev[positionalIndex];
         if (!item?.status || !RESETTABLE_MATERIAL_STATUSES.has(item.status)) return prev;
-        return prev.map((m, i) => (i === positionalIndex ? { ...m, status: "PENDING" } : m));
+        return prev.map((m, i) =>
+          i === positionalIndex ? { ...m, status: "PENDING", statusResetLocally: true } : m,
+        );
       });
     },
     [getAreaPositionalIndex],
+  );
+
+  const applyLocalStatusResets = useCallback(
+    (values: Record<string, unknown>): Record<string, unknown> => {
+      const diagnosticTab = tabsRef.current.find((t) => t.name === "diagnosticData");
+      if (!diagnosticTab) return values;
+      const sparePartsAreas = diagnosticTab.areas.filter(
+        (a) => a.isMultiple && a.name.includes("diagnosticsSpareParts"),
+      );
+      return keepLocallyResetStatuses(values, materialsRef.current, sparePartsAreas);
+    },
+    [],
   );
 
   const getExistingPartNumbers = useCallback((formValues: Record<string, unknown>): Set<string> => {
@@ -1844,6 +1888,7 @@ export const useDiagnosticsManager = ({
     markRowDirty,
     enableValidate,
     setRevisedRejectedRowPending,
+    applyLocalStatusResets,
     canArchiveOnDelete: !STATUSES_WITH_PERMANENT_DELETE.includes(jobStatus),
   };
 };

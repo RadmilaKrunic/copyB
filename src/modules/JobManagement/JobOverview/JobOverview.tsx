@@ -951,6 +951,7 @@ export default function JobOverview() {
     markRowDirty,
     enableValidate: managerEnableValidate,
     setRevisedRejectedRowPending,
+    applyLocalStatusResets,
     canArchiveOnDelete,
     discountBase,
     automaticRows,
@@ -2130,10 +2131,9 @@ export default function JobOverview() {
 
   const syncData = useCallback(
     (jobFullData: JobOverviewItem, allFields?: Field[]) => {
-      const dataMapped = convertAPIDataToFormValues(
-        jobFullData,
-        allFields || [],
-        formValuesRef.current,
+      // Server data still carries REVISED/REJECTED for rows the user has edited; keep PENDING.
+      const dataMapped = applyLocalStatusResets(
+        convertAPIDataToFormValues(jobFullData, allFields || [], formValuesRef.current),
       );
       dataMapped.discountBase = discountBase;
       buildFaultCodeDropdowns(dataMapped);
@@ -2142,7 +2142,7 @@ export default function JobOverview() {
         ...dataMapped,
       }));
     },
-    [discountBase, setInitialFormValues, buildFaultCodeDropdowns],
+    [discountBase, setInitialFormValues, buildFaultCodeDropdowns, applyLocalStatusResets],
   );
 
   useEffect(() => {

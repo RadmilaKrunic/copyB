@@ -318,6 +318,7 @@ vi.mock("hooks/useDiagnosticsManager", () => ({
       getExistingPartNumbers: getExistingPartNumbersMock,
       enableValidate: managerEnableValidateMock,
       setRevisedRejectedRowPending: vi.fn(),
+      applyLocalStatusResets: (values: AnyRecord) => values,
       apiMaterialsLoaded: false,
       apiMaterialsEmpty: true,
       hasExistingDiagnostic: hasExistingDiagnosticMock.value,
