@@ -9,7 +9,7 @@ Diagnostics pricing & materials specialist. Load `bass-diagnostics` (+ `bass-cla
 ## Checklist
 
 - Mode: `discountBase` from `useDiagnosticsContext()` / `useClaimContext()`. Missing in config -> managers use `NET_PRICE`.
-- Authoritative prices: recalculate / validate API response. Client math (`priceCalculator.ts`) only for display; compare against `references/price-calculation.md`.
+- Authoritative prices: recalculate / validate API response. No client price calculator; check server values against `references/price-calculation.md`.
 - Position change: rule guard (`maxCount`) -> quantity (`quantitySource`) -> LA/FR autofill -> price action.
 - Spare part number: commit -> not-belongs check -> unchanged part skip -> price action once. Cleared value = no action.
 - Summary edits: chargeable only, scope `SP/PN/AC` + `CHARGEABLE`; status + permission gates (`D_TE`, `D_AE`).

@@ -20,20 +20,6 @@ vi.mock("hooks/useDiagnosticsManager", () => ({
   getPendingInfo: vi.fn(() => ({ hasChargeablePending: true })),
 }));
 
-vi.mock("utils/priceCalculator", () => ({
-  aggregateRowPrices: vi.fn(() => ({
-    suggestedNetPrice: 10,
-    netAmount: 8,
-    grossAmount: 12,
-    totalAmount: 11,
-    discount: 1,
-    taxAmount: 2,
-    discountAmount: 1,
-  })),
-  DISTRIBUTABLE_POSITIONS: new Set(["SP", "PN", "AC"]),
-  SUMMARY_TYPE_FILTER: { totalSummary: () => true, chargeable: () => true },
-}));
-
 const renderedFields: Array<Record<string, unknown>> = [];
 
 vi.mock("components/generics/Field/GenericField", () => ({

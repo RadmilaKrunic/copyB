@@ -1280,7 +1280,7 @@ describe("GenericField", () => {
       expect(sparePartNotBelongsToTool.current["row0_sparePartNumber"]).toBe(false);
     });
 
-    it("stops before recalculating prices when the part does not belong to the tool", async () => {
+    it("recalculates prices before flagging a part not belonging to the tool", async () => {
       const user = userEvent.setup();
       const onRecalculatePrices = vi.fn();
       vi.mocked(getSparePartCompatibilityMessage).mockImplementation(
@@ -1294,9 +1294,14 @@ describe("GenericField", () => {
 
       await user.click(screen.getByTestId("autocomplete-select-not-belongs-row0_sparePartNumber"));
 
-      await waitFor(() => expect(handleAutoCompleteSelect).toHaveBeenCalled());
-      await new Promise((resolve) => setTimeout(resolve, 10));
-      expect(onRecalculatePrices).not.toHaveBeenCalled();
+      await waitFor(() => expect(onRecalculatePrices).toHaveBeenCalledTimes(1));
+      const recalcOrder = onRecalculatePrices.mock.invocationCallOrder[0];
+      const checkOrders = vi.mocked(getSparePartCompatibilityMessage).mock.invocationCallOrder;
+      expect(Math.max(...checkOrders)).toBeGreaterThan(recalcOrder);
+      const incompatible = "autocomplete-incompatible-row0_sparePartNumber";
+      await waitFor(() =>
+        expect(screen.getByTestId(incompatible)).toHaveTextContent("incompatibleWarrantyType"),
+      );
       vi.mocked(getSparePartCompatibilityMessage).mockImplementation(() => "");
     });
   });

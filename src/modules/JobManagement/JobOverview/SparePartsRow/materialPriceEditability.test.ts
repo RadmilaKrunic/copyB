@@ -65,7 +65,7 @@ describe("getPriceFieldEditability", () => {
 
     // The key rule this module exists to make explicit and testable: CHARGEABLE material
     // rows are NOT row-editable, regardless of mode — the summary panel owns the discount
-    // for these and propagates it down via distributeGrossToRows/distributeNetToRows.
+    // for these and propagates it down via the backend recalculation.
     it.each(["PN", "SP", "AC"])(
       "CHARGEABLE on %s: nothing row-editable in GROSS_PRICE (summary-controlled instead)",
       (position) => {

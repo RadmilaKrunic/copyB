@@ -22,7 +22,7 @@ Senior frontend engineer for BASS-Next React SPA. Follow `.github/copilot-instru
 - Compare part numbers with `isSamePartNumber` / `normalizePartNumber`.
 - New repeated-row prefix -> add to `MANAGED_ROW_KEY_PREFIXES`.
 - Normalize recalc/validate responses with `extractDiagnosticFromValidateResponse` before writing `["diagnostic", jobId]`.
-- Read `discountBase` from context; never hardcode mode. Client math (preview/tests only) via `priceCalculator` helpers.
+- Read `discountBase` from context; never hardcode mode. No client price math; prices come from the backend.
 
 ## Verify
 

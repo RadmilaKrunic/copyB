@@ -21,7 +21,7 @@
         "api_hooks": "src/api/services/jobs/hooks.ts",
         "api_types": "src/api/services/jobs/jobs.types.ts",
         "custom_hook": "src/hooks/useDiagnosticsManager.ts",
-        "util_function": "src/utils/priceCalculator.ts",
+        "util_function": "src/utils/dateFormatter.ts",
         "test_component": "src/api/services/jobs/hooks.test.ts"
       }
     }
@@ -75,18 +75,17 @@
         "src/hooks/**"
       ]
     },
-    "price_calculator": {
-      "exemplar_path": "src/utils/priceCalculator.ts",
+    "pricing": {
+      "exemplar_path": "src/hooks/useDiagnosticsManager.ts",
       "frequency": 1,
       "variations": [],
       "applicable_paths": [
-        "src/utils/priceCalculator.ts",
         "src/hooks/useDiagnosticsManager.ts",
         "src/hooks/useClaimMaterialsManager.ts",
         "src/modules/JobManagement/JobOverview/**",
         "src/modules/ClaimManagement/ClaimOverview/**"
       ],
-      "note": "backend-authoritative pricing: onRecalculatePrices -> /v1/diagnostic/prices/recalculate, validate -> /v2/jobs/flow/validate-and-save; priceCalculator is display/test math only"
+      "note": "backend-authoritative pricing: onRecalculatePrices -> /v1/diagnostic/prices/recalculate, validate -> /v2/jobs/flow/validate-and-save; no client price calculator (utils/priceCalculator.ts removed)"
     }
   },
   "proposed_artifacts": [
@@ -130,15 +129,14 @@
     },
     {
       "type": "rule",
-      "name": "price-calculator",
+      "name": "pricing",
       "paths": [
-        "src/utils/priceCalculator.ts",
         "src/hooks/useDiagnosticsManager.ts",
         "src/hooks/useClaimMaterialsManager.ts",
         "src/modules/JobManagement/JobOverview/**",
         "src/modules/ClaimManagement/ClaimOverview/**"
       ],
-      "exemplar": "src/utils/priceCalculator.ts",
+      "exemplar": "src/hooks/useDiagnosticsManager.ts",
       "depth_signal": "medium"
     },
     {

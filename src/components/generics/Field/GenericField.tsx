@@ -632,9 +632,10 @@ function renderAutocompleteField(ctx: FieldRenderCtx): ReactElement {
 
   /**
    * Spare part number sequence, run once a part is resolved (picked from the list, or the
-   * match on blur): fill the row from the part, stop on a not-belongs-to-tool error, and
-   * otherwise run the field's configured price action (recalculate prices), unless the part
-   * is the one the row already had (re-entered, or typed with "." or spaces).
+   * match on blur): fill the row from the part, run the field's configured price action
+   * (recalculate prices, which records the change), unless the part is the one the row
+   * already had (re-entered, or typed with "." or spaces), and only then run the warranty /
+   * belongs-to-tool check and show its error.
    */
   const commitSparePart = async (option: BareToolOption, isUnchanged: boolean) => {
     if (sparePartNotBelongsToTool) {
@@ -642,6 +643,12 @@ function renderAutocompleteField(ctx: FieldRenderCtx): ReactElement {
     }
     await handleAutoCompleteSelect(option, field, setFieldValue, allFields);
     await validateForm();
+    if (!isUnchanged) {
+      await waitForFormCommit();
+      const partNumber = option?.partNumber ?? "";
+      invokeFieldAction(actionCallbacks, "onValueChange", field.onValueChange, name, partNumber);
+      invokeFieldAction(actionCallbacks, "onBlur", field.onBlur, name, partNumber);
+    }
     const notBelongsToToolError = getSparePartCompatibilityMessage(
       field,
       name,
@@ -651,13 +658,7 @@ function renderAutocompleteField(ctx: FieldRenderCtx): ReactElement {
     );
     if (notBelongsToToolError) {
       void formikContext.setFieldTouched(name, true, false);
-      return;
     }
-    if (isUnchanged) return;
-    await waitForFormCommit();
-    const partNumber = option?.partNumber ?? "";
-    invokeFieldAction(actionCallbacks, "onValueChange", field.onValueChange, name, partNumber);
-    invokeFieldAction(actionCallbacks, "onBlur", field.onBlur, name, partNumber);
   };
 
   return (

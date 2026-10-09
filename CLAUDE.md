@@ -16,7 +16,7 @@ Claude Code entry point for BASS-Next Web. Shared rules live in one place so Cop
 | `react-conventions.md`      | `src/components/**/*.tsx`, `src/modules/**/*.tsx`                         |
 | `api-domain-pattern.md`     | `src/api/services/**`                                                     |
 | `metadata-driven-forms.md`  | `src/components/generics/**`                                              |
-| `price-calculator.md`       | `priceCalculator.ts`, both materials managers, JobOverview, ClaimOverview |
+| `pricing.md`                | Both materials managers, JobOverview, ClaimOverview                       |
 | `testing.md`                | `src/**/*.test.ts(x)`                                                     |
 
 - Claude skills: `.claude/skills/`
