@@ -19,7 +19,7 @@ Example:
 import { useFormikContext } from "formik";
 import { TextField } from "@bosch/react-frok";
 import Field from "components/generics/Field/GenericField.types";
-import styles from "./GenericField.module.scss";
+import "./GenericField.scss";
 
 interface Props {
   field: Field;
@@ -30,7 +30,7 @@ const GenericField = ({ field, disabled = false }: Props) => {
   const { values, setFieldValue } = useFormikContext();
   
   return (
-    <div className={styles["generic-field"]}>
+    <div className="generic-field">
       <TextField name={field.name} disabled={disabled} />
     </div>
   );
@@ -71,7 +71,7 @@ Never pass `formik` instance as props — rely on context.
 
 ## Styling
 
-- **SCSS Modules** — one `.module.scss` per component
+- **Plain SCSS per component** — `Component.scss` imported as a side effect (`import "./Component.scss"`); no `.module.scss` files exist
 - **BEM-like naming** — `.generic-field`, `.field-label`, `.field-input`
 - **Global SCSS variables** auto-injected by Vite — `@use "@/styles/variables.scss" as *;`
 - **Bosch FROK components** for UI primitives — `Button`, `TextField`, `Dropdown`, `Icon`
@@ -91,7 +91,7 @@ Example:
 
 ## Error Boundaries
 
-**Wrap every route** in `<ErrorBoundaryWrapper>` — see `Routes.tsx`:
+**Wrap every route** in `<ErrorBoundaryWrapper>` (local wrapper in `Routes.tsx` around `react-error-boundary`'s `ErrorBoundary`, keyed by pathname):
 
 ```typescript
 <Route
@@ -115,5 +115,5 @@ Example:
 
 - **Vitest + React Testing Library**
 - **Test files colocated** — `Component.test.tsx` alongside `Component.tsx`
-- **MSW 2 for API mocking** — mock at network layer, not React Query
+- **API mocking** — `vi.mock` on `action.ts` / `axiosClient`; never mock React Query
 - **`@testing-library/jest-dom` matchers** imported in `setupTests.ts`

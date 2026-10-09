@@ -11,7 +11,7 @@ paths:
 - **Vitest** with **React Testing Library**
 - **Globals enabled** — `vitest/globals` in `tsconfig.json`, no need to import `describe`, `it`, `expect`
 - **Setup file**: `src/setupTests.ts` — imports `@testing-library/jest-dom` matchers
-- **MSW 2** available for API mocking (mock at network layer, not React Query)
+- Mock API with `vi.mock` on `action.ts` / `axiosClient` (house pattern); MSW 2 installed but unused
 
 ## Test File Location
 
@@ -110,22 +110,7 @@ import axiosClient from "api/axios-client/axiosClient";
 vi.mocked(axiosClient.get).mockResolvedValue({ data: { jobs: [] } });
 ```
 
-**MSW 2 for network mocking** (when testing components that use hooks):
-
-```typescript
-import { setupServer } from "msw/node";
-import { http, HttpResponse } from "msw";
-
-const server = setupServer(
-  http.get("/v1/jobs", () => {
-    return HttpResponse.json({ jobs: [] });
-  }),
-);
-
-beforeAll(() => server.listen());
-afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
-```
+**MSW 2** is installed but no test uses it today (0 imports). House pattern: `vi.mock("api/services/<domain>/action")` or `vi.mock("api/axios-client/axiosClient")` (~180 files). Use MSW only if a test genuinely needs network-level behavior.
 
 ## Component Testing
 
@@ -169,7 +154,7 @@ describe("GenericField", () => {
 
 ## Testing Best Practices
 
-- **Mock at the right layer** — network (MSW) > action.ts (vi.mock) > hooks (avoid)
+- **Mock at the right layer** — action.ts / axiosClient (vi.mock) > hooks (avoid)
 - **Don't test implementation details** — test behavior, not internal state
 - **Use `waitFor` for async** — never manually `await new Promise`
 - **Disable React Query retry** — `{ queries: { retry: false } }` for faster tests
@@ -178,7 +163,7 @@ describe("GenericField", () => {
 
 ## Critical Rules
 
-- **NEVER mock React Query directly** — mock action.ts or use MSW
+- **NEVER mock React Query directly** — mock action.ts
 - **Always wrap hooks with QueryClientProvider** — use `makeWrapper()` pattern
 - **Use `vi.mocked()` for type-safe mock access** — `vi.mocked(fetchJobs).mockResolvedValue(...)`
 - **Clean up after tests** — `afterEach(() => vi.clearAllMocks())`

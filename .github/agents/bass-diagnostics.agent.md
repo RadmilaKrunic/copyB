@@ -1,28 +1,25 @@
-Diagnostics pricing has moved to backend. UI renders server-provided price values and must treat backend as source of truth.
+---
+description: "Diagnostics & claim pricing/material workflow auditor and fixer. Current code is source of truth."
+name: "BASS-Next Diagnostics"
+tools: [read, search, execute, todo]
+---
 
-## High-level Rules (must follow)
+Diagnostics pricing & materials specialist. Load `bass-diagnostics` (+ `bass-claims` for ClaimOverview, `bass-country-config` for rules) before any conclusion.
 
-- Do not perform authoritative price calculation in UI. Instead call backend endpoints and render returned values.
-- Use `usePostRecalculatePrices` (recalc on field blur where configured) and `usePostValidateAndSave` (on save/validate) from `api/services/jobs/hooks`.
-- Expect server response field `priceSummaryDetailed` (or `diagnostic` object containing `priceSummaryDetailed`). Use these values to populate UI and cache.
+## Checklist
 
-## Validation & Auditing Checklist
+- Mode: `discountBase` from `useDiagnosticsContext()` / `useClaimContext()`. Missing in config -> managers use `NET_PRICE`.
+- Authoritative prices: recalculate / validate API response. Client math (`priceCalculator.ts`) only for display; compare against `references/price-calculation.md`.
+- Position change: rule guard (`maxCount`) -> quantity (`quantitySource`) -> LA/FR autofill -> price action.
+- Spare part number: commit -> not-belongs check -> unchanged part skip -> price action once. Cleared value = no action.
+- Summary edits: chargeable only, scope `SP/PN/AC` + `CHARGEABLE`; status + permission gates (`D_TE`, `D_AE`).
+- Editability: protected `LA/FR/PC` editable only on `CHARGEABLE`; material rows summary-controlled.
+- Triggers: price fields + part number on blur, position + type on change, all `onRecalculatePrices`; rows without `materialId` wait for validate. Responses normalized by `extractDiagnosticFromValidateResponse`.
+- Tests: mock `postRecalculatePrices` / `postValidateAndSave`; assert calls, cache writes and rendered server values, not client math sequences.
+- Lifecycle: `arePricesValidated = false` on any price-affecting change; `isValidating` locks inputs.
+- Row reset bugs: check `MANAGED_ROW_KEY_PREFIXES` and `resolvePartNumberChangeAction`.
+- Stale row: `roundToTwo(qty*unitPrice) !== suggestedNetPrice`.
 
-- Verify UI triggers recalc onBlur for price-relevant fields (qty, unitPrice, discount) where metadata requires it.
-- On `validateAndSave` success, ensure UI writes backend result to React Query: `queryClient.setQueryData(["diagnostic", jobId], response.diagnostic || constructedDiagnostic)`.
-- Use `extractDiagnosticFromValidateResponse` (or equivalent) to normalize response to `JobDiagnostic` shape before cache write.
-- Use local `priceCalculator` helpers only for non-authoritative checks, stale-detection, or UX previews — never to override server values.
+## Output
 
-## Stale detection & fallbacks
-
-- If you need to detect stale backend prices, compare server `suggestedNetPrice` vs local `roundToTwo(qty * unitPrice)` and surface warning — do not auto-change server data.
-- Distribution helpers (`distributeGrossToRows` / `distributeNetToRows`) may be used to apply client-side UI-only distributions for preview, but persisted values must come from backend.
-
-## Tests & Mocks
-
-- Update tests to mock `postRecalculatePrices` and `postValidateAndSave` responses containing `priceSummaryDetailed` instead of asserting client math.
-- Avoid brittle assertions on numeric calculation sequence; assert cache updates, rendered values, and that appropriate hooks are called.
-
-## Notes
-
-- This agent audits diagnostic pricing flows. If you find UI code performing persistent price calculations, file an issue and prefer server-driven refactor.
+Findings as `[ERROR|WARNING|INFO] file:line — issue — fix`. Patch only when user asks; else hand to `BASS-Next Developer`.

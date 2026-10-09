@@ -1,18 +1,14 @@
 ---
 name: bass-uiconfiguration-local
-description: "UIConfiguration local file selection strategies."
+description: "Local UIConfiguration files (data/data<CC>.json) and getUIConfiguration dev vs deployed split."
 ---
 
 # UIConfiguration Local Strategy
 
-## Branching Pattern
-
-- Context evaluation routes entirely inside `getUIConfiguration`:
-  - `import.meta.env.DEV === true` → imports local tracking files `data/data<UPPERCASE_CC>.json` via `import.meta.glob`.
-  - Production deployments → executes standard backend endpoint: `GET /v1/countries/{cc}/ui-configuration`.
-
-## Consumption Constants
-
-- Always normalize target key variables using `.toUpperCase()` formats.
-- Fallback parameters: Log a standard `console.warn` upon local file lookup errors and request standard data endpoints directly.
-- Stale policies: App-level layer stores queries with an explicit `Infinity` threshold configuration.
+- `api/services/uiConfiguration/action.ts` -> `getUIConfiguration(cc)`.
+- `import.meta.env.DEV` -> `data/data<UPPERCASE_CC>.json` via `import.meta.glob("../../../../data/data*.json")`.
+- Missing local file -> `console.warn` -> falls through to API.
+- Deployed -> `GET /v1/countries/{cc}/ui-configuration`.
+- Local files today: `dataCN.json`, `dataTR.json`, `dataZA.json` (+ `dashboard.json`, not a UIConfiguration).
+- New country: add `data/data<CC>.json` with `{ forms: [...] }`; keep uppercase code.
+- Local file changes do not reach QA/prod; backend config must match.

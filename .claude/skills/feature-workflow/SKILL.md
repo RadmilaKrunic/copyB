@@ -29,14 +29,24 @@ file_path: .claude/skills/feature-workflow/config.json
 
 Hold these values for use in Phase 1-pre and beyond:
 - `<branchTypes>` ← `git.branchTypes` (array, e.g., `["feature","bugfix","hotfix"]`)
-- `<branchPattern>` ← `git.branchPattern` (template, e.g., `"{type}/{ticket}/{slug}"`)
+- `<branchPattern>` ← `git.branchPattern` (template, e.g., `"{type}/{ticket}-{slug}"`)
 
 If the config is missing or invalid, stop and ask the user to populate it
 before continuing — the workflow cannot create tickets or PRs without it.
 
-The main branch (`main` vs `master`) is auto-detected at runtime by the
-git-agent and the `prepare-*.sh` scripts via
-`.claude/skills/feature-workflow/scripts/lib.sh` — no config entry needed.
+Then read the shared switchboard once:
+
+```
+Tool: Read
+file_path: .github/ai-workflow.yml
+```
+
+- `<baseBranch>` ← `project.baseBranch`. `lib.sh` `detect_main_branch` reads the same value; it falls back to `origin/HEAD` / `main` / `master` only when the file has none.
+- `<branchPattern>` ← `project.branchPattern` (overrides `config.json`; both are kept equal).
+- `<tracker>` ← resolve per `.github/skills/bass-integrations/SKILL.md` (`jira` | `azureDevOps` | `none`). `none` is a normal mode, not an error.
+- `<reporting>` ← `reporting.enabled`. When `false`, skip every **Cost tick** step, the time-tracking variables and the session-cost line in the final report. When `true`, write the minimal report from `.github/skills/bass-reporting/SKILL.md` in Phase 7.
+
+Print one line: `Config: base=<baseBranch>, tracker=<tracker>, report=<on|off>`.
 
 ## Agent architecture
 
@@ -121,7 +131,8 @@ or **non-recoverable** (must surface error and halt).
 
 | Category | Examples |
 |----------|----------|
-| **Non-recoverable** | Tracker MCP unavailable; configured transition name not found; ticket not found; network errors after retry; unhandled exception from any sub-agent |
+| **Non-recoverable** | Configured transition name not found; ticket not found (when `<tracker>` is not `none`); network errors after retry; unhandled exception from any sub-agent |
+| **Fallback (not an error)** | Tracker MCP unavailable or `<tracker>=none` -> continue with the ticket text the user gives; skip all tracker writes |
 | **Recoverable** | Test failures; lint failures; design review pushback; spec review pushback; build failures |
 
 Recoverable failures stay inside the existing iterate loops in Phases 3 and
@@ -286,14 +297,13 @@ measure the implementation phase separately.
 The ticket already exists. Infer the work area from the user's request
 (`backend` | `frontend` | `devops` | `docs`) and hold it as `<area>`.
 
-Delegate to the tracker sub-agent to prepare the ticket (transition to start
-state, sprint, assign) and return the current state:
+`<tracker>` usable: read the ticket (summary, description, acceptance criteria) with the tracker MCP tools (`bass-integrations` matrix). Transition / assign only if the user asks. Tell the user the ticket URL, then proceed to 1a.
 
-Tell the user the ticket URL, then proceed to 1a.
+`<tracker>=none`: ask the user to paste summary + acceptance criteria, keep their key as `ticketKey`, proceed to 1a.
 
 ---
 
-**Path B — no ticket provided:**
+**Path B — no ticket provided:** `<tracker>` usable -> create the ticket after 1d only if the user confirms; otherwise use `ticketKey = <project.ticketPrefix>-0000` (commitlint still needs a key) and say so.
 
 ### 1-syn. Stated synthesis
 
@@ -304,7 +314,8 @@ always fires — for every autonomy level, for every ticket count.
 **Context grounding (do before synthesizing):**
 
 When any of the following files are present, read them before synthesizing:
-- `CLAUDE.md` (project root)
+- `CLAUDE.md` (project root; imports `.github/copilot-instructions.md`)
+- The matching `.github/skills/*/SKILL.md` for the touched domain
 - `.claude/memories/ecosystem.md` (or equivalent ecosystem memory file)
 - (Workspace mode) Per-repo analysis reports under `.claude/reports/`
 
@@ -665,11 +676,11 @@ Use `ticketKey` from Phase 1. Derive a short kebab-case slug from the
 ticket summary (3-5 words, no area prefix). Do not ask the user.
 
 Branch naming follows `git.branchPattern` from config — by default
-`{type}/{ticket}/{slug}` where `{type}` is one of `git.branchTypes`
+`{type}/{ticket}-{slug}` where `{type}` is one of `git.branchTypes`
 (default `feature`, `bugfix`, `hotfix`) and `{ticket}` is the full
 `<ticketKey>` (e.g., `<projectKey>-12345`).
 
-Example with default config: `feature/<projectKey>-12345/short-description`
+Example with default config: `feature/<projectKey>-12345-short-description`
 
 Delegate to the git sub-agent. Read the agent instructions from
 `.claude/skills/feature-workflow/agents/git-agent.md`, then spawn
@@ -677,7 +688,7 @@ the agent:
 
 → spawn git-agent
   action:  "create-branch"
-  input:   { branchName: "feature/<projectKey>-XXXXX/short-description" }
+  input:   { branchName: "feature/<projectKey>-XXXXX-short-description" }
   tools:   [Bash]
 
 The agent will emit a JSON result block:
@@ -685,7 +696,7 @@ The agent will emit a JSON result block:
 ```json
 {
   "action": "create-branch",
-  "branch": "feature/<projectKey>-XXXXX/short-description"
+  "branch": "feature/<projectKey>-XXXXX-short-description"
 }
 ```
 
@@ -952,6 +963,19 @@ Record: `PHASE_6_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)`
 
 ---
 
+## Phase 6: Push and PR (only on user request)
+
+Never push by default. When the user asks:
+
+→ spawn git-agent
+  action:  "sync-and-push"
+  input:   { branch: "<branch>" }
+  tools:   [Bash]
+
+Then open the PR with whatever is available: GitHub MCP / `gh` (GitHub) or Azure DevOps MCP (`azureDevOps.enabled`). PR body = summary from Phase 3 + spec dir link + checks result. No tool available -> print the compare URL and the body for the user to paste.
+
+---
+
 ## Phase 7: Finalize
 
 
@@ -961,7 +985,7 @@ After Phase 7 completes, tell the user:
 - The PR URL
 - A brief summary of what was implemented
 - Test results (from the test summary built in Phase 3)
-- The actual session cost
+- The actual session cost (only when `<reporting>` is on)
 - A reminder to request reviewers if needed
 
 ---
@@ -974,7 +998,7 @@ After Phase 7 completes, tell the user:
 | 1b Specify | **sdd-expert** (Sonnet) | Write BDD specs to `specs/<NNN>-PTBASS-XXXXX-slug/` | Resolve openQuestions |
 | 1c Plan | **architect** (Sonnet) | Write `execution-plan.md` with checkpoints and contracts | Acknowledge risks |
 | 1d Review | Main (Sonnet) | Present spec + plan to user | **User confirms** ← only gate |
-| 2 Branch | **git-agent** (Haiku) | `git checkout -b feature/<projectKey>-X/slug` | — |
+| 2 Branch | **git-agent** (Haiku) | `git checkout -b feature/<projectKey>-X-slug` | — |
 | 3a Baseline + CP1 | **impl-agent** (Sonnet) ×2 | Compile+boot check ‖ first checkpoint (parallel) | Stop if baseline fails |
 | 3b Checkpoints | **impl-agent** (Sonnet) | Remaining checkpoints sequentially | — |
 | 4 Commit | **git-agent** (Haiku) | Squash → stage → commit | — |

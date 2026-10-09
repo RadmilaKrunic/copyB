@@ -207,14 +207,25 @@ Returns `null` for unrecognized names → default `GenericArea` rendering applie
 Shared state between modules and nested generic components:
 
 ```typescript
+// src/components/generics/Form/GenericForm.context.ts
 interface GenericFormContextType {
-  actionCallbacks: Record<string, (...args: unknown[]) => unknown>;
   allFields: Field[];
+  setAllFields: Dispatch<SetStateAction<Field[]>>;
+  mandatoryFields: Record<string, ActionMandatoryFields> | null;
+  setMandatoryFields: Dispatch<SetStateAction<Record<string, ActionMandatoryFields> | null>>;
+  actionCallbacks: Record<string, ActionCallback>; // resolved by field onValueChange / onBlur / onAction names
+  radioSourceCallbacks?: Record<string, RadioSourceCallback>;
+  onDeleteStart?: () => void;
+  onDeleteEnd?: () => void;
+  onAreaValueChange?: (areaName: string, formValues?: Record<string, unknown>) => void;
   autocompleteValidation?: RefObject<Record<string, boolean>>;
-  sparePartnotBelongsToTool?: RefObject<Record<string, boolean>>;
-  radioSourceCallbacks?: Record<string, () => unknown[]>;
+  sparePartNotBelongsToTool?: RefObject<Record<string, boolean>>;
+  warrantyPanelInfo?: WarrantyPanelInfo;
+  isRepairAnswerLocked?: boolean;
 }
 ```
+
+Field actions: `field.onValueChange` / `field.onBlur` name a key in `actionCallbacks`; `GenericField` runs it through `invokeFieldAction` (arity <= 1 `onValueChange` handlers get `(value)`, others `(name, value)`). Diagnostics order rules (position rules first, spare part commit sequence) live in `.github/skills/bass-diagnostics/SKILL.md`.
 
 Consumed via:
 
@@ -226,7 +237,7 @@ const { actionCallbacks, allFields } = useContext(GenericFormContext);
 
 - **All generic components consume Formik context** — `useFormikContext()`, never prop-drill
 - **Permission check via `useHasPermission(field.permissions || [])`** — empty array = always visible
-- **Conditional visibility via `isFieldVisible(field, values, dependFieldCondition)`**
+- **Conditional visibility via `isFieldVisible(field, allFields, values)` / `isDependedAndVisible(...)`** (`generics/utils.ts`)
 - **AutoComplete auto-fills sibling fields** — use `autoFillFields` array
 - **Dynamic dropdowns load via `optionsEndpoint`** — not static options
 - **`attributeMapping` is the source of truth** for API serialization via `mapValuesToAPI()`

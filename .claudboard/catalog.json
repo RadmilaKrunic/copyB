@@ -32,7 +32,7 @@
     "error_handling": "try-catch with error boundaries per route - ErrorBoundary wrappers in Routes.tsx",
     "test_framework": "Vitest + React Testing Library with vitest/globals",
     "naming": "PascalCase components/interfaces, camelCase functions/variables, kebab-case SCSS files",
-    "import_style": "path aliases only - @/, api/, components/, modules/, hooks/, utils/ - zero relative imports",
+    "import_style": "path aliases preferred (@/, api/, components/, modules/, hooks/, utils/); ~90 files still use relative imports",
     "formatting": "Prettier enforced via pre-commit hooks - semi: true, singleQuote: false, printWidth: 100"
   },
   "patterns": {
@@ -81,8 +81,12 @@
       "variations": [],
       "applicable_paths": [
         "src/utils/priceCalculator.ts",
-        "src/hooks/useDiagnosticsManager.ts"
-      ]
+        "src/hooks/useDiagnosticsManager.ts",
+        "src/hooks/useClaimMaterialsManager.ts",
+        "src/modules/JobManagement/JobOverview/**",
+        "src/modules/ClaimManagement/ClaimOverview/**"
+      ],
+      "note": "backend-authoritative pricing: onRecalculatePrices -> /v1/diagnostic/prices/recalculate, validate -> /v2/jobs/flow/validate-and-save; priceCalculator is display/test math only"
     }
   },
   "proposed_artifacts": [
@@ -129,7 +133,10 @@
       "name": "price-calculator",
       "paths": [
         "src/utils/priceCalculator.ts",
-        "src/hooks/useDiagnosticsManager.ts"
+        "src/hooks/useDiagnosticsManager.ts",
+        "src/hooks/useClaimMaterialsManager.ts",
+        "src/modules/JobManagement/JobOverview/**",
+        "src/modules/ClaimManagement/ClaimOverview/**"
       ],
       "exemplar": "src/utils/priceCalculator.ts",
       "depth_signal": "medium"
