@@ -1385,12 +1385,15 @@ export default function JobOverview() {
             let partNumber = m.partNumber as string | undefined;
             partNumber = partNumber?.replaceAll(/[^a-zA-Z0-9]/g, "");
             return {
-              ...m,
-              partNumber,
-              order: Number.isFinite(order) && order > 0 ? order : index + 1,
+              material: { ...m, partNumber },
+              sortOrder: Number.isFinite(order) && order > 0 ? order : index + 1,
+              index,
             };
           })
-          .sort((a, b) => Number(a.order) - Number(b.order));
+          // Equal orders (e.g. after delete + add) keep form row order.
+          .sort((a, b) => a.sortOrder - b.sortOrder || a.index - b.index)
+          // Renumber 1..n so the payload has no gaps or duplicate orders.
+          .map(({ material }, index) => ({ ...material, order: index + 1 }));
 
         payload.materials = normalizedMaterials;
 
