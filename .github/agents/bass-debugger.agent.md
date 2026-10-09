@@ -57,7 +57,7 @@ the issue when possible; otherwise, establish it through code-path analysis.
 - Check React Query cache keys when stale or incorrect server data is suspected.
 - Check Formik field names and `fieldMapping` when form values are missing, misplaced, or unexpectedly reset.
 - Check [`bass-uiconfig-system`](../skills/bass-uiconfig-system/SKILL.md) when the bug involves UI configuration or field mappings.
-- For diagnostics/pricing bugs, load [`bass-diagnostics`](../skills/bass-diagnostics/SKILL.md) and [`bass-country-config`](../skills/bass-country-config/SKILL.md) before concluding that the problem is arithmetic or pricing logic. Prices are backend-driven: check the recalculate / validate request (`changes`) and response sync before blaming `priceCalculator.ts`.
+- For diagnostics/pricing bugs, load [`bass-diagnostics`](../skills/bass-diagnostics/SKILL.md) and [`bass-country-config`](../skills/bass-country-config/SKILL.md) before concluding that the problem is arithmetic or pricing logic. Prices are backend-driven: check the recalculate / validate request (`changes`) and response sync before blaming client code.
 - For ClaimOverview bugs, load [`bass-claims`](../skills/bass-claims/SKILL.md). Rows reset to zero prices -> check `MANAGED_ROW_KEY_PREFIXES` and effect ordering between the two managers.
 - For autocomplete / spare part number bugs, trace the commit sequence (select or blur -> not-belongs check -> unchanged-part skip -> field action) in `GenericField.tsx` and `AutoComplete.tsx`.
 - Distinguish stale-cache issues from actual business-logic bugs before concluding.

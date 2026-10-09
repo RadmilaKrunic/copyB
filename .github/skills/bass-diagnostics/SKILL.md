@@ -55,7 +55,7 @@ Spare part number (`subtype: diagnosticPartNumber`, autocomplete):
 - `onValidate` -> blur active element, `buildDiagnosticPayload` + accumulated `changes` -> `handleActionWithValidation("validate", ...)` -> `POST /v2/jobs/flow/validate-and-save`.
 - `isValidating` (validate or recalculate pending) locks all row inputs.
 - Summary (`SummaryArea`): editable only for summary type `chargeable`; discount/total editable only in `WAITING_FOR_APPROVAL` with chargeable pending rows + `CAN_EDIT_TOTAL_DISCOUNT` / `CAN_EDIT_TOTAL_AMOUNT`; net amount summary only in `NET_PRICE`.
-- Client calculator (`utils/priceCalculator.ts`) = display math + tests. See `references/price-calculation.md`. `distribute*ToRows` & `useSparePartPriceCalculation` (via `SparePartsRow.shared.ts`) are currently not wired into the UI; do not re-wire without a ticket.
+- No client price calculator (`utils/priceCalculator.ts`, `useSparePartPriceCalculation`, `SparePartsRow.shared.ts` were removed). Price chain the server values satisfy: `references/price-calculation.md`. Do not reintroduce client price math without a ticket.
 
 ## Editability Rules
 
@@ -75,4 +75,4 @@ Spare part number (`subtype: diagnosticPartNumber`, autocomplete):
 
 ## Tests
 
-- `GenericField.test.tsx`, `GenericField.utils.test.ts`, `AutoComplete.test.tsx`, `formValidation.test.tsx`, `useDiagnosticsManager.test.ts`, `partNumberUtils.test.ts`, `materialPriceEditability.test.ts`, `priceCalculator.test.ts`.
+- `GenericField.test.tsx`, `GenericField.utils.test.ts`, `AutoComplete.test.tsx`, `formValidation.test.tsx`, `useDiagnosticsManager.test.ts`, `partNumberUtils.test.ts`, `materialPriceEditability.test.ts`.

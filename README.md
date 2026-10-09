@@ -248,7 +248,7 @@ Generate your SonarQube token:
 
 1. Open GitHub Copilot Chat in VS Code
 2. Select **BASS-Next SonarQube** from the agent picker
-3. Optionally scope the session: `fix BLOCKER bugs` or `fix issues in src/utils/priceCalculator.ts`
+3. Optionally scope the session: `fix BLOCKER bugs` or `fix issues in src/hooks/useDiagnosticsManager.ts`
 
 The agent will:
 
