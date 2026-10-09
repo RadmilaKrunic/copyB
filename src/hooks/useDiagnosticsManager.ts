@@ -542,6 +542,32 @@ const SPARE_PARTS_PREFIX = "diagnosticData_diagnosticsSpareParts#";
 const RESETTABLE_MATERIAL_STATUSES = new Set(["REVISED", "REJECTED"]);
 
 /**
+ * Copies the server status onto materials matched by materialId. A row the user already
+ * reset from REVISED/REJECTED to PENDING keeps PENDING until it is saved.
+ * Returns `materials` unchanged when no status differs.
+ */
+export function syncMaterialStatusesFromAPI(
+  materials: MaterialItem[],
+  apiMaterials: Array<Record<string, unknown>>,
+): MaterialItem[] {
+  const statusById = new Map<string, string>();
+  apiMaterials.forEach((m) => {
+    if (typeof m.id === "string" && typeof m.status === "string") statusById.set(m.id, m.status);
+  });
+
+  let changed = false;
+  const next = materials.map((item) => {
+    if (!item.materialId) return item;
+    const apiStatus = statusById.get(item.materialId);
+    if (!apiStatus || apiStatus === item.status) return item;
+    if (item.status === "PENDING" && RESETTABLE_MATERIAL_STATUSES.has(apiStatus)) return item;
+    changed = true;
+    return { ...item, status: apiStatus };
+  });
+  return changed ? next : materials;
+}
+
+/**
  * Returns the shifted key after deleting row `deletedIndex`.
  * Returns null  → key belonged to the deleted row (drop it).
  * Returns same  → key index < deletedIndex (keep as-is).
@@ -931,6 +957,17 @@ export const useDiagnosticsManager = ({
     forceRebuildRef.current = false;
     setMaterials(buildMaterialsFromAPI(apiMaterials));
   }, [diagnosticData, buildMaterialsFromAPI, setArePricesValidated]);
+
+  // ── Effect 1a: later API data → keep row statuses current ─────────────────
+  // Effect 1 syncs once, so a status the server changes afterwards (e.g. APPROVED
+  // after the customer answers REPAIR) would stay stale in materials[] and Effect 3
+  // would write the old status back onto the row when the next item is added.
+  useEffect(() => {
+    if (!hasSyncedFromAPIRef.current) return;
+    const apiMaterials = diagnosticData?.materials as Array<Record<string, unknown>> | undefined;
+    if (!apiMaterials?.length) return;
+    setMaterials((prev) => syncMaterialStatusesFromAPI(prev, apiMaterials));
+  }, [diagnosticData]);
 
   useEffect(() => {
     const priceSummary = diagnosticData?.priceSummaryDetailed as SummaryDetailAll;
