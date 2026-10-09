@@ -371,7 +371,6 @@ function SparePartsRow({
           target?.name === positionField?.name
         )
           return;
-
         const rowStatus = statusField ? values[statusField.name] : undefined;
         if (typeof rowStatus === "string" && RESETTABLE_ROW_STATUSES.has(rowStatus)) {
           setRevisedRejectedRowPending(areaName);

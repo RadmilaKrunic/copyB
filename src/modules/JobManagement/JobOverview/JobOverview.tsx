@@ -88,6 +88,7 @@ import { useUpdateApprovalStatus } from "api/services/approvals/hooks";
 import ApprovalDecisionModal from "../../ClaimManagement/ApprovalList/ApprovalListTable/ApprovalDecisionModal/ApprovalDecisionModal";
 import AddSpecialMaterialModal from "./AddSpecialMaterialModal/AddSpecialMaterialModal";
 import AnswerModal from "./AnswerModal/AnswerModal";
+const RESETTABLE_ROW_STATUSES = new Set(["REVISED", "REJECTED"]);
 import {
   CUSTOMER_ANSWER_REPAIR_OPTIONS,
   CUSTOMER_ANSWER_EXCHANGE_OPTIONS,
@@ -1464,7 +1465,12 @@ export default function JobOverview() {
             f.fieldMapping?.nameStartsWith === field.fieldMapping?.nameStartsWith &&
             f.subtype === "diagnosticMaterialId",
         )?.name ?? "";
-
+      const statusFieldName =
+        allFieldsRef.current?.find(
+          (f) =>
+            f.fieldMapping?.nameStartsWith === field.fieldMapping?.nameStartsWith &&
+            f.subtype === "diagnosticMaterialStatus",
+        )?.name ?? "";
       const materialId = formValuesRef.current?.[matrerialIdFieldName];
       if (!materialId) return;
       const payload = buildDiagnosticPayload(formValuesRef.current, allFieldsRef.current);
@@ -1478,6 +1484,17 @@ export default function JobOverview() {
       const type =
         typeMap[field.fieldMapping?.originalName || ""] ??
         field.fieldMapping?.originalName?.replace("Material", "");
+      if (type === "jobType" || type === "partNumber") {
+        const rowStatus = formValuesRef.current?.[statusFieldName] || "";
+        payload.materials = (payload.materials as Record<string, unknown>[]).map(
+          (m: Record<string, unknown>) => {
+            if (m.id === materialId && RESETTABLE_ROW_STATUSES.has(rowStatus as string)) {
+              m.status = "PENDING";
+            }
+            return m;
+          },
+        );
+      }
       changes.push({
         type,
         lineId: materialId,
