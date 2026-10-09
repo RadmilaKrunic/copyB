@@ -365,8 +365,12 @@ function SparePartsRow({
       className="spare-parts-row-wrapper"
       onChange={(e: React.FormEvent<HTMLDivElement>) => {
         const target = e.target as HTMLElement & { name?: string };
-        // Part number and type edits reset REVISED/REJECTED like any other row edit.
-        if (target?.name === positionField?.name) return;
+        if (
+          target?.name === typeField?.name ||
+          target?.name === partNumberFieldName ||
+          target?.name === positionField?.name
+        )
+          return;
 
         const rowStatus = statusField ? values[statusField.name] : undefined;
         if (typeof rowStatus === "string" && RESETTABLE_ROW_STATUSES.has(rowStatus)) {
