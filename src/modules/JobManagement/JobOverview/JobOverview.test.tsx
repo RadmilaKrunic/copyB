@@ -2851,6 +2851,29 @@ describe("JobOverview buildDiagnosticPayload branches (validate)", () => {
     expect(payload.materials[1]).not.toHaveProperty("notBelongsToTool");
   });
 
+  it("renumbers material order sequentially without duplicates after delete + add", async () => {
+    vi.mocked(mapValuesToAPI).mockReturnValueOnce({
+      diagnostic: {
+        status: "SUBMITTED",
+        materials: [
+          { id: "M-1", order: 1, partNumber: "PN-1" },
+          { id: "M-3", order: 3, partNumber: "PN-3" },
+          null,
+          { order: 3, partNumber: "PN-NEW" },
+          { partNumber: "PN-NO-ORDER" },
+        ],
+      },
+    } as unknown as ReturnType<typeof mapValuesToAPI>);
+    renderWithMessages();
+
+    fireEvent.click(screen.getByRole("button", { name: "Validate" }));
+
+    await waitFor(() => expect(validateAndSaveMutateMock).toHaveBeenCalledTimes(1));
+    const materials = getValidatePayload().materials as AnyRecord[];
+    expect(materials.map((m) => m.order)).toEqual([1, 2, 3, 4]);
+    expect(materials.map((m) => m.partNumber)).toEqual(["PN1", "PN3", "PNNEW", "PNNOORDER"]);
+  });
+
   it("validates directly when called without helpers and skips without form values", async () => {
     renderWithMessages();
 
