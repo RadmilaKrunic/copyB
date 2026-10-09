@@ -2517,6 +2517,16 @@ describe("syncMaterialStatusesFromAPI", () => {
     expect(result[0].status).toBe("PENDING");
   });
 
+  it("re-applies PENDING when the server returns the changed line with id null", () => {
+    const materials = [item("m1", "PENDING")];
+
+    const result = syncMaterialStatusesFromAPI(materials, [{ id: null, status: "REVISED" }]);
+
+    expect(result).not.toBe(materials);
+    expect(result[0]).not.toBe(materials[0]);
+    expect(result[0].status).toBe("PENDING");
+  });
+
   it("returns the same array when nothing changed", () => {
     const materials = [item("m1", "APPROVED")];
 
