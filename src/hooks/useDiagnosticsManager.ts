@@ -542,13 +542,8 @@ const SPARE_PARTS_PREFIX = "diagnosticData_diagnosticsSpareParts#";
 const RESETTABLE_MATERIAL_STATUSES = new Set(["REVISED", "REJECTED"]);
 
 /**
- * Copies the server status onto materials matched by materialId. A row the user already
- * reset from REVISED/REJECTED to PENDING keeps PENDING until it is saved; that row gets a
- * new object so Effect 3 re-applies PENDING over the server status that syncData (e.g.
- * after recalculate) wrote onto the form. syncData writes by row index, and the server
- * returns id: null for a line whose part number, type or position changed, so the
- * PENDING check also looks at the API material at the same index.
- * Returns `materials` unchanged otherwise.
+ * Copies the server status onto materials matched by materialId.
+ * Returns `materials` unchanged when no status differs.
  */
 export function syncMaterialStatusesFromAPI(
   materials: MaterialItem[],
@@ -558,19 +553,11 @@ export function syncMaterialStatusesFromAPI(
   apiMaterials.forEach((m) => {
     if (typeof m.id === "string" && typeof m.status === "string") statusById.set(m.id, m.status);
   });
-  const isResettable = (status: unknown): boolean =>
-    typeof status === "string" && RESETTABLE_MATERIAL_STATUSES.has(status);
 
   let changed = false;
-  const next = materials.map((item, index) => {
-    const apiStatus = item.materialId ? statusById.get(item.materialId) : undefined;
-    if (
-      item.status === "PENDING" &&
-      (isResettable(apiStatus) || isResettable(apiMaterials[index]?.status))
-    ) {
-      changed = true;
-      return { ...item };
-    }
+  const next = materials.map((item) => {
+    if (!item.materialId) return item;
+    const apiStatus = statusById.get(item.materialId);
     if (!apiStatus || apiStatus === item.status) return item;
     changed = true;
     return { ...item, status: apiStatus };

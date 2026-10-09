@@ -2507,26 +2507,6 @@ describe("syncMaterialStatusesFromAPI", () => {
     expect(result.map((m) => m.status)).toEqual(["APPROVED", undefined]);
   });
 
-  it("keeps a locally reset PENDING row and returns a new array so the form re-applies it", () => {
-    const materials = [item("m1", "PENDING")];
-
-    const result = syncMaterialStatusesFromAPI(materials, [{ id: "m1", status: "REVISED" }]);
-
-    expect(result).not.toBe(materials);
-    expect(result[0]).not.toBe(materials[0]);
-    expect(result[0].status).toBe("PENDING");
-  });
-
-  it("re-applies PENDING when the server returns the changed line with id null", () => {
-    const materials = [item("m1", "PENDING")];
-
-    const result = syncMaterialStatusesFromAPI(materials, [{ id: null, status: "REVISED" }]);
-
-    expect(result).not.toBe(materials);
-    expect(result[0]).not.toBe(materials[0]);
-    expect(result[0].status).toBe("PENDING");
-  });
-
   it("returns the same array when nothing changed", () => {
     const materials = [item("m1", "APPROVED")];
 
