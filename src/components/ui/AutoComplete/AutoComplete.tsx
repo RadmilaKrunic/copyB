@@ -10,7 +10,6 @@ import OptionItem, { AutoCompleteOption } from "./OptionItem/OptionItem";
 import { useDebouncedValue } from "hooks/useDebouncedValue";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { DEFAULT_GC_TIME_MS, DEFAULT_STALE_TIME_MS } from "utils/queryConstants";
-import { sanitizePartNumber } from "utils/partNumber";
 import { useTranslation } from "react-i18next";
 import InfoIconWithTooltip from "../TooltipContent/InfoIconWithTooltip";
 import { HeaderUserData } from "api/services/header/action";
@@ -21,7 +20,8 @@ interface AutoCompleteProps {
   readonly label: string;
   readonly value?: string;
   readonly onChange?: (value: string) => void;
-  readonly onSelect?: (option: AutoCompleteOption) => void;
+  /** For spare part numbers, isUnchanged is true when the resolved part is the one already set. */
+  readonly onSelect?: (option: AutoCompleteOption, meta?: { isUnchanged: boolean }) => void;
   readonly onSetFieldError?: (fieldName: string, message: string) => void;
   readonly onSetFieldTouched?: (fieldName: string, touched: boolean) => void;
   readonly onClearFieldError?: (fieldName: string) => void;
@@ -40,6 +40,9 @@ interface AutoCompleteProps {
   readonly incompatibleSelectionMessage?: string;
   readonly onBlur?: () => void;
 }
+
+/** Part numbers compare without separators: "1600.A00 1" and "1600A001" are the same part. */
+const sanitizePartNumber = (value: string) => value.replaceAll(/[^a-zA-Z0-9]/g, "").toUpperCase();
 
 export default function AutoComplete({
   name,
@@ -79,6 +82,9 @@ export default function AutoComplete({
   const isExternalUpdateRef = useRef(!!value);
   const isUserEditingRef = useRef(false);
   const lastValidValueRef = useRef<string>(value);
+  // Spare part number last set on the row (loaded or selected); kept while the user clears
+  // and retypes, so re-entering the same part does not count as a change.
+  const committedPartNumberRef = useRef<string>(value);
   const hasEditedRef = useRef(false);
   const latestInputRef = useRef(input);
   latestInputRef.current = input;
@@ -98,6 +104,7 @@ export default function AutoComplete({
       setInput(value);
       if (value && isToolLookupField) {
         lastValidValueRef.current = value;
+        committedPartNumberRef.current = value;
         onValidation?.(true);
       }
     }
@@ -252,7 +259,15 @@ export default function AutoComplete({
     setOpen(false);
 
     onChange?.(newValue);
-    onSelect?.(option);
+    if (isSparePartLookupField) {
+      const isUnchanged =
+        !!newValue &&
+        sanitizePartNumber(newValue) === sanitizePartNumber(committedPartNumberRef.current);
+      committedPartNumberRef.current = newValue;
+      onSelect?.(option, { isUnchanged });
+    } else {
+      onSelect?.(option);
+    }
 
     if (isToolLookupField) {
       onValidation?.(true);

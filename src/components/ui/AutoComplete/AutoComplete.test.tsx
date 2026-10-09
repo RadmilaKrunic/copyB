@@ -261,13 +261,16 @@ describe("AutoComplete", () => {
     fireEvent.blur(screen.getByLabelText("Spare part"));
 
     await waitFor(() =>
-      expect(onSelect).toHaveBeenCalledWith({ id: "1", label: "Option One", value: "OPTION_ONE" }),
+      expect(onSelect).toHaveBeenCalledWith(
+        { id: "1", label: "Option One", value: "OPTION_ONE" },
+        { isUnchanged: false },
+      ),
     );
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSetFieldError).not.toHaveBeenCalled();
   });
 
-  it("prefers the exact spare part match on blur, ignoring dots and spaces", async () => {
+  it("marks a re-entered spare part number (dots and spaces ignored) as unchanged", async () => {
     vi.mocked(getAutocompleteOptions).mockResolvedValue([
       { partNumber: "1600A000012" },
       { partNumber: "1600A00001" },
@@ -289,7 +292,7 @@ describe("AutoComplete", () => {
     fireEvent.blur(input);
 
     await waitFor(() =>
-      expect(onSelect).toHaveBeenCalledWith({ partNumber: "1600A00001" }),
+      expect(onSelect).toHaveBeenCalledWith({ partNumber: "1600A00001" }, { isUnchanged: true }),
     );
   });
 

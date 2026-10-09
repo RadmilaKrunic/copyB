@@ -3,7 +3,6 @@ import { WarrantyInfoPayload } from "components/generics/Field/GenericField.type
 import { WarrantyCheckRequest, WarrantyCheckResponse } from "api/services/orders/orders.types";
 import { type ValidateAndSaveResponse } from "api/services/jobs/action";
 import { JobDiagnostic } from "../JobList/JobList.types";
-import { sanitizePartNumber } from "utils/partNumber";
 import {
   buildWarrantyCheckPayloadFromFieldNames,
   updateWarrantyFields,
@@ -73,20 +72,4 @@ export const extractDiagnosticFromValidateResponse = (
   if (!hasTopLevelDiagnosticData || !jobId) return undefined;
   const responce = { ...(data as any), jobId } as JobDiagnostic;
   return responce;
-};
-
-/**
- * True when the spare part number matches (ignoring "." and spaces) the part the server last
- * priced for the row with this materialId. The server's diagnostic only moves on a successful
- * save or recalculation, so a part that was blocked (not belonging to the tool) or whose
- * recalculation failed still counts as a change the next time it is committed.
- */
-export const isSparePartAlreadyPriced = (
-  diagnostic: JobDiagnostic | undefined,
-  materialId: unknown,
-  partNumber: unknown,
-): boolean => {
-  const pricedPartNumber = diagnostic?.materials?.find((m) => m.id === materialId)?.partNumber;
-  if (!pricedPartNumber || typeof partNumber !== "string") return false;
-  return sanitizePartNumber(partNumber) === sanitizePartNumber(pricedPartNumber);
 };
