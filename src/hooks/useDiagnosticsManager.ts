@@ -543,8 +543,9 @@ const RESETTABLE_MATERIAL_STATUSES = new Set(["REVISED", "REJECTED"]);
 
 /**
  * Copies the server status onto materials matched by materialId. A row the user already
- * reset from REVISED/REJECTED to PENDING keeps PENDING until it is saved.
- * Returns `materials` unchanged when no status differs.
+ * reset from REVISED/REJECTED to PENDING keeps PENDING until it is saved; that row gets a
+ * new object so Effect 3 re-applies PENDING over the server status that syncData (e.g.
+ * after recalculate) wrote onto the form. Returns `materials` unchanged otherwise.
  */
 export function syncMaterialStatusesFromAPI(
   materials: MaterialItem[],
@@ -560,8 +561,10 @@ export function syncMaterialStatusesFromAPI(
     if (!item.materialId) return item;
     const apiStatus = statusById.get(item.materialId);
     if (!apiStatus || apiStatus === item.status) return item;
-    if (item.status === "PENDING" && RESETTABLE_MATERIAL_STATUSES.has(apiStatus)) return item;
     changed = true;
+    if (item.status === "PENDING" && RESETTABLE_MATERIAL_STATUSES.has(apiStatus)) {
+      return { ...item };
+    }
     return { ...item, status: apiStatus };
   });
   return changed ? next : materials;
