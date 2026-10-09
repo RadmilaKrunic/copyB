@@ -41,6 +41,7 @@ import {
   buildJobOverviewWarrantyCheckPayload,
   updateJobOverviewWarrantyTabs,
   extractDiagnosticFromValidateResponse,
+  isSparePartAlreadyPriced,
 } from "./JobOverview.utils";
 import {
   getAllowedWarrantyTypes,
@@ -1464,6 +1465,16 @@ export default function JobOverview() {
 
       const materialId = formValuesRef.current?.[matrerialIdFieldName];
       if (!materialId) return;
+      if (
+        field.fieldMapping?.originalName === "sparePartNumber" &&
+        isSparePartAlreadyPriced(
+          queryClient.getQueryData<JobDiagnostic>(["diagnostic", jobId]),
+          materialId,
+          value,
+        )
+      ) {
+        return;
+      }
       const payload = buildDiagnosticPayload(formValuesRef.current, allFieldsRef.current);
       payload.countryCode = jobData?.order?.countryCode;
       const changes: Record<string, unknown>[] = [];
@@ -1492,7 +1503,9 @@ export default function JobOverview() {
     },
     [
       buildDiagnosticPayload,
+      jobId,
       jobData?.order?.countryCode,
+      queryClient,
       recalculatePricesMutation,
       setRecalculatedPricesChanges,
     ],

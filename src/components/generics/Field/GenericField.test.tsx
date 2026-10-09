@@ -282,7 +282,7 @@ vi.mock("components/ui/AutoComplete/AutoComplete", () => ({
     value: string;
     onChange: (value: string) => void;
     disabled?: boolean;
-    onSelect?: (option: { notBelongsToTool?: boolean }, meta?: { isUnchanged: boolean }) => void;
+    onSelect?: (option: { notBelongsToTool?: boolean }) => void;
     onSetFieldError?: (fieldName: string, message: string) => void;
     onSetFieldTouched?: (fieldName: string, touched: boolean) => void;
     onClearFieldError?: (fieldName: string) => void;
@@ -326,12 +326,6 @@ vi.mock("components/ui/AutoComplete/AutoComplete", () => ({
         onClick={() => onSelect?.({ notBelongsToTool: true })}
       >
         Select (not belongs)
-      </button>
-      <button
-        data-testid={`autocomplete-select-unchanged-${name}`}
-        onClick={() => onSelect?.({ notBelongsToTool: false }, { isUnchanged: true })}
-      >
-        Select (unchanged)
       </button>
       <button
         data-testid={`autocomplete-set-error-${name}`}
@@ -1263,21 +1257,29 @@ describe("GenericField", () => {
       expect(handleAutoCompleteSelect).toHaveBeenCalled();
     });
 
-    it("does not recalculate prices when the part is the one the row already had", async () => {
+    it("recalculates prices for a part resolved after a blocked one", async () => {
       const user = userEvent.setup();
       const onRecalculatePrices = vi.fn();
-      const sparePartNotBelongsToTool = { current: { row0_sparePartNumber: true } };
+      vi.mocked(getSparePartCompatibilityMessage).mockImplementation(
+        (_field, _name, _v, _f, ref) =>
+          ref?.["row0_sparePartNumber"] ? "incompatibleWarrantyType" : "",
+      );
+      const sparePartNotBelongsToTool = { current: {} as Record<string, boolean> };
       renderWithContext(sparePartField({ onBlur: "onRecalculatePrices" }), {
         actionCallbacks: { onRecalculatePrices },
         sparePartNotBelongsToTool,
       });
 
-      await user.click(screen.getByTestId("autocomplete-select-unchanged-row0_sparePartNumber"));
-
-      await waitFor(() => expect(handleAutoCompleteSelect).toHaveBeenCalled());
+      await user.click(screen.getByTestId("autocomplete-select-not-belongs-row0_sparePartNumber"));
+      await waitFor(() => expect(handleAutoCompleteSelect).toHaveBeenCalledTimes(1));
       await new Promise((resolve) => setTimeout(resolve, 10));
       expect(onRecalculatePrices).not.toHaveBeenCalled();
+
+      await user.click(screen.getByTestId("autocomplete-select-belongs-row0_sparePartNumber"));
+
+      await waitFor(() => expect(onRecalculatePrices).toHaveBeenCalledTimes(1));
       expect(sparePartNotBelongsToTool.current["row0_sparePartNumber"]).toBe(false);
+      vi.mocked(getSparePartCompatibilityMessage).mockImplementation(() => "");
     });
 
     it("stops before recalculating prices when the part does not belong to the tool", async () => {
