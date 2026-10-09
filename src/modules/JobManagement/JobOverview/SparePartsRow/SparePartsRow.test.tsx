@@ -678,6 +678,62 @@ describe("SparePartsRow type transitions", () => {
     expect(optionsByValue.CHARGEABLE.disabled).toBe(false);
   });
 
+  describe("spare part loaded from the API with notBelongsToTool", () => {
+    const fieldsWithNotBelongsToTool = [
+      ...rowFields,
+      createField({
+        name: "row0_notBelongsToTool",
+        subtype: "notBelongsToTool",
+        isHidden: true,
+        fieldMapping: {
+          originalName: "notBelongsToTool",
+          map: "notBelongsToTool",
+          parentMap: [],
+          prefixes: [],
+          nameStartsWith: "diagnosticsSpareParts#0_",
+        },
+      }),
+    ];
+    const loadedRowValues = {
+      row0_position: "SP",
+      row0_partNumber: "LOADED_PART",
+      row0_type: "CHARGEABLE",
+      row0_quantity: 1,
+      row0_unitPrice: 100,
+      row0_notBelongsToTool: true,
+    };
+    const typeOptions = () =>
+      Object.fromEntries(
+        Array.from((screen.getByTestId("field-row0_type") as HTMLSelectElement).options).map(
+          (option) => [option.value, option],
+        ),
+      );
+
+    it("disables WARRANTY and SERVICE_OFFERING before the part is changed", () => {
+      renderRow(loadedRowValues, [], "GROSS_PRICE", {}, ELIGIBLE_WARRANTY_PANEL_INFO, {
+        fields: fieldsWithNotBelongsToTool,
+      });
+
+      expect(typeOptions().WARRANTY.disabled).toBe(true);
+      expect(typeOptions().SERVICE_OFFERING.disabled).toBe(true);
+      expect(typeOptions().CHARGEABLE.disabled).toBe(false);
+    });
+
+    it("follows the part picked in this session over the loaded flag", () => {
+      renderRow(
+        loadedRowValues,
+        [],
+        "GROSS_PRICE",
+        { row0_partNumber: false },
+        ELIGIBLE_WARRANTY_PANEL_INFO,
+        { fields: fieldsWithNotBelongsToTool },
+      );
+
+      expect(typeOptions().WARRANTY.disabled).toBe(false);
+      expect(typeOptions().SERVICE_OFFERING.disabled).toBe(false);
+    });
+  });
+
   it("disables WARRANTY and SERVICE_OFFERING options when SP part number is empty", () => {
     renderRow(
       {

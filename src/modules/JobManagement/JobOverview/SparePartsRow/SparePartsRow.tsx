@@ -195,10 +195,17 @@ function SparePartsRow({
     .map((field) => field.fieldMapping?.originalName);
   const collapsableFieldNamesSet = new Set(collapsableFieldNames);
 
+  // A part picked in this session sets the ref; a row loaded from the API only has its
+  // notBelongsToTool field, so fall back to that until the user resolves a part.
+  const notBelongsToToolField = fields.find((field) => field.subtype === "notBelongsToTool");
+  const loadedNotBelongsToTool = values[notBelongsToToolField?.name ?? ""];
+  const sessionNotBelongsToTool = sparePartNotBelongsToTool?.current[partNumberFieldName];
+  const partNotBelongsToTool =
+    sessionNotBelongsToTool ??
+    (loadedNotBelongsToTool === true || loadedNotBelongsToTool === "true");
   const isSparePartTypeRestricted =
     positionValue.toUpperCase() === "SP" &&
-    (partNumberValue.trim().length === 0 ||
-      sparePartNotBelongsToTool?.current[partNumberFieldName] === true);
+    (partNumberValue.trim().length === 0 || partNotBelongsToTool);
   const priceFieldEditability = getPriceFieldEditability(
     positionValue,
     rowTypeValue,
