@@ -43,6 +43,7 @@ import {
   getSummaryDetailedRowValues,
   buildSummaryDetailedRowValues,
   getSummaryTotalRowValues,
+  syncMaterialStatusesFromAPI,
   useDiagnosticsManager,
   type MaterialItem,
 } from "./useDiagnosticsManager";
@@ -2476,5 +2477,49 @@ describe("useDiagnosticsManager effects", () => {
 
       expect(result.current.materials[0].status).toBe("REJECTED");
     });
+  });
+});
+
+describe("syncMaterialStatusesFromAPI", () => {
+  const item = (materialId: string | undefined, status?: string): MaterialItem => ({
+    position: "SP",
+    partNumber: "PN",
+    description: "",
+    type: "CHARGEABLE",
+    quantity: 1,
+    unitPrice: 0,
+    netAmount: 0,
+    tax: 0,
+    grossAmount: 0,
+    discount: 0,
+    taxAmount: 0,
+    totalAmount: 0,
+    materialId,
+    status,
+  });
+
+  it("adopts a server APPROVED status for a stale PENDING row", () => {
+    const result = syncMaterialStatusesFromAPI(
+      [item("m1", "PENDING"), item(undefined)],
+      [{ id: "m1", status: "APPROVED" }],
+    );
+
+    expect(result.map((m) => m.status)).toEqual(["APPROVED", undefined]);
+  });
+
+  it("keeps a locally reset PENDING row when the server still says REVISED", () => {
+    const materials = [item("m1", "PENDING")];
+
+    expect(syncMaterialStatusesFromAPI(materials, [{ id: "m1", status: "REVISED" }])).toBe(
+      materials,
+    );
+  });
+
+  it("returns the same array when nothing changed", () => {
+    const materials = [item("m1", "APPROVED")];
+
+    expect(syncMaterialStatusesFromAPI(materials, [{ id: "m1", status: "APPROVED" }])).toBe(
+      materials,
+    );
   });
 });
