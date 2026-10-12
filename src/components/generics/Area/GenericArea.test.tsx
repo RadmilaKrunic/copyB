@@ -19,32 +19,31 @@ vi.mock("react-i18next", () => ({
 // Mock GenericField: fields write through Formik; a datepicker does so without a DOM change event
 vi.mock("../Field/GenericField", async () => {
   const { useFormikContext } = await vi.importActual<typeof import("formik")>("formik");
-  return {
-    default: ({ field }: { field: { name: string; label: string; type: string } }) => {
-      const { values, setFieldValue } = useFormikContext<Record<string, unknown>>();
-      if (field.type === "datepicker") {
-        return (
-          <div className="custom-date-picker">
-            <button
-              type="button"
-              data-testid={`pick-${field.name}`}
-              onClick={() => void setFieldValue(field.name, "2024-05-01T00:00:00.000Z")}
-            >
-              pick
-            </button>
-          </div>
-        );
-      }
+  function MockGenericField({ field }: { field: { name: string; label: string; type: string } }) {
+    const { values, setFieldValue } = useFormikContext<Record<string, unknown>>();
+    if (field.type === "datepicker") {
       return (
-        <input
-          data-testid={`field-${field.name}`}
-          aria-label={field.label}
-          value={String(values[field.name] ?? "")}
-          onChange={(e) => void setFieldValue(field.name, e.target.value)}
-        />
+        <div className="custom-date-picker">
+          <button
+            type="button"
+            data-testid={`pick-${field.name}`}
+            onClick={() => void setFieldValue(field.name, "2024-05-01T00:00:00.000Z")}
+          >
+            pick
+          </button>
+        </div>
       );
-    },
-  };
+    }
+    return (
+      <input
+        data-testid={`field-${field.name}`}
+        aria-label={field.label}
+        value={String(values[field.name] ?? "")}
+        onChange={(e) => void setFieldValue(field.name, e.target.value)}
+      />
+    );
+  }
+  return { default: MockGenericField };
 });
 
 // Mock GenericAction
