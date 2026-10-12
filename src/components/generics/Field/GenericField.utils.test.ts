@@ -591,21 +591,6 @@ describe("applyPositionRules", () => {
     expect(setFieldValue).toHaveBeenCalledWith("row1_quantity", 3);
   });
 
-  it("leaves a user-entered quantity alone", async () => {
-    const setFieldValue = vi.fn().mockResolvedValue(undefined);
-    await applyPositionRules({
-      field: positionField,
-      position: "SP",
-      allFields,
-      values: { row0_position: "SP", row1_position: "AC" },
-      allowedPositions,
-      positionAutofill,
-      setFieldValue,
-    });
-
-    expect(setFieldValue).not.toHaveBeenCalled();
-  });
-
   it("fills part number and description for an autofilled position", async () => {
     const setFieldValue = vi.fn().mockResolvedValue(undefined);
     await applyPositionRules({

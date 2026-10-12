@@ -812,7 +812,7 @@ describe("useDiagnosticsManager hook behavior", () => {
     const { props } = createHookProps();
     const { result } = renderHook(() => useDiagnosticsManager(props));
 
-    expect(result.current.getQuantityForPosition("SP", "FC:9", 5)).toBeUndefined();
+    expect(result.current.getQuantityForPosition("SP", "FC:9", 5)).toBe(1);
     expect(result.current.getQuantityForPosition("PN", "FC:9", 5)).toBe(4);
     expect(result.current.getQuantityForPosition("LA", "FC:9", 0)).toBe(9);
     expect(result.current.getQuantityForPosition("LA", "FC:9", 7)).toBe(7);

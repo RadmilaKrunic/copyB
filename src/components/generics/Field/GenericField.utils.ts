@@ -211,6 +211,7 @@ export const applyPositionRules = async ({
     Number(values.faultCodeLabourQuantity) || 0,
   );
   const quantityField = rowField("diagnosticQuantity");
+
   if (quantity !== undefined && quantityField) {
     await setFieldValue(quantityField.name, quantity);
   }

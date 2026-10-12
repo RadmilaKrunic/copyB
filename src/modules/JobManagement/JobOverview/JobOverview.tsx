@@ -1452,6 +1452,7 @@ export default function JobOverview() {
   const onRecalculatePrices = useCallback(
     (fieldName: string, value: unknown) => {
       if (recalculatePricesMutation.isPending) return;
+      if(!value) return;
       if (!allFieldsRef.current) return;
       const field = allFieldsRef.current?.find((f) => f.name === fieldName);
       if (!field) return;
