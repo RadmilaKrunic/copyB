@@ -211,6 +211,34 @@ describe("SummaryArea", () => {
     expect(discountField).toMatchObject({ isDisabled: false });
     expect(totalAmountField).toMatchObject({ isDisabled: true });
   });
+
+  it("falls back to totalSummary when the selected job type has no rows left", () => {
+    vi.mocked(useDiagnosticsContext).mockReturnValue({
+      hasPricesPopulated: true,
+      setSummaryTypeOptions: vi.fn(),
+      discountBase: "GROSS_PRICE",
+      isValidating: false,
+    } as never);
+
+    const { setFieldValue } = renderSummary({
+      "diagnosticData_diagnosticsSpareParts#0_type": "WARRANTY",
+    });
+
+    expect(setFieldValue).toHaveBeenCalledWith("summaryType", "totalSummary");
+  });
+
+  it("keeps the selected job type while rows of that type exist", () => {
+    vi.mocked(useDiagnosticsContext).mockReturnValue({
+      hasPricesPopulated: true,
+      setSummaryTypeOptions: vi.fn(),
+      discountBase: "GROSS_PRICE",
+      isValidating: false,
+    } as never);
+
+    const { setFieldValue } = renderSummary();
+
+    expect(setFieldValue).not.toHaveBeenCalled();
+  });
 });
 
 describe("SummaryArea byJobType rows (diagnosticsSummaryDetailed)", () => {

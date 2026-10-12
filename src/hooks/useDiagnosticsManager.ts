@@ -522,6 +522,11 @@ function computeFinalSparePartsAreas(
   return oldAreas;
 }
 
+/** Blank values for every field of an area (used for the kept-but-unused summary template). */
+function clearAreaValues(area: Area): Record<string, unknown> {
+  return Object.fromEntries(area.fields.map((f) => [f.name, ""]));
+}
+
 function removeDiagnosticsAreas(tab: Section, removeAreaNames: Set<string>): Section {
   if (tab.name !== "diagnosticData") return tab;
   return {
@@ -967,9 +972,14 @@ export const useDiagnosticsManager = ({
     setMaterials((prev) => syncMaterialStatusesFromAPI(prev, apiMaterials));
   }, [diagnosticData]);
 
+  // Follows every server response (initial fetch, recalculate, validate-and-save), not only
+  // the first one: job types appear/disappear as rows change, and the detailed areas must
+  // be rebuilt from the new breakdown. An empty breakdown is applied only once a non-empty
+  // one was synced, so stale job-type rows get cleared.
   useEffect(() => {
-    const priceSummary = diagnosticData?.priceSummaryDetailed as SummaryDetailAll;
-    if (!priceSummary?.byJobType?.length || hasSyncedSummaryDetailedRef.current) return;
+    const priceSummary = diagnosticData?.priceSummaryDetailed as SummaryDetailAll | undefined;
+    if (!priceSummary) return;
+    if (!priceSummary.byJobType?.length && !hasSyncedSummaryDetailedRef.current) return;
 
     hasSyncedSummaryDetailedRef.current = true;
     setPriceSummaryDetailed(priceSummary);
@@ -1341,9 +1351,8 @@ export const useDiagnosticsManager = ({
 
   // ── Public callbacks ──────────────────────────────────────────────────────
   useEffect(() => {
-    if (!priceSummaryDetailed) return;
-    if (!priceSummaryDetailed?.byJobType?.length) return;
-    const byJobType = priceSummaryDetailed?.byJobType;
+    if (!priceSummaryDetailed?.byJobType) return;
+    const byJobType = priceSummaryDetailed.byJobType;
     const currentTabs = tabsRef.current;
     const currentFields = allFieldsRef.current ?? [];
 
@@ -1358,7 +1367,9 @@ export const useDiagnosticsManager = ({
 
     if (!templateArea) return;
     const currentCount = diagnosticsSummaryDetailed.length;
-    const targetCount = Number(byJobType?.length || 0);
+    // The first area is the clone template and is never removed; with no job types it is
+    // kept but emptied below so it matches no summary type.
+    const targetCount = Math.max(byJobType.length, 1);
     const needed = targetCount - currentCount;
     const newAreas: Area[] = [];
     let removeAreaNames = new Set<string>();
@@ -1400,6 +1411,9 @@ export const useDiagnosticsManager = ({
       areas: finalSparePartsAreas,
       fields: updatedFields,
     });
+    if (!byJobType.length) {
+      Object.assign(rowValues, clearAreaValues(templateArea));
+    }
 
     if (needed !== 0 || forceRebuildRef.current) {
       skipFormResetRef.current = true;

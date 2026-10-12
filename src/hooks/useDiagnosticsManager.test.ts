@@ -1956,6 +1956,98 @@ describe("useDiagnosticsManager effects", () => {
       expect(remaining.some((f) => f.name.startsWith(`${SUMMARY_DETAILED}#1`))).toBe(false);
     });
 
+    it("adds a detailed area when a later response brings a new job type", async () => {
+      const areas = [diagnosticsArea, summaryTemplate(0), summaryTemplate(1), totalArea];
+      const { props, mocks } = createHookProps({
+        tabs: [makeDiagnosticsTab(areas)],
+        allFields: [...diagnosticFields, ...summaryFields(areas)],
+        diagnosticData: {
+          jobId: "J-S6",
+          priceSummaryDetailed: {
+            total,
+            byJobType: [
+              makeSummaryDetail({ jobType: "CHARGEABLE" }),
+              makeSummaryDetail({ jobType: "WARRANTY" }),
+            ],
+          },
+        },
+      });
+      vi.mocked(setDuplicatedArea).mockImplementation(renameDuplicatedArea);
+      const { rerender } = renderManager(props);
+
+      await waitFor(() => {
+        expect(
+          mergedInitialValues(mocks.setInitialFormValues)[`${SUMMARY_DETAILED}#1_jobType`],
+        ).toBe("WARRANTY");
+      });
+
+      props.diagnosticData = {
+        jobId: "J-S6",
+        priceSummaryDetailed: {
+          total,
+          byJobType: [
+            makeSummaryDetail({ jobType: "CHARGEABLE" }),
+            makeSummaryDetail({ jobType: "GOODWILL" }),
+            makeSummaryDetail({ jobType: "WARRANTY" }),
+          ],
+        },
+      };
+      rerender();
+
+      await waitFor(() => {
+        const merged = mergedInitialValues(mocks.setInitialFormValues);
+        expect(merged[`${SUMMARY_DETAILED}#1_jobType`]).toBe("GOODWILL");
+        expect(merged[`${SUMMARY_DETAILED}#2_jobType`]).toBe("WARRANTY");
+      });
+      const grownTabs = functionalCalls<Section[]>(mocks.setTabs)
+        .map((update) => update(props.tabs))
+        .find((tabs) => countAreas(tabs) > countAreas(props.tabs))!;
+      expect(
+        grownTabs.find((tab) => tab.name === "diagnosticData")!.areas.map((a) => a.name),
+      ).toContain(`${SUMMARY_DETAILED}#2`);
+    });
+
+    it("clears job-type rows when a later response has no job types", async () => {
+      const areas = [diagnosticsArea, summaryTemplate(0), summaryTemplate(1), totalArea];
+      const allFields = [...diagnosticFields, ...summaryFields(areas)];
+      const { props, mocks } = createHookProps({
+        tabs: [makeDiagnosticsTab(areas)],
+        allFields,
+        diagnosticData: {
+          jobId: "J-S7",
+          priceSummaryDetailed: {
+            total,
+            byJobType: [
+              makeSummaryDetail({ jobType: "CHARGEABLE" }),
+              makeSummaryDetail({ jobType: "WARRANTY" }),
+            ],
+          },
+        },
+      });
+      const { rerender } = renderManager(props);
+
+      await waitFor(() => {
+        expect(
+          mergedInitialValues(mocks.setInitialFormValues)[`${SUMMARY_DETAILED}#0_jobType`],
+        ).toBe("CHARGEABLE");
+      });
+
+      props.diagnosticData = { jobId: "J-S7", priceSummaryDetailed: { total, byJobType: [] } };
+      rerender();
+
+      await waitFor(() => {
+        expect(
+          mergedInitialValues(mocks.setInitialFormValues)[`${SUMMARY_DETAILED}#0_jobType`],
+        ).toBe("");
+      });
+      const shrunk = functionalCalls<Section[]>(mocks.setTabs)
+        .map((update) => update(props.tabs))
+        .find((tabs) => countAreas(tabs) < countAreas(props.tabs))!;
+      const names = shrunk.find((tab) => tab.name === "diagnosticData")!.areas.map((a) => a.name);
+      expect(names).toContain(`${SUMMARY_DETAILED}#0`);
+      expect(names).not.toContain(`${SUMMARY_DETAILED}#1`);
+    });
+
     it("skips the detailed sync when there is no summary template area", async () => {
       const { props, mocks } = createHookProps({
         diagnosticData: {
