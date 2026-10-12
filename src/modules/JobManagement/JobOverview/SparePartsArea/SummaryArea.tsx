@@ -18,7 +18,7 @@ const toCamelCase = (s: string) =>
 function SummaryArea({ area }: Readonly<{ area: Area }>) {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
   const { allFields } = useContext(GenericFormContext);
-  const { values } = useFormikContext<Record<string, unknown>>();
+  const { values, setFieldValue } = useFormikContext<Record<string, unknown>>();
   const { hasPricesPopulated, setSummaryTypeOptions, discountBase, isValidating, jobStatus } =
     useDiagnosticsContext();
   const hasPriceViewPermission = useHasPermission([PERMISSIONS.DIAGNOSTICS.CAN_VIEW_PRICES]);
@@ -130,6 +130,17 @@ function SummaryArea({ area }: Readonly<{ area: Area }>) {
     if (!summaryTypeField) return;
     setSummaryTypeOptions(summaryTypeOptions);
   }, [summaryTypeField, summaryTypeOptions, setSummaryTypeOptions]);
+
+  // A selected job type whose rows were all removed (or retyped) is no longer an option;
+  // fall back to the total so no stale job-type row (or its material line) stays visible.
+  const selectedSummaryType = summaryTypeField
+    ? (values[summaryTypeField.name] as string | undefined)
+    : undefined;
+  useEffect(() => {
+    if (!summaryTypeField || !selectedSummaryType || isValidating) return;
+    if (summaryTypeOptions.some((o) => o.value === selectedSummaryType)) return;
+    setFieldValue(summaryTypeField.name, "totalSummary");
+  }, [summaryTypeField, selectedSummaryType, summaryTypeOptions, isValidating, setFieldValue]);
 
   if (hasPriceViewPermission && !hasPricesPopulated) return null;
   if (isByJobTypeRow && jobTypeField && rowJobType !== currentSummaryType) return null;
