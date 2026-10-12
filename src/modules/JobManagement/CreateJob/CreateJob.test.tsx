@@ -843,10 +843,7 @@ describe("CreateJob", () => {
       const mockCreateOrder = vi.mocked(ordersApi.createOrder);
       const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
-      // Mock with a rejected promise that will be caught
-      mockCreateOrder.mockImplementation(() =>
-        Promise.reject(new Error("API Error")).catch(() => null),
-      );
+      mockCreateOrder.mockRejectedValue(new Error("API Error"));
 
       renderComponent();
 
