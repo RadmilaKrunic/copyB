@@ -21,6 +21,7 @@ vi.mock("../Field/GenericField", async () => {
   const { useFormikContext } = await vi.importActual<typeof import("formik")>("formik");
   function MockGenericField({ field }: { field: { name: string; label: string; type: string } }) {
     const { values, setFieldValue } = useFormikContext<Record<string, unknown>>();
+    const fieldValue = values[field.name];
     if (field.type === "datepicker") {
       return (
         <div className="custom-date-picker">
@@ -38,7 +39,7 @@ vi.mock("../Field/GenericField", async () => {
       <input
         data-testid={`field-${field.name}`}
         aria-label={field.label}
-        value={String(values[field.name] ?? "")}
+        value={typeof fieldValue === "string" ? fieldValue : ""}
         onChange={(e) => void setFieldValue(field.name, e.target.value)}
       />
     );
