@@ -985,7 +985,7 @@ describe("useDiagnosticsManager hook behavior", () => {
         "diagnosticData_diagnosticsSpareParts#1_sparePartNumber": "ROW-1",
         "diagnosticData_diagnosticsSpareParts#2_position": "LA",
         "diagnosticData_diagnosticsSpareParts#2_sparePartNumber": "ROW-2",
-      } as Record<string, unknown>,
+      },
     });
     const { result } = renderHook(() => useDiagnosticsManager(props));
 
@@ -1144,6 +1144,12 @@ const functionalCalls = <T>(setter: unknown): Array<(prev: T) => T> =>
     .map((call) => call[0])
     .filter((arg): arg is (prev: T) => T => typeof arg === "function");
 
+// Narrows without a non-null assertion, so it holds with and without strictNullChecks.
+const defined = <T>(value: T | undefined): T => {
+  if (value === undefined) throw new Error("Expected a value, got undefined");
+  return value;
+};
+
 const arrayCalls = <T>(setter: unknown): T[] =>
   (setter as Setter<T>).mock.calls.map((call) => call[0] as T).filter((arg) => Array.isArray(arg));
 
@@ -1165,11 +1171,7 @@ const renderManager = (
 ) =>
   renderHook(() => useDiagnosticsManager(props), {
     wrapper: ({ children }: { children: ReactNode }) =>
-      createElement(
-        MessagesContext.Provider,
-        { value: { messages: [], setMessages: setMessages as never } },
-        children,
-      ),
+      createElement(MessagesContext.Provider, { value: { messages: [], setMessages } }, children),
   });
 
 const apiMaterial = (overrides: Record<string, unknown> = {}) => ({
@@ -1549,17 +1551,21 @@ describe("useDiagnosticsManager effects", () => {
         ).toBe(true);
       });
 
-      const grownTabs = functionalCalls<Section[]>(mocks.setTabs)
-        .map((update) => update(props.tabs))
-        .find((tabs) => countAreas(tabs) > countAreas(props.tabs))!;
-      const diagnosticTab = grownTabs.find((tab) => tab.name === "diagnosticData")!;
+      const grownTabs = defined(
+        functionalCalls<Section[]>(mocks.setTabs)
+          .map((update) => update(props.tabs))
+          .find((tabs) => countAreas(tabs) > countAreas(props.tabs)),
+      );
+      const diagnosticTab = defined(grownTabs.find((tab) => tab.name === "diagnosticData"));
       expect(diagnosticTab.areas.map((a) => a.name)).toEqual(
         expect.arrayContaining([`${SPARE}#1`, `${SPARE}#2`]),
       );
 
-      const grownFields = functionalCalls<Field[]>(mocks.setAllFields)
-        .map((update) => update(props.allFields))
-        .find((fields) => fields.length > props.allFields.length)!;
+      const grownFields = defined(
+        functionalCalls<Field[]>(mocks.setAllFields)
+          .map((update) => update(props.allFields))
+          .find((fields) => fields.length > props.allFields.length),
+      );
       expect(grownFields.some((f) => f.name === `${SPARE}#2_description`)).toBe(true);
       expect(props.skipFormResetRef.current).toBe(true);
 
@@ -1586,9 +1592,11 @@ describe("useDiagnosticsManager effects", () => {
           updates.some((update) => countAreas(update(props.tabs)) > countAreas(props.tabs)),
         ).toBe(true);
       });
-      const grown = functionalCalls<Section[]>(mocks.setTabs)
-        .map((update) => update([...props.tabs, otherTab]))
-        .find((tabs) => countAreas(tabs) > countAreas(props.tabs))!;
+      const grown = defined(
+        functionalCalls<Section[]>(mocks.setTabs)
+          .map((update) => update([...props.tabs, otherTab]))
+          .find((tabs) => countAreas(tabs) > countAreas(props.tabs)),
+      );
       expect(grown.find((tab) => tab.name === "other")).toBe(otherTab);
     });
 
@@ -1607,17 +1615,21 @@ describe("useDiagnosticsManager effects", () => {
         ).toBe(true);
       });
 
-      const shrunk = functionalCalls<Section[]>(mocks.setTabs)
-        .map((update) => update([...tabs, otherTab]))
-        .find((next) => countAreas(next) < countAreas(tabs))!;
-      expect(shrunk.find((tab) => tab.name === "diagnosticData")!.areas.map((a) => a.name)).toEqual(
-        [`${SPARE}#0`],
+      const shrunk = defined(
+        functionalCalls<Section[]>(mocks.setTabs)
+          .map((update) => update([...tabs, otherTab]))
+          .find((next) => countAreas(next) < countAreas(tabs)),
       );
+      expect(
+        defined(shrunk.find((tab) => tab.name === "diagnosticData")).areas.map((a) => a.name),
+      ).toEqual([`${SPARE}#0`]);
       expect(shrunk.find((tab) => tab.name === "other")).toBe(otherTab);
 
-      const remainingFields = functionalCalls<Field[]>(mocks.setAllFields)
-        .map((update) => update(allFields))
-        .find((fields) => fields.length < allFields.length)!;
+      const remainingFields = defined(
+        functionalCalls<Field[]>(mocks.setAllFields)
+          .map((update) => update(allFields))
+          .find((fields) => fields.length < allFields.length),
+      );
       expect(remainingFields.some((f) => f.name.includes("#1_") || f.name.includes("#2_"))).toBe(
         false,
       );
@@ -1693,9 +1705,11 @@ describe("useDiagnosticsManager effects", () => {
         "A1",
       );
 
-      const updatedFields = functionalCalls<Field[]>(mocks.setAllFields)
-        .map((update) => update(props.allFields))
-        .find((fields) => fields.some((f) => f.name === `${ARCHIVED}#1_position`))!;
+      const updatedFields = defined(
+        functionalCalls<Field[]>(mocks.setAllFields)
+          .map((update) => update(props.allFields))
+          .find((fields) => fields.some((f) => f.name === `${ARCHIVED}#1_position`)),
+      );
       const archivedPositions = updatedFields.filter((f) => f.subtype === "archivedPosition");
       expect(archivedPositions).toHaveLength(2);
       expect(archivedPositions[0].options?.map((o) => o.value)).toEqual([
@@ -1707,12 +1721,14 @@ describe("useDiagnosticsManager effects", () => {
         "PC",
       ]);
 
-      const tabs = functionalCalls<Section[]>(mocks.setTabs)
-        .map((update) => update(props.tabs))
-        .find((next) => countAreas(next) > countAreas(props.tabs))!;
-      expect(tabs.find((tab) => tab.name === "diagnosticData")!.areas.map((a) => a.name)).toContain(
-        `${ARCHIVED}#1`,
+      const tabs = defined(
+        functionalCalls<Section[]>(mocks.setTabs)
+          .map((update) => update(props.tabs))
+          .find((next) => countAreas(next) > countAreas(props.tabs)),
       );
+      expect(
+        defined(tabs.find((tab) => tab.name === "diagnosticData")).areas.map((a) => a.name),
+      ).toContain(`${ARCHIVED}#1`);
     });
 
     it("keeps existing archived position options", async () => {
@@ -1728,9 +1744,11 @@ describe("useDiagnosticsManager effects", () => {
       await waitFor(() => {
         expect(functionalCalls<Field[]>(mocks.setAllFields).length).toBeGreaterThan(0);
       });
-      const updated = functionalCalls<Field[]>(mocks.setAllFields)
-        .map((update) => update(props.allFields))
-        .find((fields) => fields.some((f) => f.subtype === "archivedPosition"))!;
+      const updated = defined(
+        functionalCalls<Field[]>(mocks.setAllFields)
+          .map((update) => update(props.allFields))
+          .find((fields) => fields.some((f) => f.subtype === "archivedPosition")),
+      );
       expect(updated.find((f) => f.subtype === "archivedPosition")?.options).toEqual([
         { value: "SP", name: "SP" },
       ]);
@@ -1808,7 +1826,7 @@ describe("useDiagnosticsManager effects", () => {
         expect(arrayCalls<Field[]>(mocks.setAllFields).length).toBeGreaterThan(0);
       });
       const updated = arrayCalls<Field[]>(mocks.setAllFields)[0];
-      const positionField = updated.find((f) => f.name === `${SPARE}#0_position`)!;
+      const positionField = defined(updated.find((f) => f.name === `${SPARE}#0_position`));
       expect(positionField.options?.map((o) => o.value)).toEqual(["LA", "PN", "SP"]);
       expect(updated.find((f) => f.name === "claims_row_position")).toBe(claimField);
       expect(props.skipFormResetRef.current).toBe(true);
@@ -1913,11 +1931,13 @@ describe("useDiagnosticsManager effects", () => {
         expect(merged[`${SUMMARY_TOTAL}_gross`]).toBe(238);
       });
 
-      const grownTabs = functionalCalls<Section[]>(mocks.setTabs)
-        .map((update) => update(props.tabs))
-        .find((tabs) => countAreas(tabs) > countAreas(props.tabs))!;
+      const grownTabs = defined(
+        functionalCalls<Section[]>(mocks.setTabs)
+          .map((update) => update(props.tabs))
+          .find((tabs) => countAreas(tabs) > countAreas(props.tabs)),
+      );
       expect(
-        grownTabs.find((tab) => tab.name === "diagnosticData")!.areas.map((a) => a.name),
+        defined(grownTabs.find((tab) => tab.name === "diagnosticData")).areas.map((a) => a.name),
       ).toContain(`${SUMMARY_DETAILED}#1`);
       const grownFields = functionalCalls<Field[]>(mocks.setAllFields)
         .map((update) => update(props.allFields))
@@ -1946,13 +1966,17 @@ describe("useDiagnosticsManager effects", () => {
           ),
         ).toBe(true);
       });
-      const shrunk = functionalCalls<Section[]>(mocks.setTabs)
-        .map((update) => update([...props.tabs, otherTab]))
-        .find((tabs) => countAreas(tabs) < countAreas(props.tabs))!;
+      const shrunk = defined(
+        functionalCalls<Section[]>(mocks.setTabs)
+          .map((update) => update([...props.tabs, otherTab]))
+          .find((tabs) => countAreas(tabs) < countAreas(props.tabs)),
+      );
       expect(shrunk.find((tab) => tab.name === "other")).toBe(otherTab);
-      const remaining = functionalCalls<Field[]>(mocks.setAllFields)
-        .map((update) => update(allFields))
-        .find((fields) => fields.length < allFields.length)!;
+      const remaining = defined(
+        functionalCalls<Field[]>(mocks.setAllFields)
+          .map((update) => update(allFields))
+          .find((fields) => fields.length < allFields.length),
+      );
       expect(remaining.some((f) => f.name.startsWith(`${SUMMARY_DETAILED}#1`))).toBe(false);
     });
 
@@ -2075,7 +2099,7 @@ describe("useDiagnosticsManager effects", () => {
         result.current.onAddRow(props.formValuesRef.current);
       });
 
-      const added = result.current.materials.at(-1)!;
+      const added = defined(result.current.materials.at(-1));
       expect(result.current.materials).toHaveLength(2);
       expect(added.position).toBe("PN");
       expect(added.quantity).toBe(4);
@@ -2159,7 +2183,7 @@ describe("useDiagnosticsManager effects", () => {
       });
 
       const compactedTabs = arrayCalls<Section[]>(mocks.setTabs)[0];
-      const diagnosticTab = compactedTabs.find((tab) => tab.name === "diagnosticData")!;
+      const diagnosticTab = defined(compactedTabs.find((tab) => tab.name === "diagnosticData"));
       expect(diagnosticTab.areas.map((a) => a.name)).toEqual([
         `${SPARE}#0`,
         `${SPARE}#1`,
@@ -2170,17 +2194,19 @@ describe("useDiagnosticsManager effects", () => {
         `${SPARE}#1_sparePartNumber`,
       );
 
-      const compactedFields = arrayCalls<Field[]>(mocks.setAllFields).find(
-        (fields) => !fields.some((f) => f.name === `${SPARE}#2_sparePartNumber`),
-      )!;
+      const compactedFields = defined(
+        arrayCalls<Field[]>(mocks.setAllFields).find(
+          (fields) => !fields.some((f) => f.name === `${SPARE}#2_sparePartNumber`),
+        ),
+      );
       expect(compactedFields.some((f) => f.name === `${SPARE}#2_sparePartNumber`)).toBe(false);
       expect(compactedFields.some((f) => f.name === `${SPARE}#1_sparePartNumber`)).toBe(true);
 
       expect(props.formValuesRef.current[`${SPARE}#1_sparePartNumber`]).toBe("PN2");
       expect(props.formValuesRef.current[`${SPARE}#2_sparePartNumber`]).toBeUndefined();
-      const initial = mocks.setInitialFormValues.mock.calls.find(
-        (call) => typeof call[0] === "object",
-      )![0] as Record<string, unknown>;
+      const initial = defined(
+        mocks.setInitialFormValues.mock.calls.find((call) => typeof call[0] === "object"),
+      )[0] as Record<string, unknown>;
       expect(initial[`${SPARE}#1_sparePartNumber`]).toBe("PN2");
       expect(initial[`${SPARE}#2_sparePartNumber`]).toBeUndefined();
 
@@ -2258,7 +2284,7 @@ describe("useDiagnosticsManager effects", () => {
         result.current.onAddMaterials([{ partNumber: "N1" }]);
       });
 
-      const added = result.current.materials.find((m) => m.partNumber === "N1")!;
+      const added = defined(result.current.materials.find((m) => m.partNumber === "N1"));
       expect(added.type).toBe("CHARGEABLE");
       expect(added.quantity).toBe(1);
       expect(added.position).toBe("");
@@ -2380,15 +2406,19 @@ describe("useDiagnosticsManager effects", () => {
         result.current.onRestoreRow(`${ARCHIVED}#0`);
       });
 
-      const remainingFields = functionalCalls<Field[]>(mocks.setAllFields)
-        .map((update) => update(props.allFields))
-        .find((fields) => fields.length < props.allFields.length)!;
+      const remainingFields = defined(
+        functionalCalls<Field[]>(mocks.setAllFields)
+          .map((update) => update(props.allFields))
+          .find((fields) => fields.length < props.allFields.length),
+      );
       expect(remainingFields.some((f) => f.name.startsWith(ARCHIVED))).toBe(false);
 
       const otherTab: Section = { ...makeDiagnosticsTab([archivedArea]), name: "other" };
-      const nextTabs = functionalCalls<Section[]>(mocks.setTabs)
-        .map((update) => update([...props.tabs, otherTab]))
-        .find((tabs) => countAreas(tabs) < countAreas(props.tabs))!;
+      const nextTabs = defined(
+        functionalCalls<Section[]>(mocks.setTabs)
+          .map((update) => update([...props.tabs, otherTab]))
+          .find((tabs) => countAreas(tabs) < countAreas(props.tabs)),
+      );
       expect(nextTabs.find((tab) => tab.name === "other")).toBe(otherTab);
     });
   });

@@ -21,11 +21,13 @@ const warrantyAreaChangeTrigger = vi.hoisted(
   }),
 );
 const useParamsMock = vi.hoisted(() => ({ orderId: "" }));
-const useOrderByIdReturnMock = vi.hoisted(() => ({
-  data: undefined as unknown,
-  isLoading: false,
-  error: null as unknown,
-}));
+const useOrderByIdReturnMock = vi.hoisted(
+  (): { data: unknown; isLoading: boolean; error: unknown } => ({
+    data: undefined,
+    isLoading: false,
+    error: null,
+  }),
+);
 const selectedCustomerMock = vi.hoisted(() => ({
   customerId: "customer-1",
   customerTitle: "Mr",
@@ -202,11 +204,14 @@ vi.mock("../../../components/generics/Section/GenericSection", () => ({
                 data-testid={`section-action-${action.name}`}
                 onClick={() => {
                   if (action.onAction === "nextSection") {
-                    actionCallbacks[action.onAction]?.({}, {
-                      setErrors: vi.fn(),
-                      setTouched: vi.fn(),
-                      setFieldValue: vi.fn(),
-                    } as never);
+                    actionCallbacks[action.onAction]?.(
+                      {},
+                      {
+                        setErrors: vi.fn(),
+                        setTouched: vi.fn(),
+                        setFieldValue: vi.fn(),
+                      },
+                    );
                   }
                 }}
               >

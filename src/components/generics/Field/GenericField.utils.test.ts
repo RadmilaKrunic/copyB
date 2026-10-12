@@ -15,22 +15,21 @@ vi.mock("../../../api/services/orders/orders", () => ({
 
 import { getManufacturedDate } from "../../../api/services/orders/orders";
 
-const makeField = (name: string, subtype?: string, overrides: Partial<Field> = {}): Field =>
-  ({
-    name,
-    label: name,
-    type: "text",
-    subtype,
-    isDisabled: false,
-    fieldMapping: {
-      originalName: name,
-      map: name,
-      parentMap: [],
-      prefixes: [],
-      nameStartsWith: "row0_",
-    },
-    ...overrides,
-  }) as unknown as Field;
+const makeField = (name: string, subtype?: string, overrides: Partial<Field> = {}): Field => ({
+  name,
+  label: name,
+  type: "text",
+  subtype,
+  isDisabled: false,
+  fieldMapping: {
+    originalName: name,
+    map: name,
+    parentMap: [],
+    prefixes: [],
+    nameStartsWith: "row0_",
+  },
+  ...overrides,
+});
 
 const makeFormikContext = (values: Record<string, unknown> = {}) => ({
   values,
@@ -446,7 +445,7 @@ describe("resolveIsRequired", () => {
   it("returns field.isRequired when requiredDependentFields has no byValueOr or byValueAnd", () => {
     const field = makeField("f1", undefined, {
       isRequired: false,
-      requiredDependentFields: {} as any,
+      requiredDependentFields: {},
     });
     expect(resolveIsRequired(field, {})).toBe(false);
   });
@@ -458,7 +457,7 @@ describe("resolveIsRequired", () => {
           { fieldName: "actionType", fieldValue: "REPAIR" },
           { fieldName: "jobType", fieldValue: "WARRANTY" },
         ],
-      } as any,
+      },
     });
     const values = { actionType: "REPAIR", jobType: "WARRANTY" };
     expect(resolveIsRequired(field, values)).toBe(true);
@@ -471,7 +470,7 @@ describe("resolveIsRequired", () => {
           { fieldName: "actionType", fieldValue: "REPAIR" },
           { fieldName: "jobType", fieldValue: "WARRANTY" },
         ],
-      } as any,
+      },
     });
     const values = { actionType: "REPAIR", jobType: "CHARGEABLE" };
     expect(resolveIsRequired(field, values)).toBe(false);
@@ -484,7 +483,7 @@ describe("resolveIsRequired", () => {
           { fieldName: "actionType", fieldValue: "REPAIR" },
           { fieldName: "actionType", fieldValue: "EXCHANGE" },
         ],
-      } as any,
+      },
     });
     const values = { actionType: "REPAIR" };
     expect(resolveIsRequired(field, values)).toBe(true);
@@ -494,7 +493,7 @@ describe("resolveIsRequired", () => {
     const field = makeField("f1", undefined, {
       requiredDependentFields: {
         byValueOr: [{ fieldName: "actionType", fieldValue: "REPAIR" }],
-      } as any,
+      },
     });
     const values = { actionType: "EXCHANGE" };
     expect(resolveIsRequired(field, values)).toBe(false);
@@ -503,7 +502,7 @@ describe("resolveIsRequired", () => {
   it("returns false when both byValueAnd and byValueOr are empty arrays", () => {
     const field = makeField("f1", undefined, {
       isRequired: false,
-      requiredDependentFields: { byValueAnd: [], byValueOr: [] } as any,
+      requiredDependentFields: { byValueAnd: [], byValueOr: [] },
     });
     expect(resolveIsRequired(field, {})).toBe(false);
   });
@@ -519,7 +518,7 @@ describe("applyPositionRules", () => {
         prefixes: [],
         nameStartsWith: prefix,
       },
-    } as Partial<Field>),
+    }),
     makeField(`${prefix}quantity`, "diagnosticQuantity", {
       fieldMapping: {
         originalName: "quantity",
@@ -528,7 +527,7 @@ describe("applyPositionRules", () => {
         prefixes: [],
         nameStartsWith: prefix,
       },
-    } as Partial<Field>),
+    }),
     makeField(`${prefix}partNumber`, "diagnosticPartNumber", {
       fieldMapping: {
         originalName: "sparePartNumber",
@@ -537,7 +536,7 @@ describe("applyPositionRules", () => {
         prefixes: [],
         nameStartsWith: prefix,
       },
-    } as Partial<Field>),
+    }),
     makeField(`${prefix}description`, "diagnosticDescription", {
       fieldMapping: {
         originalName: "description",
@@ -546,7 +545,7 @@ describe("applyPositionRules", () => {
         prefixes: [],
         nameStartsWith: prefix,
       },
-    } as Partial<Field>),
+    }),
   ];
   const allFields = [...rowFields("row0_"), ...rowFields("row1_")];
   const positionField = allFields[4];
