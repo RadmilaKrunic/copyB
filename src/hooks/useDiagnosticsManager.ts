@@ -977,7 +977,7 @@ export const useDiagnosticsManager = ({
   // be rebuilt from the new breakdown. An empty breakdown is applied only once a non-empty
   // one was synced, so stale job-type rows get cleared.
   useEffect(() => {
-    const priceSummary = diagnosticData?.priceSummaryDetailed as SummaryDetailAll | undefined;
+    const priceSummary = diagnosticData?.priceSummaryDetailed as SummaryDetailAll;
     if (!priceSummary) return;
     if (!priceSummary.byJobType?.length && !hasSyncedSummaryDetailedRef.current) return;
 
