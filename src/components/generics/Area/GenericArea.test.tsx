@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { Formik } from "formik";
@@ -16,12 +16,12 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
-// Mock GenericField; a datepicker sets its value through Formik without a DOM change event
+// Mock GenericField: fields write through Formik; a datepicker does so without a DOM change event
 vi.mock("../Field/GenericField", async () => {
   const { useFormikContext } = await vi.importActual<typeof import("formik")>("formik");
   return {
     default: ({ field }: { field: { name: string; label: string; type: string } }) => {
-      const { setFieldValue } = useFormikContext<Record<string, unknown>>();
+      const { values, setFieldValue } = useFormikContext<Record<string, unknown>>();
       if (field.type === "datepicker") {
         return (
           <div className="custom-date-picker">
@@ -35,7 +35,14 @@ vi.mock("../Field/GenericField", async () => {
           </div>
         );
       }
-      return <input data-testid={`field-${field.name}`} aria-label={field.label} defaultValue="" />;
+      return (
+        <input
+          data-testid={`field-${field.name}`}
+          aria-label={field.label}
+          value={String(values[field.name] ?? "")}
+          onChange={(e) => void setFieldValue(field.name, e.target.value)}
+        />
+      );
     },
   };
 });
@@ -500,7 +507,7 @@ describe("GenericArea", () => {
   });
 
   describe("Diagnostics invalidation", () => {
-    it("calls onAreaValueChange for user changes in diagnostics area", () => {
+    it("calls onAreaValueChange with the new value for user changes in diagnostics area", async () => {
       const onAreaValueChange = vi.fn();
       const area: Area = {
         name: "diagnosticData_main",
@@ -537,21 +544,33 @@ describe("GenericArea", () => {
 
       fireEvent.change(field, { target: { value: "changed" } });
 
-      expect(onAreaValueChange).toHaveBeenCalledWith("diagnosticData_main", expect.any(Object));
+      await waitFor(() =>
+        expect(onAreaValueChange).toHaveBeenCalledWith(
+          "diagnosticData_main",
+          expect.objectContaining({ typeOfUsage: "changed" }),
+        ),
+      );
     });
   });
 
-  describe("Date picker changes", () => {
+  describe("User changes vs. values written by code", () => {
     const assetArea: Area = {
       name: "asset",
       label: "Asset",
       position: 1,
       fields: [
         {
+          name: "serialNumber",
+          label: "Serial number",
+          type: "text",
+          position: 1,
+          fieldMapping: { originalName: "serialNumber" },
+        },
+        {
           name: "purchaseDate",
           label: "Purchase date",
           type: "datepicker",
-          position: 1,
+          position: 2,
           fieldMapping: { originalName: "purchaseDate" },
         },
       ],
@@ -565,7 +584,7 @@ describe("GenericArea", () => {
       render(
         <QueryClientProvider client={new QueryClient()}>
           <GenericFormContext.Provider value={{ ...mockContextValue, onAreaValueChange }}>
-            <Formik initialValues={{ purchaseDate: "" }} onSubmit={vi.fn()}>
+            <Formik initialValues={{ serialNumber: "", purchaseDate: "" }} onSubmit={vi.fn()}>
               {({ setFieldValue }) => (
                 <>
                   <GenericArea area={assetArea} />
@@ -596,6 +615,35 @@ describe("GenericArea", () => {
         ),
       );
       expect(onAreaValueChange).toHaveBeenCalledTimes(1);
+    });
+
+    it("passes the typed serial number, not the previous value", async () => {
+      const onAreaValueChange = vi.fn();
+      renderAssetArea(onAreaValueChange);
+
+      fireEvent.change(screen.getByTestId("field-serialNumber"), { target: { value: "SN1" } });
+
+      await waitFor(() =>
+        expect(onAreaValueChange).toHaveBeenLastCalledWith(
+          "asset",
+          expect.objectContaining({ serialNumber: "SN1" }),
+        ),
+      );
+    });
+
+    it("ignores a value written by code after focus left the area", () => {
+      vi.useFakeTimers();
+      const onAreaValueChange = vi.fn();
+      renderAssetArea(onAreaValueChange);
+      const serial = screen.getByTestId("field-serialNumber");
+
+      fireEvent.click(serial);
+      fireEvent.blur(serial, { relatedTarget: screen.getByTestId("programmatic-set") });
+      act(() => vi.runOnlyPendingTimers());
+      fireEvent.click(screen.getByTestId("programmatic-set"));
+      vi.useRealTimers();
+
+      expect(onAreaValueChange).not.toHaveBeenCalled();
     });
 
     it("does not call onAreaValueChange when the date is set outside the area", async () => {
