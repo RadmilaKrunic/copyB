@@ -2080,7 +2080,9 @@ export default function JobOverview() {
         onFinishRepair,
         onToolDelivered,
         onCreateCostEstimate,
-        onRecalculatePrices: onRecalculatePrices as (...args: unknown[]) => void,
+        // Two named params keep arity 2 so invokeFieldAction passes (name, value).
+        onRecalculatePrices: (fieldName: unknown, value: unknown) =>
+          onRecalculatePrices(String(fieldName), value),
       },
       radioSourceCallbacks: {
         getRadioButtonsForSummaryType: () => summaryTypeOptions,
@@ -2391,7 +2393,8 @@ export default function JobOverview() {
                 )) {
                   dependencyActionCallbacks[key] = () => {
                     if (typeof callback === "function") {
-                      return (callback as (...args: unknown[]) => unknown)(values);
+                      // Explicit helpers slot satisfies every ActionCallback signature; same as omitting it.
+                      return callback(values, undefined);
                     }
                     return undefined;
                   };

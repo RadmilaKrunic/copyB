@@ -19,7 +19,9 @@ vi.mock("react-i18next", () => ({
 // Mock GenericField: fields write through Formik; a datepicker does so without a DOM change event
 vi.mock("../Field/GenericField", async () => {
   const { useFormikContext } = await vi.importActual<typeof import("formik")>("formik");
-  function MockGenericField({ field }: { field: { name: string; label: string; type: string } }) {
+  function MockGenericField({
+    field,
+  }: Readonly<{ field: { name: string; label: string; type: string } }>) {
     const { values, setFieldValue } = useFormikContext<Record<string, unknown>>();
     const fieldValue = values[field.name];
     if (field.type === "datepicker") {

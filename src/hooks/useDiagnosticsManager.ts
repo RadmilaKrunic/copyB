@@ -1812,10 +1812,7 @@ export const useDiagnosticsManager = ({
     (update) => {
       setPriceSummaryDetailed((prev) => ({
         total: prev?.total ?? ZERO_SUMMARY_PRICE,
-        byJobType:
-          typeof update === "function"
-            ? (update as (prev: SummaryDetail[]) => SummaryDetail[])(prev?.byJobType ?? [])
-            : update,
+        byJobType: typeof update === "function" ? update(prev?.byJobType ?? []) : update,
       }));
     },
     [],
