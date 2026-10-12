@@ -3,6 +3,16 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+const analyticsMock = vi.hoisted(() => ({
+  trackTechnicianAssigned: vi.fn(),
+  trackJobSectionSaved: vi.fn(),
+  trackActionFailed: vi.fn(),
+}));
+vi.mock("@/analytics", async () => ({
+  ...(await vi.importActual<Record<string, unknown>>("@/analytics")),
+  useAnalytics: () => analyticsMock,
+}));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
@@ -98,6 +108,7 @@ describe("TechnicianSelect", () => {
 
     await waitFor(() => expect(updateJobAssignee).toHaveBeenCalledWith("J1", "U1", "Jane Doe"));
     expect(setMessages).toHaveBeenCalled();
+    await waitFor(() => expect(analyticsMock.trackTechnicianAssigned).toHaveBeenCalled());
   });
 
   it("handles update failure and shows error message", async () => {
@@ -110,5 +121,13 @@ describe("TechnicianSelect", () => {
 
     await waitFor(() => expect(updateJobAssignee).toHaveBeenCalled());
     expect(setMessages).toHaveBeenCalled();
+    await waitFor(() =>
+      expect(analyticsMock.trackActionFailed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          failedAction: "technician_assigned",
+          failureReason: "system_problem",
+        }),
+      ),
+    );
   });
 });

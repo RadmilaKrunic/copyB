@@ -9,6 +9,7 @@ export const useAcceptConsent = (
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: postConsentAccept,
+    ...options,
     onSuccess: (...args) => {
       queryClient.setQueryData<HeaderUserData>(["user"], (prev) =>
         prev?.consent
@@ -18,6 +19,5 @@ export const useAcceptConsent = (
       void queryClient.invalidateQueries({ queryKey: ["user"] });
       options?.onSuccess?.(...args);
     },
-    ...options,
   });
 };

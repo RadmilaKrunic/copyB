@@ -1,6 +1,7 @@
 import axiosClient from "api/axios-client/axiosClient";
 import { AxiosResponse } from "axios";
 import {
+  ClientManagementCustomerDetails,
   ClientManagementCustomersRequest,
   ClientManagementCustomersResponse,
 } from "./clientManagement.types";
@@ -29,6 +30,21 @@ export const fetchClientManagementCustomers = async (
     return response.data;
   } catch (error) {
     console.error("Error fetching client management customers:", error);
+    throw error;
+  }
+};
+
+export const fetchClientManagementCustomerById = async (
+  customerId: string,
+): Promise<ClientManagementCustomerDetails> => {
+  try {
+    const response: AxiosResponse<ClientManagementCustomerDetails> =
+      await axiosClient.get<ClientManagementCustomerDetails>(
+        `/v1/data/client-management/customers/${customerId}`,
+      );
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching client management customer details:", error);
     throw error;
   }
 };

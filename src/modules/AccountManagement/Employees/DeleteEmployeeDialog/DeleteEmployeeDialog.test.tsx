@@ -6,6 +6,15 @@ import { MessagesContext } from "contexts/messagescontext";
 
 const mockNavigate = vi.fn();
 
+const analyticsMock = vi.hoisted(() => ({
+  trackEmployeeStatusChanged: vi.fn(),
+  trackActionFailed: vi.fn(),
+}));
+vi.mock("@/analytics", async () => ({
+  ...(await vi.importActual<Record<string, unknown>>("@/analytics")),
+  useAnalytics: () => analyticsMock,
+}));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
@@ -82,6 +91,9 @@ describe("DeleteEmployeeDialog", () => {
     expect(sessionStorage.getItem("employeeList-pageSize")).toBeNull();
     expect(setPagination).toHaveBeenCalledWith({ page: 1, pageSize: 10 });
     expect(mockNavigate).toHaveBeenCalledWith("/employee-list");
+    expect(analyticsMock.trackEmployeeStatusChanged).toHaveBeenCalledWith({
+      employeeAction: "deleted",
+    });
   });
 
   it("does not call setPagination when not provided", async () => {
@@ -104,5 +116,11 @@ describe("DeleteEmployeeDialog", () => {
     expect(setMessages).toHaveBeenCalledWith([
       { type: "error", duration: 5000, text: "failedToDeleteEmployee" },
     ]);
+    expect(analyticsMock.trackActionFailed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        failedAction: "employee_status_changed",
+        employeeAction: "deleted",
+      }),
+    );
   });
 });

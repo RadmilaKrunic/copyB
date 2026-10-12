@@ -6,12 +6,21 @@ import {
   toJobStatus,
   toPreApprovalAction,
   toFailureReason,
+  toCustomerAnswer,
   NoteContext,
   CompletionType,
   AnalyticsEventName,
+  HoldAction,
+  JobSection,
+  MaterialSource,
+  MaterialType,
+  DocumentType,
+  type ActionFailedPayload,
   type FailedAction,
+  type JobContextPayload,
   type JobEventPayload,
 } from "@/analytics";
+import { trackDocumentDownload } from "utils/trackDocumentDownload";
 import { TabNavigation, Tab, Notification } from "@bosch/react-frok";
 import "./JobOverview.scss";
 import GenericSection from "components/generics/Section/GenericSection";
@@ -446,12 +455,16 @@ export default function JobOverview() {
         ...prev,
         { text: t("successSaveAssetData"), type: "success", duration: 3000 },
       ]);
+      analytics.trackJobSectionSaved({ ...getJobContext(), jobSection: JobSection.ASSET_DATA });
     },
-    onError: () => {
+    onError: (error) => {
       setMessages((prev) => [
         ...prev,
         { text: t("errorSaveAssetData"), type: "error", duration: 3000 },
       ]);
+      trackJobFlowFailure(AnalyticsEventName.JOB_SECTION_SAVED, error, {
+        jobSection: JobSection.ASSET_DATA,
+      });
     },
   });
 
@@ -463,12 +476,14 @@ export default function JobOverview() {
         ...prev,
         { text: t("successUpdateJobStatus"), type: "success", duration: 3000 },
       ]);
+      analytics.trackDiagnosticStarted(getJobContext());
     },
-    onError: () => {
+    onError: (error) => {
       setMessages((prev) => [
         ...prev,
         { text: t("errorUpdateJobStatus"), type: "error", duration: 3000 },
       ]);
+      trackJobFlowFailure(AnalyticsEventName.DIAGNOSTIC_STARTED, error);
     },
   });
 
@@ -481,12 +496,16 @@ export default function JobOverview() {
         : "successToggleJobHold";
       setMessages((prev) => [...prev, { text: t(messageKey), type: "success", duration: 3000 }]);
       scrollToTop();
+      analytics.trackJobHoldChanged({ ...getJobContext(), holdAction: getHoldAction() });
     },
-    onError: () => {
+    onError: (error) => {
       setMessages((prev) => [
         ...prev,
         { text: t("errorToggleJobHold"), type: "error", duration: 3000 },
       ]);
+      trackJobFlowFailure(AnalyticsEventName.JOB_HOLD_CHANGED, error, {
+        holdAction: getHoldAction(),
+      });
     },
   });
 
@@ -500,12 +519,16 @@ export default function JobOverview() {
         ...prev,
         { text: t("successCustomerDataUpdate"), type: "success", duration: 3000 },
       ]);
+      analytics.trackJobSectionSaved({ ...getJobContext(), jobSection: JobSection.CUSTOMER_DATA });
     },
-    onError: () => {
+    onError: (error) => {
       setMessages((prev) => [
         ...prev,
         { text: t("errorUpdateCustomerData"), type: "error", duration: 3000 },
       ]);
+      trackJobFlowFailure(AnalyticsEventName.JOB_SECTION_SAVED, error, {
+        jobSection: JobSection.CUSTOMER_DATA,
+      });
     },
   });
 
@@ -581,7 +604,7 @@ export default function JobOverview() {
   });
 
   const approvePreApprovalMutation = useUpdateApprovalStatus({
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
       setMessages((prev) => [
         ...prev,
         { text: `${t("successfulJobPreApprovalDecision")}`, type: "success", duration: 3000 },
@@ -594,6 +617,11 @@ export default function JobOverview() {
         queryClient.refetchQueries({ queryKey: ["messages", jobId] }),
       ]);
       const updatedJob = queryClient.getQueryData<JobOverviewItem>(["job", jobId]);
+      const { jobType, jobStatus } = getJobContext();
+      const preApprovalAction = toPreApprovalAction(variables.approvalStatus);
+      if (preApprovalAction && jobType && jobStatus) {
+        analytics.trackPreApprovalReviewed({ jobType, jobStatus, preApprovalAction });
+      }
       if (!updatedJob?.job?.pendingApprovals?.includes("BOSCH_INTERNAL")) {
         await navigate("/approval-list");
       }
@@ -684,7 +712,11 @@ export default function JobOverview() {
   });
 
   const customerAnswerMutation = usePostCustomerAnswer({
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
+      const customerAnswer = toCustomerAnswer(variables.answer);
+      if (customerAnswer) {
+        analytics.trackCustomerAnswerRecorded({ ...getJobContext(), customerAnswer });
+      }
       setArePricesValidated(false);
 
       await Promise.all([
@@ -698,16 +730,20 @@ export default function JobOverview() {
         { text: t("successSubmitCustomerAnswer"), type: "success", duration: 3000 },
       ]);
     },
-    onError: () => {
+    onError: (error, variables) => {
       setMessages((prev) => [
         ...prev,
         { text: t("errorSubmitCustomerAnswer"), type: "error", duration: 3000 },
       ]);
+      trackJobFlowFailure(AnalyticsEventName.CUSTOMER_ANSWER_RECORDED, error, {
+        customerAnswer: toCustomerAnswer(variables.answer),
+      });
     },
   });
 
   const createCostEstimateMutation = usePostCreateCostEstimate({
     onSuccess: async () => {
+      analytics.trackCostEstimateCreated(getJobContext());
       await Promise.all([
         queryClient.refetchQueries({ queryKey: ["job", jobId] }),
         queryClient.refetchQueries({ queryKey: ["diagnostic", jobId] }),
@@ -720,6 +756,7 @@ export default function JobOverview() {
       ]);
       if (jobId) {
         const blob = await getCostEstimationPdf(jobId);
+        trackDocumentDownload(analytics, DocumentType.COST_ESTIMATE_PDF, blob);
         if (blob) {
           const url = URL.createObjectURL(blob);
           const newWindow = window.open(url, "_blank");
@@ -731,11 +768,12 @@ export default function JobOverview() {
         }
       }
     },
-    onError: () => {
+    onError: (error) => {
       setMessages((prev) => [
         ...prev,
         { text: t("errorCreateCostEstimate"), type: "error", duration: 3000 },
       ]);
+      trackJobFlowFailure(AnalyticsEventName.COST_ESTIMATE_CREATED, error);
     },
   });
 
@@ -822,7 +860,7 @@ export default function JobOverview() {
         scrollToTop();
         return;
       }
-      emitJobFlowEvent((payload) => analytics.trackDiagnosticValidated(payload));
+      analytics.trackPricesRecalculated(getJobContext());
     },
     onError: (error) => {
       setMessages((prev) => [
@@ -835,6 +873,7 @@ export default function JobOverview() {
       ]);
       setArePricesValidated(false);
       scrollToTop();
+      trackJobFlowFailure(AnalyticsEventName.PRICES_RECALCULATED, error);
     },
   });
   const [selectedTab, setSelectedTab] = useState<string>("");
@@ -860,6 +899,8 @@ export default function JobOverview() {
   const setFieldValueRef = useRef<((field: string, value: unknown) => void) | null>(null);
 
   const preToggleHoldStateRef = useRef(false);
+  const getHoldAction = (): HoldAction =>
+    preToggleHoldStateRef.current ? HoldAction.RELEASED : HoldAction.PLACED;
   const prevjobFullDataRef = useRef<typeof jobFullData>(undefined);
   const hashTabAppliedRef = useRef(false);
   const autocompleteValidationRef = useRef<Record<string, boolean>>({});
@@ -913,18 +954,31 @@ export default function JobOverview() {
     },
     [currentJobType, jobId, queryClient],
   );
+  const getJobContext = useCallback(
+    (): JobContextPayload => ({
+      jobType: toJobType(currentJobType),
+      jobStatus: toJobStatus(
+        queryClient.getQueryData<JobOverviewItem>(["job", jobId])?.job?.jobStatus,
+      ),
+    }),
+    [currentJobType, jobId, queryClient],
+  );
   const trackJobFlowFailure = useCallback(
-    (failedAction: FailedAction, error: unknown): void => {
+    (failedAction: FailedAction, error: unknown, detail: Partial<ActionFailedPayload> = {}) => {
       analytics.trackActionFailed({
+        ...getJobContext(),
+        ...detail,
         failedAction,
         failureReason: toFailureReason(error),
-        jobType: toJobType(currentJobType),
-        jobStatus: toJobStatus(
-          queryClient.getQueryData<JobOverviewItem>(["job", jobId])?.job?.jobStatus,
-        ),
       });
     },
-    [analytics, currentJobType, jobId, queryClient],
+    [analytics, getJobContext],
+  );
+  const trackMaterialAdded = useCallback(
+    (materialType: MaterialType, materialSource: MaterialSource) => {
+      analytics.trackMaterialAdded({ ...getJobContext(), materialType, materialSource });
+    },
+    [analytics, getJobContext],
   );
   useEffect(() => {
     setCurrentActionType((initialFormValues?.actionType as string) || "");
@@ -1159,8 +1213,9 @@ export default function JobOverview() {
           origin: "specialMaterial" as const,
         })),
       );
+      trackMaterialAdded(MaterialType.SPECIAL_MATERIAL, MaterialSource.MANUAL);
     },
-    [addMaterialsToForm],
+    [addMaterialsToForm, trackMaterialAdded],
   );
 
   const handleExplosionDrawingSubmit = useCallback(
@@ -1180,8 +1235,9 @@ export default function JobOverview() {
             origin: "explosionDrawing" as const,
           })),
       );
+      trackMaterialAdded(MaterialType.SPARE_PART, MaterialSource.DRAWING);
     },
-    [addMaterialsToForm],
+    [addMaterialsToForm, trackMaterialAdded],
   );
 
   const getExistingMaterialsAsPositionItems = useCallback((): PositionItem[] => {
@@ -1236,10 +1292,43 @@ export default function JobOverview() {
     });
   }, [allFields, materials]);
 
+  const isProductPhotoForExchangeActionValid = useCallback(
+    (withInvoice = false) => {
+      const attachments = jobData?.job?.asset?.attachments ?? jobFullData?.job?.asset?.attachments;
+      const hasProductPhoto = attachments?.some((file) => file?.type === "PRODUCT_PHOTO");
+      const actionType =
+        (formValuesRef.current.actionType as string | undefined) ??
+        diagnosticData?.actionType ??
+        jobFullData?.diagnostic?.actionType;
+      const isExchangeAction =
+        actionType === "NEW_TOOL_EXCHANGE" ||
+        actionType === "SPARE_PARTS_EXCHANGE" ||
+        actionType === "ACCESSORIES_EXCHANGE";
+      if (isExchangeAction && !hasProductPhoto) {
+        setMessages(() => [
+          {
+            text: withInvoice
+              ? t("errorMissingProductPhotoAndInvoice")
+              : t("errorMissingProductPhoto"),
+            type: "error",
+            duration: 6000,
+          },
+        ]);
+        setSelectedTab("documents");
+        scrollToTop();
+        return false;
+      }
+      return true;
+    },
+    [diagnosticData, jobData, jobFullData, t, setMessages],
+  );
+
   const onSubmitForReview = useCallback(() => {
     if (!jobId) return;
+    if (!isProductPhotoForExchangeActionValid()) return;
+
     startReviewMutation.mutate({ jobId });
-  }, [jobId, startReviewMutation]);
+  }, [jobId, startReviewMutation, isProductPhotoForExchangeActionValid]);
 
   const onStartRepair = useCallback(() => {
     if (!jobId) return;
@@ -1269,14 +1358,23 @@ export default function JobOverview() {
       );
 
       if (hasPurchaseDate && hasWarrantyOrProServiceItem && !hasInvoiceAttachment) {
-        uploadErrors.add("InvoiceWarrantyValidation");
+        setSelectedTab("documents");
+        if (isProductPhotoForExchangeActionValid(true)) {
+          uploadErrors.add("InvoiceWarrantyValidation");
+        } else {
+          return;
+        }
+      }
+
+      if (!isProductPhotoForExchangeActionValid()) {
+        return;
       }
 
       if (uploadErrors.size > 0) {
         setMessages((prev) => [
           ...prev,
           ...Array.from(uploadErrors).map(
-            (key): Message => ({ text: t(key), type: "error", duration: 3000 }),
+            (key): Message => ({ text: t(key), type: "error", duration: 6000 }),
           ),
         ]);
         scrollToTop();
@@ -1285,7 +1383,14 @@ export default function JobOverview() {
     }
 
     finishRepairMutation.mutate({ jobId });
-  }, [jobId, finishRepairMutation, jobData?.job?.asset?.attachments, setMessages, t]);
+  }, [
+    jobId,
+    finishRepairMutation,
+    jobData?.job?.asset?.attachments,
+    setMessages,
+    t,
+    isProductPhotoForExchangeActionValid,
+  ]);
 
   const onToolDelivered = useCallback(() => {
     if (!jobId) return;
@@ -1328,36 +1433,15 @@ export default function JobOverview() {
         })
         .filter(Boolean);
 
-      approvePreApprovalMutation.mutate(
-        {
-          jobId,
-          materialIds,
-          approvalStatus,
-          message: comments || null,
-        },
-        {
-          onSuccess: () => {
-            const preApprovalAction = toPreApprovalAction(approvalStatus);
-            const jobType = toJobType(currentJobType);
-            const jobStatus = toJobStatus(
-              queryClient.getQueryData<JobOverviewItem>(["job", jobId])?.job?.jobStatus,
-            );
-            if (preApprovalAction && jobType && jobStatus) {
-              analytics.trackPreApprovalReviewed({ jobType, jobStatus, preApprovalAction });
-            }
-          },
-        },
-      );
+      approvePreApprovalMutation.mutate({
+        jobId,
+        materialIds,
+        approvalStatus,
+        message: comments || null,
+      });
       setPreApprovalDecision(null);
     },
-    [
-      jobId,
-      preApprovalDecision,
-      approvePreApprovalMutation,
-      analytics,
-      currentJobType,
-      queryClient,
-    ],
+    [jobId, preApprovalDecision, approvePreApprovalMutation],
   );
 
   const getPreApprovalModalTitle = useCallback(() => {
@@ -1446,13 +1530,14 @@ export default function JobOverview() {
 
   const onRequestInternalApproval = useCallback(() => {
     if (!jobId) return;
+    if (!isProductPhotoForExchangeActionValid()) return;
     internalApprovalRequestMutation.mutate({ jobId });
-  }, [jobId, internalApprovalRequestMutation]);
+  }, [jobId, internalApprovalRequestMutation, isProductPhotoForExchangeActionValid]);
 
   const onRecalculatePrices = useCallback(
     (fieldName: string, value: unknown) => {
       if (recalculatePricesMutation.isPending) return;
-      if(!value) return;
+      if (!value) return;
       if (!allFieldsRef.current) return;
       const field = allFieldsRef.current?.find((f) => f.name === fieldName);
       if (!field) return;
@@ -1632,7 +1717,10 @@ export default function JobOverview() {
           onSaveAsset(values, actionHelpers);
         },
         onCancelEditAsset: () => onCancelEditAsset(),
-        onAddSparePart: () => onAddSparePart(values),
+        onAddSparePart: () => {
+          onAddSparePart(values);
+          trackMaterialAdded(MaterialType.SPARE_PART, MaterialSource.MANUAL);
+        },
         onAddSpecialMaterials: () => onAddSpecialMaterials(values),
         onProductDetails: () => onProductDetails(),
         onValidate: () => {
@@ -1670,6 +1758,7 @@ export default function JobOverview() {
       onSaveAsset,
       onCancelEditAsset,
       onAddSparePart,
+      trackMaterialAdded,
       onAddSpecialMaterials,
       onProductDetails,
       onValidate,

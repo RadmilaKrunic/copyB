@@ -46,6 +46,15 @@ const mockQueryClient = {
   invalidateQueries: mockInvalidateQueries,
 };
 
+const analyticsMock = vi.hoisted(() => ({
+  trackReimbursementCreated: vi.fn(),
+  trackActionFailed: vi.fn(),
+}));
+vi.mock("@/analytics", async () => ({
+  ...(await vi.importActual<Record<string, unknown>>("@/analytics")),
+  useAnalytics: () => analyticsMock,
+}));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
@@ -222,6 +231,7 @@ describe("CreateReimbursement", () => {
       expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ["reimbursements"] });
       expect(mockNavigate).toHaveBeenCalledWith("/reimbursement#reimbursement-list");
     });
+    expect(analyticsMock.trackReimbursementCreated).toHaveBeenCalledTimes(1);
   });
 
   it("resets form when cancel action fires", () => {
@@ -256,6 +266,9 @@ describe("CreateReimbursement", () => {
         duration: 3000,
       },
     ]);
+    expect(analyticsMock.trackActionFailed).toHaveBeenCalledWith(
+      expect.objectContaining({ failedAction: "reimbursement_created" }),
+    );
   });
 
   it("disables action status when ascDetails is empty", () => {

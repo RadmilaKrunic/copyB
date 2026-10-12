@@ -139,6 +139,16 @@ const {
   },
 }));
 
+const analyticsMock = vi.hoisted(() => ({
+  trackAscSaved: vi.fn(),
+  trackAscDeactivated: vi.fn(),
+  trackActionFailed: vi.fn(),
+}));
+vi.mock("@/analytics", async () => ({
+  ...(await vi.importActual<Record<string, unknown>>("@/analytics")),
+  useAnalytics: () => analyticsMock,
+}));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
@@ -474,6 +484,7 @@ describe("AscOverview", () => {
       expect(putMock).toHaveBeenCalledWith("/v1/service-centers/ASC-1");
       expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ["ASC", "ASC-1"] });
     });
+    await waitFor(() => expect(analyticsMock.trackAscDeactivated).toHaveBeenCalledTimes(1));
   });
 
   it("saves current tab values through mutation payload", async () => {

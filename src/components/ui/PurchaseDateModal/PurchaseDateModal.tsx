@@ -16,6 +16,8 @@ import {
   parsePurchaseYearMonth,
 } from "../../generics/Form/formValidation";
 import FieldError from "../../generics/Field/components/FieldError";
+import { useAnalytics, toFailureReason, AnalyticsEventName, JobSection } from "@/analytics";
+import { getCachedJobContext } from "modules/JobManagement/jobAnalyticsContext";
 
 interface PurchaseDateModalProps {
   jobId: string;
@@ -50,6 +52,7 @@ function PurchaseDateModal({ jobId, isOpen, onClose }: Readonly<PurchaseDateModa
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { setMessages } = useContext(MessagesContext);
+  const analytics = useAnalytics();
   const manufactureDate = queryClient.getQueryData<JobOverviewItem>(["job", jobId])?.job?.asset
     ?.manufacturedDate;
 
@@ -62,9 +65,19 @@ function PurchaseDateModal({ jobId, isOpen, onClose }: Readonly<PurchaseDateModa
         { text: t("purchaseDateAppliedSuccess"), type: "success", duration: 5000 },
       ]);
       onClose();
+      analytics.trackJobSectionSaved({
+        ...getCachedJobContext(queryClient, jobId),
+        jobSection: JobSection.PURCHASE_DATE,
+      });
     },
     onError: (error) => {
       setErrorMessage(getApiErrorMessage(error, t, "errorUpdatePurchaseDate"));
+      analytics.trackActionFailed({
+        ...getCachedJobContext(queryClient, jobId),
+        failedAction: AnalyticsEventName.JOB_SECTION_SAVED,
+        failureReason: toFailureReason(error),
+        jobSection: JobSection.PURCHASE_DATE,
+      });
     },
   });
 

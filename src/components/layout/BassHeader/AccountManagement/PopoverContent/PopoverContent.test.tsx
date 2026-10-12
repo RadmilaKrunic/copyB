@@ -17,6 +17,16 @@ const localStorageMock = {
 globalThis.localStorage = localStorageMock as Storage;
 
 // Mock @bosch/react-frok
+const analyticsMock = vi.hoisted(() => ({
+  trackLanguageChanged: vi.fn(),
+  trackUserLoggedOut: vi.fn(),
+  trackActionFailed: vi.fn(),
+}));
+vi.mock("@/analytics", async () => ({
+  ...(await vi.importActual<Record<string, unknown>>("@/analytics")),
+  useAnalytics: () => analyticsMock,
+}));
+
 vi.mock("@bosch/react-frok", () => ({
   Icon: ({ iconName, className }: { iconName: string; className?: string }) => (
     <i data-testid={`icon-${iconName}`} className={className} />
@@ -246,6 +256,7 @@ describe("PopoverContent", () => {
     expect(mockReplace).toHaveBeenCalledWith(expect.stringContaining("/v1/auth/logout"));
 
     vi.useRealTimers();
+    expect(analyticsMock.trackUserLoggedOut).toHaveBeenCalledWith({ logoutSource: "header" });
   });
 
   it("renders language dropdown with correct options", () => {

@@ -1,7 +1,8 @@
 import { useQuery, UseQueryOptions, keepPreviousData } from "@tanstack/react-query";
 import { DEFAULT_STALE_TIME_MS } from "utils/queryConstants";
-import { fetchClientManagementCustomers } from "./action";
+import { fetchClientManagementCustomerById, fetchClientManagementCustomers } from "./action";
 import {
+  ClientManagementCustomerDetails,
   ClientManagementCustomersRequest,
   ClientManagementCustomersResponse,
 } from "./clientManagement.types";
@@ -32,3 +33,16 @@ export const useClientManagementCustomers = (
     ...options,
   });
 };
+
+export const useClientManagementCustomerDetails = (
+  customerId: string,
+  options?: UseQueryOptions<ClientManagementCustomerDetails, Error>,
+) =>
+  useQuery({
+    queryKey: ["clientManagementCustomerDetails", customerId],
+    queryFn: () => fetchClientManagementCustomerById(customerId),
+    enabled: !!customerId,
+    refetchOnWindowFocus: false,
+    staleTime: DEFAULT_STALE_TIME_MS,
+    ...options,
+  });

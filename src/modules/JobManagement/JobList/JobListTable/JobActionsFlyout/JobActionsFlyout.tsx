@@ -6,6 +6,14 @@ import { getOrderReceipt } from "../../../../../api/services/orders/orders";
 import { usePostJobStatusStartDiagnostic } from "../../../../../api/services/jobs/hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { ScrollablePopover } from "components/ui/ScrollablePopover/ScrollablePopover";
+import {
+  useAnalytics,
+  toFailureReason,
+  toJobStatus,
+  AnalyticsEventName,
+  DocumentType,
+} from "@/analytics";
+import { trackDocumentDownload } from "utils/trackDocumentDownload";
 
 export default function JobActionsFlyout({
   job,
@@ -20,14 +28,21 @@ export default function JobActionsFlyout({
 }>) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const analytics = useAnalytics();
 
   const postJobStatusMutation = usePostJobStatusStartDiagnostic({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jobs"] }).catch(() => undefined);
       queryClient.invalidateQueries({ queryKey: ["job", job.jobId] }).catch(() => undefined);
+      analytics.trackDiagnosticStarted({ jobStatus: toJobStatus(job.jobStatus) });
     },
     onError: (error) => {
       console.error("Failed to update job status:", error);
+      analytics.trackActionFailed({
+        failedAction: AnalyticsEventName.DIAGNOSTIC_STARTED,
+        failureReason: toFailureReason(error),
+        jobStatus: toJobStatus(job.jobStatus),
+      });
     },
   });
 
@@ -48,6 +63,7 @@ export default function JobActionsFlyout({
   const handlePrintJobReceipt = async () => {
     try {
       const blob = await getOrderReceipt(job.orderId);
+      trackDocumentDownload(analytics, DocumentType.ORDER_RECEIPT_PDF, blob);
       if (blob) {
         const url = URL.createObjectURL(blob);
         const newWindow = window.open(url, "_blank");

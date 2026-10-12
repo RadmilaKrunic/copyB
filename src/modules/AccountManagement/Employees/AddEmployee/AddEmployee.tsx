@@ -15,6 +15,7 @@ import { scrollToFirstError } from "utils/scrollToError";
 import { getVisibleFieldsWithErrors } from "components/generics/Form/formValidation";
 import { useBreadcrumbs } from "hooks/useBreadcrumbs";
 import { useTranslation } from "react-i18next";
+import { useAnalytics, toFailureReason, AnalyticsEventName, SaveType } from "@/analytics";
 import { createUser } from "api/services/users/action";
 import { mapAccountRolesToAPIFormat } from "../EmployeeOverview/EmployeeOverview.utils";
 import { MessagesContext } from "contexts/messagescontext";
@@ -22,6 +23,7 @@ import { MessagesContext } from "contexts/messagescontext";
 function AddEmployee() {
   const navigate = useNavigate();
   const { t } = useTranslation("translation", { keyPrefix: "app" });
+  const analytics = useAnalytics();
   useBreadcrumbs([
     { label: t("employees"), href: "/employee-list" },
     { label: t("addEmployee"), href: "/" },
@@ -114,9 +116,15 @@ function AddEmployee() {
     mutationFn: createUser,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["employees"] });
+      analytics.trackEmployeeSaved({ saveType: SaveType.CREATED });
       navigate(`/employee-list`);
     },
     onError: (error: any) => {
+      analytics.trackActionFailed({
+        failedAction: AnalyticsEventName.EMPLOYEE_SAVED,
+        failureReason: toFailureReason(error),
+        saveType: SaveType.CREATED,
+      });
       if (error?.status === 409) {
         setMessages([{ type: "error", duration: 5000, text: t("emailAlreadyExists") }]);
         return;

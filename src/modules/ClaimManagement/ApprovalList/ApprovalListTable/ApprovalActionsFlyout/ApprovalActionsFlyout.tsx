@@ -40,7 +40,7 @@ export default function ApprovalActionsFlyout({
   const analytics = useAnalytics();
 
   const { mutate: updateApprovalStatus } = useUpdateApprovalStatus({
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
       onBeforeInvalidate?.();
       await queryClient.invalidateQueries({ queryKey: ["approvals"] });
       await queryClient.invalidateQueries({ queryKey: ["job", jobId] });
@@ -57,7 +57,7 @@ export default function ApprovalActionsFlyout({
       ]);
       scrollToTop();
       const updatedJob = queryClient.getQueryData<JobOverviewItem>(["job", jobId]);
-      const preApprovalAction = toPreApprovalAction(currentDecision ?? "");
+      const preApprovalAction = toPreApprovalAction(variables.approvalStatus);
       const reviewedJobStatus = toJobStatus(updatedJob?.job?.jobStatus);
       if (preApprovalAction && reviewedJobStatus) {
         analytics.trackPreApprovalReviewed({ jobStatus: reviewedJobStatus, preApprovalAction });

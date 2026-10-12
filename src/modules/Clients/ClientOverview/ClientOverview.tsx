@@ -2,12 +2,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { getCustomerById } from "../../../api/services/customers/customers";
 import { Customer, CustomerJob } from "../../../api/services/customers/customers.types";
+import { useClientManagementCustomerDetails } from "../../../api/services/clientManagement/hooks";
 import { DEFAULT_STALE_TIME_MS } from "../../../utils/queryConstants";
 import ActivityIndicatorWithDelay from "../../../components/ui/ActivityIndicatorWithDelay/ActivityIndicatorWithDelay";
 import { useBreadcrumbs } from "../../../hooks/useBreadcrumbs";
 import { useTranslation } from "react-i18next";
 import OverviewHeader from "../../../components/ui/OverviewHeader/OverviewHeader";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFormInitialization } from "../../../hooks/useFormInitialization";
 import GenericForm from "../../../components/generics/Form/GenericForm.types";
 import { HeaderUserData } from "../../../api/services/header/action";
@@ -18,7 +19,10 @@ import {
   toggleSectionFieldsDisabled,
   convertAPIDataToFormValues,
 } from "../../../components/generics/utils";
-import axiosClient from "../../../api/axios-client/axiosClient";
+import { useDeleteCustomer } from "../../../api/services/customers/hooks";
+import { useHasPermission } from "../../../hooks/useHasPermission";
+import { PERMISSIONS } from "../../../utils/Permissions";
+import DeleteClientDialog from "./DeleteClientDialog/DeleteClientDialog";
 import { useActionWithValidation } from "../../../hooks/useActionWithValidation";
 import OverviewContent from "../../../components/ui/OverviewContent/OverviewContent";
 import ClientJobsTab from "./ClientJobsTab/ClientJobsTab";
@@ -38,11 +42,23 @@ function ClientOverview() {
     staleTime: DEFAULT_STALE_TIME_MS,
     refetchOnMount: false,
   });
-  const { firstName, lastName, isActive, assetsCount, billingAddress, mobileNumber, primaryEmail } =
-    client || {};
+  const { isActive, assetsCount } = client || {};
   const status = isActive ? "ACTIVE" : "INACTIVE";
 
+  const { data: customerDetails } = useClientManagementCustomerDetails(clientId || "");
+  const assetCount = customerDetails?.assetCount ?? assetsCount;
+  const totalActiveJobs = customerDetails?.totalActiveJobs ?? 0;
+
   const user = queryClient.getQueryData<HeaderUserData>(["user"]);
+  const canAnonymizeClient = useHasPermission([PERMISSIONS.CLIENT.CAN_ANONYMIZE_CLIENT]);
+  const canDeleteClient =
+    canAnonymizeClient &&
+    !!user?.roles?.some((role) =>
+      ["ASC_MANAGER", "ASC_MANAGER_WITHOUT_CLAIM", "ASC_RECEPTIONIST"].includes(role),
+    );
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const deleteCustomer = useDeleteCustomer();
+  const deletionPendingRef = useRef(false);
   const uiConfigurationForms = queryClient.getQueryData<{ forms: GenericForm[] }>([
     "UIConfiguration",
     user?.countryCode,
@@ -179,16 +195,54 @@ function ClientOverview() {
     [handleActionWithValidation],
   );
 
-  const onArchiveClient = useCallback(() => {
-    void axiosClient.put(`/v1/clients/archive/${clientId}`).then(() => {
-      void queryClient.invalidateQueries({ queryKey: ["client", clientId] });
-      void queryClient.invalidateQueries({ queryKey: ["clients"] });
+  const onDeleteClient = () => {
+    if (!canDeleteClient || !client || !clientId || deletionPendingRef.current) return;
+    deleteCustomer.reset();
+    setIsDeleteDialogOpen(true);
+  };
+
+  const closeDeleteDialog = () => {
+    if (!deletionPendingRef.current) setIsDeleteDialogOpen(false);
+  };
+
+  const confirmDeleteClient = () => {
+    if (
+      !isDeleteDialogOpen ||
+      !canDeleteClient ||
+      !client ||
+      !clientId ||
+      deletionPendingRef.current
+    ) {
+      return;
+    }
+    deletionPendingRef.current = true;
+    const navigateToClientList = () => {
+      const navigationResult = navigate("/clients");
+      if (navigationResult instanceof Promise) {
+        navigationResult.catch(() => undefined);
+      }
+    };
+
+    deleteCustomer.mutate(clientId, {
+      onSuccess: () => {
+        setIsDeleteDialogOpen(false);
+        queryClient
+          .invalidateQueries({ queryKey: ["clientManagementCustomers"] })
+          .then(navigateToClientList, navigateToClientList)
+          .catch(() => undefined);
+      },
+      onSettled: () => {
+        deletionPendingRef.current = false;
+      },
     });
-  }, [clientId, queryClient]);
+  };
 
   const onCreateJob = useCallback(() => {
-    navigate(`/create-job`);
-  }, [navigate]);
+    const navigateResult = navigate(`/create-job`, { state: { prefillCustomer: client } });
+    if (navigateResult instanceof Promise) {
+      navigateResult.catch(() => undefined);
+    }
+  }, [navigate, client]);
 
   const onJobRowClick = useCallback(
     (job: CustomerJob) => {
@@ -200,20 +254,30 @@ function ClientOverview() {
     [navigate],
   );
 
-  const handleGenericAction = useCallback(
-    (actionName: string) => {
-      const actionMap: Record<string, () => void> = {
-        onArchiveClient: () => onArchiveClient(),
-        onCreateJob: () => onCreateJob(),
-      };
+  const handleGenericAction = (actionName: string) => {
+    const actionMap: Record<string, () => void> = {
+      onDeleteClient: () => onDeleteClient(),
+      onCreateJob: () => onCreateJob(),
+    };
 
-      const action = actionMap[actionName];
-      if (action) {
-        action();
+    const action = actionMap[actionName];
+    if (action) {
+      action();
+    }
+  };
+
+  const overviewForm = clientOverviewForm
+    ? {
+        ...clientOverviewForm,
+        actions: (clientOverviewForm.actions || []).filter(
+          (action) =>
+            (action.onAction !== "onDeleteClient" &&
+              action.name !== "onDeleteClient" &&
+              action.name !== "deleteClient") ||
+            (canDeleteClient && !!client),
+        ),
       }
-    },
-    [onArchiveClient, onCreateJob],
-  );
+    : null;
 
   const genericFormContextValue = useMemo(
     () => ({
@@ -254,26 +318,30 @@ function ClientOverview() {
         items={[
           {
             icon: "customer",
-            title: `${firstName} ${lastName}`,
-            subtitle: `${mobileNumber || "-"} | ${primaryEmail || "-"}`,
+            title: `${customerDetails?.name || "-"}`,
+            subtitle: `${customerDetails?.phoneNumber || "-"} | ${customerDetails?.email || "-"}`,
           },
           {
             icon: "locator",
-            title: `${billingAddress?.street || "-"}`,
-            subtitle: `${billingAddress?.city || "-"}, ${billingAddress?.stateProvinceRegion || "-"}`,
+            title: `${customerDetails?.billingAddress?.city || "-"}`,
+            subtitle: `${customerDetails?.billingAddress?.stateProvinceRegion || "-"} | ${customerDetails?.billingAddress?.postalCode || "-"}`,
           },
           {
             icon: "drill-driver-cordless",
-            title: `${assetsCount || "-"}`,
+            title: `${assetCount || "-"}`,
             subtitle: `${t("totalAssets")}`,
           },
+          {
+            icon: "cube",
+            title: `${totalActiveJobs}`,
+            subtitle: `${t("totalActiveJobs")}`,
+          },
         ]}
-        status={status}
-        showStatus={true}
+        showStatus={false}
       />
       <GenericFormContext.Provider value={genericFormContextValue}>
         <OverviewContent
-          form={clientOverviewForm}
+          form={overviewForm}
           selectedTab={selectedTab}
           tabs={tabs.map((tab) => ({ ...tab, label: t(tab.label) }))}
           onTabSelect={setSelectedTab}
@@ -296,6 +364,15 @@ function ClientOverview() {
           }}
         />
       </GenericFormContext.Provider>
+      {isDeleteDialogOpen && (
+        <DeleteClientDialog
+          isOpen={isDeleteDialogOpen}
+          isPending={deleteCustomer.isPending}
+          isError={deleteCustomer.isError}
+          onCancel={closeDeleteDialog}
+          onConfirm={confirmDeleteClient}
+        />
+      )}
     </div>
   );
 }

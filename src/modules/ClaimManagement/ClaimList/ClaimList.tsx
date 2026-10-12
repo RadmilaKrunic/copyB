@@ -31,7 +31,15 @@ import {
 } from "./ClaimList.columns.utils";
 import "./ClaimList.scss";
 import ClaimListExportDialog from "./ClaimListExportDialog/ClaimListExportDialog";
-import { useListTracking } from "@/analytics";
+import {
+  useAnalytics,
+  useListTracking,
+  toClaimAction,
+  toClaimStatus,
+  toFailureReason,
+  toJobType,
+  AnalyticsEventName,
+} from "@/analytics";
 
 function ClaimList() {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
@@ -52,6 +60,7 @@ function ClaimList() {
   const claimFiltersSection =
     uiConfiguration?.forms.find((f) => f.name === "claimFilters")?.sections[0] ?? null;
   const { setMessages } = useContext(MessagesContext);
+  const analytics = useAnalytics();
   const { data: claims = [], isLoading: isClaimsLoading } = useClaims();
   const [quickFilters, setQuickFilters] = useState(storedQuickFilters ?? QUICK_FILTERS);
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
@@ -144,6 +153,8 @@ function ClaimList() {
     }
   };
 
+  const findClaim = (claimId: string) => claims.find((claim) => claim.claimId === claimId);
+
   const bulkApproveClaimsMutation = useBulkApproveClaims({
     onSuccess: (_, variables) => {
       setSelectedRows([]);
@@ -162,8 +173,16 @@ function ClaimList() {
           duration: 3000,
         },
       ]);
+      const claimAction = toClaimAction(variables.decision);
+      const claimStatus = toClaimStatus(variables.decision);
+      if (claimAction && claimStatus) {
+        for (const claimId of variables.claimIds) {
+          const jobType = toJobType(findClaim(claimId)?.jobType);
+          analytics.trackClaimReviewed({ claimStatus, claimAction, jobType });
+        }
+      }
     },
-    onError: (_, variables) => {
+    onError: (error, variables) => {
       const errorTextMap = {
         APPROVED: t("errorClaimsBulkApprove"),
         REJECTED: t("errorClaimsBulkReject"),
@@ -177,6 +196,16 @@ function ClaimList() {
           duration: 3000,
         },
       ]);
+      const failureReason = toFailureReason(error);
+      for (const claimId of variables.claimIds) {
+        const claim = findClaim(claimId);
+        analytics.trackActionFailed({
+          failedAction: AnalyticsEventName.CLAIM_REVIEWED,
+          failureReason,
+          claimStatus: toClaimStatus(claim?.status),
+          jobType: toJobType(claim?.jobType),
+        });
+      }
     },
   });
 

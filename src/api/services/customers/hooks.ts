@@ -1,7 +1,11 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { DEFAULT_STALE_TIME_MS } from "../../../utils/queryConstants";
 import { getCustomerAssets, getCustomerJobs, getCustomerOrders } from "./customers";
 import { CustomerAssetsQuery, CustomerJobsQuery, CustomerOrdersQuery } from "./customers.types";
+import { deleteCustomer } from "./action";
+
+export const useDeleteCustomer = () =>
+  useMutation<void, Error, string>({ mutationFn: deleteCustomer, retry: false });
 
 export const useCustomerAssets = (customerId: string, query: CustomerAssetsQuery) =>
   useQuery({

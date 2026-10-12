@@ -1,6 +1,7 @@
 import "./PopoverContent.scss";
 import { Dropdown, Icon } from "@bosch/react-frok";
 import { useTranslation } from "react-i18next";
+import { useAnalytics, toFailureReason, AnalyticsEventName, LogoutSource } from "@/analytics";
 import i18n from "../../../../../i18n";
 import { SINGLE_KEY_ID_PROFILE_API } from "../../../../../api/endpoints";
 import { useQueryClient } from "@tanstack/react-query";
@@ -11,6 +12,7 @@ import { useUpdateUserLanguagePreference } from "../../../../../api/services/hea
 
 function PopoverContent() {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
+  const analytics = useAnalytics();
   const queryClient = useQueryClient();
   const user = queryClient.getQueryData<HeaderUserData>(["user"]);
   const { firstName = "", lastName = "", email = "" } = user || {};
@@ -37,7 +39,14 @@ function PopoverContent() {
     return resolved;
   });
 
-  const { mutate: updateLanguagePreference } = useUpdateUserLanguagePreference();
+  const { mutate: updateLanguagePreference } = useUpdateUserLanguagePreference({
+    onSuccess: () => analytics.trackLanguageChanged(),
+    onError: (error) =>
+      analytics.trackActionFailed({
+        failedAction: AnalyticsEventName.LANGUAGE_CHANGED,
+        failureReason: toFailureReason(error),
+      }),
+  });
 
   useEffect(() => {
     void i18n?.changeLanguage(currentLanguage);
@@ -49,6 +58,7 @@ function PopoverContent() {
     const baseUrl = import.meta.env.VITE_API_BASE_URL;
     try {
       localStorage.removeItem("selectedLanguage");
+      analytics.trackUserLoggedOut({ logoutSource: LogoutSource.HEADER });
       const logoutUrl = `${baseUrl}/v1/auth/logout`;
       setTimeout(() => {
         globalThis.location.replace(logoutUrl);

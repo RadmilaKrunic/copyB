@@ -52,8 +52,9 @@ function ReimbursementClaimsList() {
   useBreadcrumbs(breadcrumbsList);
 
   const [pagination, setPagination] = useState({
-    page: Number(sessionStorage.getItem("reimbursementClaims-currentPage")) || 1,
-    pageSize: Number(sessionStorage.getItem("reimbursementClaims-pageSize")) || 10,
+    page: Number(sessionStorage.getItem(`reimbursementClaims-${reimbursementId}-currentPage`)) || 1,
+    pageSize:
+      Number(sessionStorage.getItem(`reimbursementClaims-${reimbursementId}-pageSize`)) || 10,
   });
 
   const claims = useMemo(() => reimbursement?.claims || [], [reimbursement?.claims]);
@@ -66,12 +67,12 @@ function ReimbursementClaimsList() {
   const visibleColumns = useMemo(() => CLAIMS_COLUMNS.map((col) => col.key), [CLAIMS_COLUMNS]);
 
   const handlePageChange = (page: number) => {
-    sessionStorage.setItem("reimbursementClaims-currentPage", page.toString());
+    sessionStorage.setItem(`reimbursementClaims-${reimbursementId}-currentPage`, page.toString());
     setPagination((prev) => ({ ...prev, page }));
   };
 
   const handlePageSizeChange = (option: string) => {
-    sessionStorage.setItem("reimbursementClaims-pageSize", option);
+    sessionStorage.setItem(`reimbursementClaims-${reimbursementId}-pageSize`, option);
     setPagination({ page: 1, pageSize: Number(option) });
   };
 

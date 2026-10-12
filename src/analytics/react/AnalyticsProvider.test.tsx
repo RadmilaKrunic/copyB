@@ -119,7 +119,8 @@ describe("AnalyticsProvider", () => {
 
   it("auto-fires a virtual pageview with resolved page + user context on mount", () => {
     renderProvider(transport, { path: "/job-list" });
-    expect(transport.events).toHaveLength(1);
+    expect(transport.events).toHaveLength(2);
+    expect(transport.events[0]).toMatchObject({ event: "session_started" });
     expect(transport.last).toMatchObject({
       event: "virtual_page_view",
       virtual_url: "/job-list",
@@ -150,13 +151,14 @@ describe("AnalyticsProvider", () => {
   describe("disableAutomaticPageViews", () => {
     it("suppresses the initial pageview when true", () => {
       renderProvider(transport, { disableAutomaticPageViews: true });
-      expect(transport.events).toHaveLength(0);
+      expect(transport.events).toHaveLength(1);
+      expect(transport.last).toMatchObject({ event: "session_started" });
     });
 
     it("still tracks business events when automatic pageviews are disabled", () => {
       renderProvider(transport, { disableAutomaticPageViews: true });
       fireEvent.click(screen.getByText("start-repair"));
-      expect(transport.events).toHaveLength(1);
+      expect(transport.events).toHaveLength(2);
       expect(transport.last).toMatchObject({ event: "repair_started" });
     });
   });
@@ -218,7 +220,7 @@ describe("AnalyticsProvider", () => {
 
     it("fires a second pageview when navigating to a different virtual URL", async () => {
       renderProvider(transport, { path: "/job-list" });
-      expect(transport.events).toHaveLength(1);
+      expect(transport.events).toHaveLength(2);
 
       fireEvent.click(screen.getByText("go-create-job"));
 
@@ -254,11 +256,11 @@ describe("AnalyticsProvider", () => {
 
     it("fires a new pageview and switches virtual URL when hash changes on a tabbed route", async () => {
       renderProvider(transport, { path: "/job-overview/123" });
-      expect(transport.events).toHaveLength(1);
+      expect(transport.events).toHaveLength(2);
 
       fireEvent.click(screen.getByText("go-job-overview-hash"));
 
-      expect(transport.events).toHaveLength(2);
+      expect(transport.events).toHaveLength(3);
       expect(transport.last).toMatchObject({
         event: "virtual_page_view",
         virtual_url: "/job-overview/asset-data",

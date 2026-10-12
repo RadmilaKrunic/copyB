@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useFormikContext } from "formik";
 import { isDependedAndVisible } from "../utils";
 import { getCustomArea } from "./CustomAreasMapper";
-import { useCallback, useContext, useEffect, useState } from "react";
+import { type FocusEvent, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { GenericFormContext } from "../Form/GenericForm.context";
 import { useHasPermission } from "hooks/useHasPermission";
 
@@ -77,6 +77,21 @@ function GenericArea({
     [actionCallbacks, formValues, setFieldValue, setErrors, setTouched, shouldShowActionsOnEdit],
   );
 
+  // onAreaValueChange fires for user edits only, after Formik holds the new value. Inputs,
+  // date pickers and autocompletes all write through setFieldValue, some without a DOM change
+  // event, so a user interaction inside the area arms the notification until focus leaves the
+  // area. Values written by code while the user is elsewhere (API prices, reloads) are ignored.
+  const areaValuesKey = JSON.stringify(area.fields.map((field) => formValues[field.name] ?? null));
+  const prevAreaValuesKeyRef = useRef(areaValuesKey);
+  const userInteractionRef = useRef(false);
+
+  useEffect(() => {
+    if (prevAreaValuesKeyRef.current === areaValuesKey) return;
+    prevAreaValuesKeyRef.current = areaValuesKey;
+    if (!userInteractionRef.current) return;
+    onAreaValueChange?.(area.name, formValues);
+  }, [area.name, areaValuesKey, formValues, onAreaValueChange]);
+
   if (
     isSubArea &&
     !isDependedAndVisible(formValues, allFields ?? [], dependentFields, dependFieldCondition)
@@ -97,9 +112,24 @@ function GenericArea({
     }
   };
 
+  const markUserInteraction = () => {
+    userInteractionRef.current = true;
+  };
+
   const handleAreaChange = () => {
     handleFieldInteraction();
-    onAreaValueChange?.(area.name, formValues);
+    markUserInteraction();
+  };
+
+  // Focus leaving the area disarms it; deferred so a value committed on blur (typed date)
+  // still counts as the user's.
+  const handleAreaBlur = (event: FocusEvent<HTMLDivElement>) => {
+    if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) {
+      return;
+    }
+    setTimeout(() => {
+      userInteractionRef.current = false;
+    });
   };
 
   return (
@@ -109,6 +139,9 @@ function GenericArea({
         className="area-fields"
         onFocusCapture={handleFieldInteraction}
         onChangeCapture={handleAreaChange}
+        onClickCapture={markUserInteraction}
+        onKeyDownCapture={markUserInteraction}
+        onBlurCapture={handleAreaBlur}
       >
         {area.fields
           .toSorted((a, b) => (a.position ?? 0) - (b.position ?? 0))

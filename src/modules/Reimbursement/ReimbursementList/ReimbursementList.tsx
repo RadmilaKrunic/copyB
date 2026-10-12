@@ -23,12 +23,13 @@ import {
   useReimbursementDateRangeFilter,
   useReimbursementPagination,
 } from "../ReimbursementDateFilter.utils";
-import { useListTracking } from "@/analytics";
+import { useAnalytics, useListTracking } from "@/analytics";
 
 function ReimbursementList() {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
   const navigate = useNavigate();
   const { setMessages } = useContext(MessagesContext);
+  const analytics = useAnalytics();
   const queryClient = useQueryClient();
   const user = queryClient.getQueryData<HeaderUserData>(["user"]);
   const isAsc = user?.type === "ASC";
@@ -116,7 +117,13 @@ function ReimbursementList() {
               iconName="edit"
               t={t}
               onGenerateReceipt={(reimbursementId, receiptWindow) => {
-                void handleGenerateReceipt(reimbursementId, setMessages, t, receiptWindow);
+                void handleGenerateReceipt(
+                  reimbursementId,
+                  setMessages,
+                  t,
+                  receiptWindow,
+                  analytics,
+                );
               }}
             />
           )}

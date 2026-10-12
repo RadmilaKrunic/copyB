@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createNoopAnalytics } from "@/analytics";
 import {
   getInitialFieldValues,
   formatDateDMY,
@@ -149,17 +150,23 @@ describe("handleGenerateReceipt", () => {
     vi.mocked(getReimbursementReceipt).mockResolvedValue(new Blob(["pdf"]) as never);
     const targetWindow = { location: { href: "" }, close: vi.fn() } as unknown as Window;
 
-    await handleGenerateReceipt("R1", setMessages, t, targetWindow);
+    const analytics = { ...createNoopAnalytics(), trackDocumentAction: vi.fn() };
+
+    await handleGenerateReceipt("R1", setMessages, t, targetWindow, analytics);
 
     expect(targetWindow.location.href).toBe("blob:mock-url");
     expect(setMessages).not.toHaveBeenCalled();
+    expect(analytics.trackDocumentAction).toHaveBeenCalledWith({
+      documentAction: "downloaded",
+      documentType: "reimbursement_receipt_pdf",
+    });
   });
 
   it("opens a new window when targetWindow is null and receipt is available", async () => {
     vi.mocked(getReimbursementReceipt).mockResolvedValue(new Blob(["pdf"]) as never);
     const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
 
-    await handleGenerateReceipt("R1", setMessages, t, null);
+    await handleGenerateReceipt("R1", setMessages, t, null, createNoopAnalytics());
 
     expect(openSpy).toHaveBeenCalledWith("blob:mock-url", "_blank");
     openSpy.mockRestore();
@@ -168,10 +175,14 @@ describe("handleGenerateReceipt", () => {
   it("closes targetWindow and adds error message when receipt is null", async () => {
     vi.mocked(getReimbursementReceipt).mockResolvedValue(null);
     const targetWindow = { location: { href: "" }, close: vi.fn() } as unknown as Window;
+    const analytics = { ...createNoopAnalytics(), trackActionFailed: vi.fn() };
 
-    await handleGenerateReceipt("R1", setMessages, t, targetWindow);
+    await handleGenerateReceipt("R1", setMessages, t, targetWindow, analytics);
 
     expect(targetWindow.close).toHaveBeenCalled();
+    expect(analytics.trackActionFailed).toHaveBeenCalledWith(
+      expect.objectContaining({ failedAction: "document_action", failureReason: "system_problem" }),
+    );
     expect(setMessages).toHaveBeenCalledTimes(1);
     const updater = setMessages.mock.calls[0][0];
     expect(updater([])).toEqual([
@@ -181,7 +192,9 @@ describe("handleGenerateReceipt", () => {
 
   it("does not throw when receipt is null and targetWindow is null", async () => {
     vi.mocked(getReimbursementReceipt).mockResolvedValue(null);
-    await expect(handleGenerateReceipt("R1", setMessages, t, null)).resolves.toBeUndefined();
+    await expect(
+      handleGenerateReceipt("R1", setMessages, t, null, createNoopAnalytics()),
+    ).resolves.toBeUndefined();
     expect(setMessages).toHaveBeenCalledTimes(1);
   });
 });

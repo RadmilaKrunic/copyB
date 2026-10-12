@@ -1,0 +1,85 @@
+.delete-client-dialog.m-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
+  width: min(682px, calc(100vw - 32px));
+  max-width: 682px;
+  height: auto;
+  max-height: calc(100dvh - 32px);
+  padding: 24px 32px 32px;
+  overflow-y: auto;
+  position: relative;
+
+  .m-dialog__header {
+    width: 100%;
+    height: auto;
+    padding: 0;
+
+    .a-button--integrated {
+      position: absolute;
+      top: 0;
+      right: 0;
+      margin: 0;
+    }
+  }
+
+  .m-dialog__title {
+    padding-right: 24px;
+    color: var(--bosch-black);
+    font-family: var(--font-family-Bosch-Sans, "Bosch Sans");
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 34px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .a-divider {
+    display: none;
+  }
+
+  .m-dialog__content {
+    width: 100%;
+    padding: 0;
+  }
+
+  .m-dialog__body,
+  .delete-client-dialog__body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .m-dialog__body {
+    margin: 0;
+  }
+
+  .delete-client-dialog__description {
+    margin: 0;
+    color: var(--bosch-black);
+    font-size: 16px;
+    line-height: 24px;
+    overflow-wrap: anywhere;
+  }
+
+  .delete-client-dialog__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 16px;
+    padding-top: 8px;
+  }
+
+  .delete-client-dialog__notes {
+    width: 100%;
+    box-sizing: border-box;
+    height: 128px;
+    min-height: 128px;
+    resize: vertical;
+  }
+
+  @media (max-width: 480px) {
+    padding: 24px 16px;
+  }
+}

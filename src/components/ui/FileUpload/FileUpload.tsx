@@ -18,6 +18,13 @@ import {
 } from "utils/fileValidation";
 import DocumentFile from "../DocumentFile/DocumentFile";
 import { FileUploadProps, Attachments, FileProps } from "./FileUpload.types";
+import {
+  useAnalytics,
+  toDocumentType,
+  toFailureReason,
+  AnalyticsEventName,
+  DocumentAction,
+} from "@/analytics";
 
 const isCountableFile = (f: { type?: string }) => f.type !== "SYSTEM_GENERATED_RECEIPT";
 
@@ -37,6 +44,7 @@ export default function FileUpload({
 }: Readonly<FileUploadProps>) {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
   const queryClient = useQueryClient();
+  const analytics = useAnalytics();
   const [files, setFiles] = useState<Attachments[]>(initialFiles);
   const [isDragging, setIsDragging] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -80,11 +88,33 @@ export default function FileUpload({
     console.error("Error uploading files:", error);
   };
 
+  const trackDocuments = (documentAction: DocumentAction, types: string[], error?: unknown) => {
+    for (const type of types) {
+      const documentType = toDocumentType(type);
+      if (error === undefined) {
+        analytics.trackDocumentAction({ documentAction, documentType });
+      } else {
+        analytics.trackActionFailed({
+          failedAction: AnalyticsEventName.DOCUMENT_ACTION,
+          failureReason: toFailureReason(error),
+          documentAction,
+          documentType,
+        });
+      }
+    }
+  };
+
   const { mutate: uploadFiles, isPending: isUploading } = useMutation({
     mutationFn: ({ files, types }: { files: File[]; types: string[] }) =>
       uploadFileToServer(files, types),
-    onSuccess: handleUploadSuccess,
-    onError: handleUploadError,
+    onSuccess: (response, variables) => {
+      handleUploadSuccess(response);
+      trackDocuments(DocumentAction.UPLOADED, variables.types);
+    },
+    onError: (error, variables) => {
+      handleUploadError(error);
+      trackDocuments(DocumentAction.UPLOADED, variables.types, error);
+    },
   });
 
   useEffect(() => {
@@ -201,10 +231,19 @@ export default function FileUpload({
       setFiles([]);
       onFilesSelected?.([]);
     },
-    onSuccess: () => {
+    onSuccess: (_data, attachments) => {
       onDeleteEnd?.();
+      trackDocuments(
+        DocumentAction.DELETED,
+        attachments.map((file) => file.type),
+      );
     },
     onError: (error: any, attachments: Attachments[]) => {
+      trackDocuments(
+        DocumentAction.DELETED,
+        attachments.map((file) => file.type),
+        error,
+      );
       if (
         attachments[0].type === "ASC_LOGO" &&
         error?.response?.data?.detail?.includes("already deleted")

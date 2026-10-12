@@ -18,6 +18,7 @@ import { getVisibleFieldsWithErrors } from "../../../../components/generics/Form
 import { getAllFieldsFromSection } from "../../../../components/generics/utils";
 import { useBreadcrumbs } from "../../../../hooks/useBreadcrumbs";
 import { useTranslation } from "react-i18next";
+import { useAnalytics, toFailureReason, AnalyticsEventName, SaveType } from "@/analytics";
 import { SetErrorsType, SetFieldValueType, SetTouchedType } from "./AddAsc.types";
 import { createASC, getDraftAscById } from "../../../../api/services/serviceCenters/action";
 import { MessagesContext } from "../../../../contexts/messagescontext";
@@ -31,8 +32,12 @@ import {
 import { DEFAULT_STALE_TIME_MS } from "../../../../utils/queryConstants";
 import { DraftServiceCenter } from "../../../../api/services/serviceCenters/serviceCenters.types";
 
+const getAscSaveType = (isDraft: boolean): SaveType =>
+  isDraft ? SaveType.DRAFT : SaveType.CREATED;
+
 function AddASC() {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
+  const analytics = useAnalytics();
   const { setMessages } = useContext(MessagesContext);
   const navigate = useNavigate();
   const { ascId } = useParams<{ ascId: string }>();
@@ -316,7 +321,8 @@ function AddASC() {
     mutationFn: (data: any) => {
       return createASC(data.payload, data.isDraft);
     },
-    onSuccess: () => {
+    onSuccess: (_response, variables) => {
+      analytics.trackAscSaved({ saveType: getAscSaveType(variables.isDraft) });
       setMessages([{ type: "success", duration: 5000, text: t("ASCCreatedSuccessfully") }]);
       queryClient.invalidateQueries({ queryKey: ["ascProfiles"] });
       if (ascId) {
@@ -325,7 +331,12 @@ function AddASC() {
       navigate("/asc-profiles");
       scrollToTop();
     },
-    onError: (error: any) => {
+    onError: (error: any, variables) => {
+      analytics.trackActionFailed({
+        failedAction: AnalyticsEventName.ASC_SAVED,
+        failureReason: toFailureReason(error),
+        saveType: getAscSaveType(variables.isDraft),
+      });
       queryClient.invalidateQueries({ queryKey: ["ascProfiles"] });
       if (error?.response?.data?.detail === "userCreationFailed") {
         setMessages([{ type: "warning", text: t("ascDraftCreatedWithoutUser") }]);

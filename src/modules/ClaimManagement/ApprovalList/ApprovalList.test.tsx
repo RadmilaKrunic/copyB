@@ -214,7 +214,7 @@ describe("ApprovalList", () => {
     const { invalidateSpy } = renderApprovalList();
     fireEvent.click(screen.getByTestId("row-select-job-1"));
 
-    approveMutationOptions.onSuccess?.();
+    approveMutationOptions.onSuccess?.(undefined, { jobIds: ["job-1"] });
 
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["approvals"] });
     expect(mockSetMessages).toHaveBeenCalled();
@@ -223,8 +223,9 @@ describe("ApprovalList", () => {
   it("handles approve mutation onError by showing an error message", () => {
     renderApprovalList();
 
-    approveMutationOptions.onError?.();
+    approveMutationOptions.onError?.(new Error("failed"), { jobIds: ["job-1", "job-2"] });
 
     expect(mockSetMessages).toHaveBeenCalled();
+    expect(trackActionFailedMock).toHaveBeenCalledTimes(2);
   });
 });

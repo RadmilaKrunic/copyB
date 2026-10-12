@@ -19,3 +19,21 @@ export interface ClientManagementCustomersResponse {
   content: ClientManagementCustomer[];
   page: PaginationPage;
 }
+
+export interface ClientManagementCustomerBillingAddress {
+  city: string;
+  stateProvinceRegion: string;
+  countryCode: string;
+  postalCode: string;
+}
+
+export interface ClientManagementCustomerDetails {
+  customerId: string;
+  name: string;
+  phoneNumber: string;
+  email: string;
+  billingAddress: ClientManagementCustomerBillingAddress;
+  assetCount: number;
+  totalActiveJobs: number;
+  createdAt: string;
+}

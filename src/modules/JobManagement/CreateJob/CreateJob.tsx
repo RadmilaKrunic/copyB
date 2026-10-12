@@ -7,12 +7,23 @@ import GenericAction from "../../../components/generics/Action/GenericAction";
 import "./CreateJob.scss";
 import { useTranslation } from "react-i18next";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { useAnalytics, JobStatus, AnalyticsEventName, toFailureReason } from "@/analytics";
+import {
+  useAnalytics,
+  JobStatus,
+  AnalyticsEventName,
+  toFailureReason,
+  CustomerSelection,
+  DocumentType,
+  FailureReason,
+  WarrantyResult,
+} from "@/analytics";
+import { trackDocumentDownload } from "utils/trackDocumentDownload";
 import {
   getAssetCollapsedTitle,
   getCustomerCollapsedTitle,
   getDeliveryAddressConfirmationInfo,
   buildCustomerChangeConfirmationData,
+  getSelectedCustomerFormSnapshot,
   DeliveryAddressConfirmationInfo,
 } from "./CreateJob.utils";
 import { CreateJobContext } from "./CreateJob.context";
@@ -21,8 +32,8 @@ import { useAccessoriesManager } from "../../../hooks/useAccessoriesManager";
 import { useFormInitialization } from "../../../hooks/useFormInitialization";
 import { scrollToFirstError } from "../../../utils/scrollToError";
 import { createOrder, getOrderReceipt } from "../../../api/services/orders/orders";
-import { Order } from "../../../api/services/orders/orders.types";
-import { useNavigate, useParams } from "react-router";
+import { Order, WarrantyCheckResponse } from "../../../api/services/orders/orders.types";
+import { useLocation, useNavigate, useParams } from "react-router";
 import { useOrderById, usePostWarrantyCheck } from "../../../api/services/orders/hooks";
 import {
   getAllFieldsFromSection,
@@ -62,11 +73,22 @@ interface WarrantyInfoContentData extends WarrantyInfoPayload {
   recommendation?: string;
 }
 
+const WARRANTY_RESULT_BY_STATUS: Readonly<
+  Record<WarrantyCheckResponse["evaluationStatus"], WarrantyResult>
+> = {
+  ELIGIBLE: WarrantyResult.ELIGIBLE,
+  INELIGIBLE: WarrantyResult.INELIGIBLE,
+  SKIPPED: WarrantyResult.SKIPPED,
+};
+
 function CreateJob() {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
   const queryClient = useQueryClient();
   const user = queryClient.getQueryData<HeaderUserData>(["user"]);
   const navigate = useNavigate();
+  const location = useLocation();
+  const prefillCustomer = (location.state as { prefillCustomer?: Customer } | null)
+    ?.prefillCustomer;
   const analytics = useAnalytics();
   // Proxy start point for the job-creation duration KPI (screen open → success).
   // The exact start point is to be confirmed with the BASS/measurement team.
@@ -136,11 +158,12 @@ function CreateJob() {
     uiConfigurationForms?.forms.find((form) => form.name === "CreateJob") || null;
 
   useEffect(() => {
-    queryClient.setQueryData(["selectedCustomer"], null);
+    queryClient.setQueryData(["selectedCustomer"], prefillCustomer ?? null);
 
     return () => {
       queryClient.setQueryData(["selectedCustomer"], null);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queryClient]);
 
   useBreadcrumbs([
@@ -190,6 +213,26 @@ function CreateJob() {
     isInitialized,
     reset,
   } = useFormInitialization(createJobForm);
+
+  const hasAppliedPrefillCustomerRef = useRef(false);
+  useEffect(() => {
+    if (
+      !isEditMode &&
+      prefillCustomer &&
+      isInitialized &&
+      allFields &&
+      allFields.length > 0 &&
+      !hasAppliedPrefillCustomerRef.current
+    ) {
+      hasAppliedPrefillCustomerRef.current = true;
+      const snapshot = getSelectedCustomerFormSnapshot(prefillCustomer);
+      setInitialFormValues((prev) => ({
+        ...prev,
+        ...snapshot,
+        customerId: prefillCustomer.customerId,
+      }));
+    }
+  }, [isEditMode, prefillCustomer, isInitialized, allFields, setInitialFormValues]);
 
   const { assetsAccessories, setAssetsAccessories, mapAccessoriesFields } = useAccessoriesManager({
     mode: currentMode,
@@ -461,6 +504,7 @@ function CreateJob() {
           sessionStorage.removeItem("jobFilters-job-advancedFilters");
           if (!isDraft) {
             const receiptBlob = await getOrderReceipt(response.order.orderId);
+            trackDocumentDownload(analytics, DocumentType.ORDER_RECEIPT_PDF, receiptBlob);
             if (receiptBlob) {
               const pdfUrl = URL.createObjectURL(receiptBlob);
               window.open(pdfUrl, "_blank");
@@ -688,7 +732,16 @@ function CreateJob() {
 
       try {
         const response = await warrantyCheckMutation.mutateAsync(payload);
-        if (!response) return;
+        if (!response) {
+          analytics.trackActionFailed({
+            failedAction: AnalyticsEventName.WARRANTY_CHECK_PERFORMED,
+            failureReason: FailureReason.SYSTEM_PROBLEM,
+          });
+          return;
+        }
+        analytics.trackWarrantyCheckPerformed({
+          warrantyResult: WARRANTY_RESULT_BY_STATUS[response.evaluationStatus],
+        });
 
         if (lastWarrantyPayloadKeyRef.current[sectionIndex] !== payloadKey) return;
 
@@ -729,9 +782,13 @@ function CreateJob() {
         }
       } catch (error: unknown) {
         console.error("Failed to check warranty:", error);
+        analytics.trackActionFailed({
+          failedAction: AnalyticsEventName.WARRANTY_CHECK_PERFORMED,
+          failureReason: toFailureReason(error),
+        });
       }
     },
-    [setSections, t, user?.countryCode, warrantyCheckMutation],
+    [setSections, t, user?.countryCode, warrantyCheckMutation, analytics],
   );
 
   const handleCreateJobAreaValueChange = useCallback(
@@ -815,16 +872,23 @@ function CreateJob() {
     pendingActionAfterDeliveryConfirmRef.current = null;
   }, []);
 
-  const handleCustomerChangeConfirm = useCallback((customerIdOverride?: null) => {
-    setIsCustomerChangeModalOpen(false);
-    confirmedCustomerChangeSignatureRef.current =
-      customerChangeConfirmationRef.current?.signature ?? null;
-    const pendingAction = pendingActionAfterCustomerChangeConfirmRef.current;
-    pendingActionAfterCustomerChangeConfirmRef.current = null;
-    if (pendingAction) {
-      pendingAction(customerIdOverride);
-    }
-  }, []);
+  const handleCustomerChangeConfirm = useCallback(
+    (customerIdOverride?: null) => {
+      setIsCustomerChangeModalOpen(false);
+      confirmedCustomerChangeSignatureRef.current =
+        customerChangeConfirmationRef.current?.signature ?? null;
+      const pendingAction = pendingActionAfterCustomerChangeConfirmRef.current;
+      pendingActionAfterCustomerChangeConfirmRef.current = null;
+      analytics.trackCustomerSelected({
+        customerSelection:
+          customerIdOverride === null ? CustomerSelection.NEW : CustomerSelection.UPDATED,
+      });
+      if (pendingAction) {
+        pendingAction(customerIdOverride);
+      }
+    },
+    [analytics],
+  );
 
   const handleCustomerChangeCancel = useCallback(() => {
     setIsCustomerChangeModalOpen(false);

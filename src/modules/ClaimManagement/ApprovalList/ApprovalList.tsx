@@ -151,7 +151,7 @@ function ApprovalList() {
   }, [selectedRows, approvals]);
 
   const approveJobsMutation = useApproveJobs({
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       setSelectedRows([]);
       queryClient.invalidateQueries({ queryKey: ["approvals"] }).catch(() => undefined);
       setMessages((prev) => [
@@ -164,7 +164,7 @@ function ApprovalList() {
       ]);
       scrollToTop();
       // Analytics: one pre_approval_reviewed (approved) per bulk-approved job.
-      selectedRows.forEach((id) => {
+      for (const id of variables.jobIds) {
         const jobStatus = toJobStatus(
           approvals.find((approval) => approval.jobId === id)?.jobStatus,
         );
@@ -174,9 +174,9 @@ function ApprovalList() {
             preApprovalAction: PreApprovalAction.APPROVED,
           });
         }
-      });
+      }
     },
-    onError: (error) => {
+    onError: (error, variables) => {
       setMessages((prev) => [
         ...prev,
         {
@@ -187,7 +187,7 @@ function ApprovalList() {
       ]);
       scrollToTop();
       const failureReason = toFailureReason(error);
-      for (const id of selectedRows) {
+      for (const id of variables.jobIds) {
         analytics.trackActionFailed({
           failedAction: AnalyticsEventName.PRE_APPROVAL_REVIEWED,
           failureReason,

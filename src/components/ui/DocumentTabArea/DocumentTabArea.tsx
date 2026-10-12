@@ -19,6 +19,8 @@ import {
 import { MessagesContext } from "contexts/messagescontext";
 import "./DocumentTabArea.scss";
 import { scrollToTop } from "utils/scrollToError";
+import { useAnalytics, toFailureReason, AnalyticsEventName, JobSection } from "@/analytics";
+import { getCachedJobContext } from "modules/JobManagement/jobAnalyticsContext";
 
 type WithJobAssetAttachments = {
   job: { asset: { attachments: Attachment[] }; isOnHold?: boolean; jobStatus?: string };
@@ -39,6 +41,7 @@ export default function DocumentTabArea({
   const { onDeleteStart, onDeleteEnd, actionCallbacks } = useContext(GenericFormContext);
   const { setMessages } = useContext(MessagesContext);
   const { values } = useFormikContext<Record<string, unknown>>();
+  const analytics = useAnalytics();
 
   const entityId = entityType === "claim" ? claimId : jobId;
   const queryKey = [entityType === "claim" ? "claim" : "job", entityId];
@@ -51,13 +54,23 @@ export default function DocumentTabArea({
         { text: t("successSaveDocuments"), type: "success", duration: 3000 },
       ]);
       scrollToTop();
+      analytics.trackJobSectionSaved({
+        ...getCachedJobContext(queryClient, entityId),
+        jobSection: JobSection.DOCUMENTS,
+      });
     },
-    onError: () => {
+    onError: (error) => {
       setMessages((prev) => [
         ...prev,
         { text: t("errorSaveDocuments"), type: "error", duration: 3000 },
       ]);
       scrollToTop();
+      analytics.trackActionFailed({
+        ...getCachedJobContext(queryClient, entityId),
+        failedAction: AnalyticsEventName.JOB_SECTION_SAVED,
+        failureReason: toFailureReason(error),
+        jobSection: JobSection.DOCUMENTS,
+      });
     },
   });
 

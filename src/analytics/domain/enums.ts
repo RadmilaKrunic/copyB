@@ -29,7 +29,157 @@ export enum AnalyticsEventName {
   LIST_INTERACTION = "list_interaction",
   LIST_EXPORTED = "list_exported",
   ACTION_FAILED = "action_failed",
+  DIAGNOSTIC_STARTED = "diagnostic_started",
+  JOB_HOLD_CHANGED = "job_hold_changed",
+  COST_ESTIMATE_CREATED = "cost_estimate_created",
+  CUSTOMER_ANSWER_RECORDED = "customer_answer_recorded",
+  JOB_SECTION_SAVED = "job_section_saved",
+  TECHNICIAN_ASSIGNED = "technician_assigned",
+  MATERIAL_ADDED = "material_added",
+  PRICES_RECALCULATED = "prices_recalculated",
+  WARRANTY_CHECK_PERFORMED = "warranty_check_performed",
+  CUSTOMER_SELECTED = "customer_selected",
+  CLAIM_PRICES_UPDATED = "claim_prices_updated",
+  CLAIM_APPROVAL_REQUESTED = "claim_approval_requested",
+  DOCUMENT_ACTION = "document_action",
+  REPORT_GENERATED = "report_generated",
+  REIMBURSEMENT_CREATED = "reimbursement_created",
+  EMPLOYEE_SAVED = "employee_saved",
+  EMPLOYEE_STATUS_CHANGED = "employee_status_changed",
+  ASC_SAVED = "asc_saved",
+  ASC_DEACTIVATED = "asc_deactivated",
+  CLIENT_ARCHIVED = "client_archived",
+  SESSION_STARTED = "session_started",
+  LANGUAGE_CHANGED = "language_changed",
+  USER_LOGGED_OUT = "user_logged_out",
+  CONSENT_ACCEPTED = "consent_accepted",
+  DASHBOARD_LINK_CLICKED = "dashboard_link_clicked",
 }
+
+export enum DocumentAction {
+  UPLOADED = "uploaded",
+  DOWNLOADED = "downloaded",
+  DELETED = "deleted",
+}
+export const DOCUMENT_ACTIONS: readonly DocumentAction[] = Object.freeze(
+  Object.values(DocumentAction),
+);
+
+export enum DocumentType {
+  INVOICE = "invoice",
+  PRODUCT_PHOTO = "product_photo",
+  WARRANTY_CERTIFICATE = "warranty_certificate",
+  OTHERS = "others",
+  SYSTEM_GENERATED_RECEIPT = "system_generated_receipt",
+  ASC_LOGO = "asc_logo",
+  COST_ESTIMATE_PDF = "cost_estimate_pdf",
+  ORDER_RECEIPT_PDF = "order_receipt_pdf",
+  REIMBURSEMENT_RECEIPT_PDF = "reimbursement_receipt_pdf",
+}
+export const DOCUMENT_TYPES: readonly DocumentType[] = Object.freeze(Object.values(DocumentType));
+
+export enum ReportType {
+  BIQIC = "biqic",
+}
+export const REPORT_TYPES: readonly ReportType[] = Object.freeze(Object.values(ReportType));
+
+export enum SaveType {
+  CREATED = "created",
+  DRAFT = "draft",
+  UPDATED = "updated",
+}
+export const SAVE_TYPES: readonly SaveType[] = Object.freeze(Object.values(SaveType));
+
+export enum EmployeeAction {
+  SUSPENDED = "suspended",
+  DELETED = "deleted",
+}
+export const EMPLOYEE_ACTIONS: readonly EmployeeAction[] = Object.freeze(
+  Object.values(EmployeeAction),
+);
+
+export enum AscSection {
+  GENERAL_INFO = "general_info",
+  BANKING = "banking",
+  NOTIFICATIONS = "notifications",
+  PRICING = "pricing",
+  BOSCH_INTERNAL_CONFIGURATION = "bosch_internal_configuration",
+  REIMBURSEMENT = "reimbursement",
+}
+export const ASC_SECTIONS: readonly AscSection[] = Object.freeze(Object.values(AscSection));
+
+export enum LogoutSource {
+  HEADER = "header",
+  CONSENT_DECLINED = "consent_declined",
+}
+export const LOGOUT_SOURCES: readonly LogoutSource[] = Object.freeze(Object.values(LogoutSource));
+
+export enum DashboardLink {
+  CREATE_JOB = "create_job",
+  JOBS_VIEW_MORE = "jobs_view_more",
+  CLAIMS_VIEW_MORE = "claims_view_more",
+}
+export const DASHBOARD_LINKS: readonly DashboardLink[] = Object.freeze(
+  Object.values(DashboardLink),
+);
+
+export enum WarrantyResult {
+  ELIGIBLE = "eligible",
+  INELIGIBLE = "ineligible",
+  SKIPPED = "skipped",
+}
+export const WARRANTY_RESULTS: readonly WarrantyResult[] = Object.freeze(
+  Object.values(WarrantyResult),
+);
+
+export enum CustomerSelection {
+  EXISTING = "existing",
+  UPDATED = "updated",
+  NEW = "new",
+}
+export const CUSTOMER_SELECTIONS: readonly CustomerSelection[] = Object.freeze(
+  Object.values(CustomerSelection),
+);
+
+export enum HoldAction {
+  PLACED = "placed",
+  RELEASED = "released",
+}
+export const HOLD_ACTIONS: readonly HoldAction[] = Object.freeze(Object.values(HoldAction));
+
+export enum CustomerAnswer {
+  REPAIR = "repair",
+  RETURN_ASSEMBLY = "return_assembly",
+  RETURN_UNASSEMBLY = "return_unassembly",
+  SCRAP_TOOL = "scrap_tool",
+  EXCHANGE = "exchange",
+  REVISE = "revise",
+}
+export const CUSTOMER_ANSWERS: readonly CustomerAnswer[] = Object.freeze(
+  Object.values(CustomerAnswer),
+);
+
+export enum JobSection {
+  CUSTOMER_DATA = "customer_data",
+  ASSET_DATA = "asset_data",
+  PURCHASE_DATE = "purchase_date",
+  DOCUMENTS = "documents",
+}
+export const JOB_SECTIONS: readonly JobSection[] = Object.freeze(Object.values(JobSection));
+
+export enum MaterialType {
+  SPARE_PART = "spare_part",
+  SPECIAL_MATERIAL = "special_material",
+}
+export const MATERIAL_TYPES: readonly MaterialType[] = Object.freeze(Object.values(MaterialType));
+
+export enum MaterialSource {
+  MANUAL = "manual",
+  DRAWING = "drawing",
+}
+export const MATERIAL_SOURCES: readonly MaterialSource[] = Object.freeze(
+  Object.values(MaterialSource),
+);
 
 export const FAILED_ACTIONS = Object.freeze([
   AnalyticsEventName.JOB_CREATED,
@@ -45,6 +195,26 @@ export const FAILED_ACTIONS = Object.freeze([
   AnalyticsEventName.CLAIM_REVIEWED,
   AnalyticsEventName.PRE_APPROVAL_REVIEWED,
   AnalyticsEventName.LIST_EXPORTED,
+  AnalyticsEventName.DIAGNOSTIC_STARTED,
+  AnalyticsEventName.JOB_HOLD_CHANGED,
+  AnalyticsEventName.COST_ESTIMATE_CREATED,
+  AnalyticsEventName.CUSTOMER_ANSWER_RECORDED,
+  AnalyticsEventName.JOB_SECTION_SAVED,
+  AnalyticsEventName.TECHNICIAN_ASSIGNED,
+  AnalyticsEventName.PRICES_RECALCULATED,
+  AnalyticsEventName.WARRANTY_CHECK_PERFORMED,
+  AnalyticsEventName.CLAIM_PRICES_UPDATED,
+  AnalyticsEventName.CLAIM_APPROVAL_REQUESTED,
+  AnalyticsEventName.DOCUMENT_ACTION,
+  AnalyticsEventName.REPORT_GENERATED,
+  AnalyticsEventName.REIMBURSEMENT_CREATED,
+  AnalyticsEventName.EMPLOYEE_SAVED,
+  AnalyticsEventName.EMPLOYEE_STATUS_CHANGED,
+  AnalyticsEventName.ASC_SAVED,
+  AnalyticsEventName.ASC_DEACTIVATED,
+  AnalyticsEventName.CLIENT_ARCHIVED,
+  AnalyticsEventName.LANGUAGE_CHANGED,
+  AnalyticsEventName.CONSENT_ACCEPTED,
 ] as const);
 export type FailedAction = (typeof FAILED_ACTIONS)[number];
 

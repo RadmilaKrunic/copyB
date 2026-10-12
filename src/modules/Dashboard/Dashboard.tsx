@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { useAnalytics, DashboardLink } from "@/analytics";
 import { useBreadcrumbs } from "../../hooks/useBreadcrumbs";
 import DashboardGrid from "./DashboardGrid";
 import "./Dashboard.scss";
@@ -14,6 +15,7 @@ import DashboardSnapshots from "./DashboardSnapshots";
 
 function Dashboard() {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
+  const analytics = useAnalytics();
 
   useBreadcrumbs([]);
   const navigate = useNavigate();
@@ -28,6 +30,7 @@ function Dashboard() {
           icon: "add",
           label: t("createJob"),
           onClick: () => {
+            analytics.trackDashboardLinkClicked({ dashboardLink: DashboardLink.CREATE_JOB });
             const navigateResult = navigate("/create-job");
             if (navigateResult instanceof Promise) {
               navigateResult.catch(() => undefined);
@@ -41,6 +44,7 @@ function Dashboard() {
     claims: (
       <ClaimsCard
         onViewMore={() => {
+          analytics.trackDashboardLinkClicked({ dashboardLink: DashboardLink.CLAIMS_VIEW_MORE });
           navigate("/claim-list");
         }}
       />

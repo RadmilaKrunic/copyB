@@ -2,24 +2,39 @@ import { AnalyticsEventName } from "../domain/enums";
 import type {
   ActionFailedPayload,
   AnalyticsContextSnapshot,
+  AscSavedPayload,
+  DashboardLinkClickedPayload,
+  DocumentActionPayload,
+  EmployeeSavedPayload,
+  EmployeeStatusChangedPayload,
+  ReportGeneratedPayload,
+  UserLoggedOutPayload,
   AnalyticsEvent,
+  ClaimContextPayload,
   ClaimReviewedPayload,
+  CustomerAnswerRecordedPayload,
+  CustomerSelectedPayload,
   DataLayerEvent,
   DiagnosticValidatedPayload,
   HelpCenterClickedPayload,
   JobApprovedForRepairPayload,
   JobCompletedPayload,
+  JobContextPayload,
   JobCreatedPayload,
+  JobHoldChangedPayload,
   JobSavedAsDraftPayload,
+  JobSectionSavedPayload,
   JobSubmittedForReviewPayload,
   ListExportedPayload,
   ListInteractionPayload,
+  MaterialAddedPayload,
   NoteAddedPayload,
   PreApprovalRequestedPayload,
   PreApprovalReviewedPayload,
   RepairFinishedPayload,
   RepairStartedPayload,
   VirtualPageViewPayload,
+  WarrantyCheckPerformedPayload,
 } from "../domain/types";
 import { resolveAnalyticsConfig, ValidationMode, type AnalyticsConfig } from "../config/config";
 import { EVENT_REGISTRY } from "../config/registries";
@@ -48,6 +63,31 @@ export interface Analytics {
   trackListInteraction(payload: ListInteractionPayload): void;
   trackListExported(payload?: ListExportedPayload): void;
   trackActionFailed(payload: ActionFailedPayload): void;
+  trackDiagnosticStarted(payload: JobContextPayload): void;
+  trackJobHoldChanged(payload: JobHoldChangedPayload): void;
+  trackCostEstimateCreated(payload: JobContextPayload): void;
+  trackCustomerAnswerRecorded(payload: CustomerAnswerRecordedPayload): void;
+  trackJobSectionSaved(payload: JobSectionSavedPayload): void;
+  trackTechnicianAssigned(payload: JobContextPayload): void;
+  trackMaterialAdded(payload: MaterialAddedPayload): void;
+  trackPricesRecalculated(payload: JobContextPayload): void;
+  trackWarrantyCheckPerformed(payload: WarrantyCheckPerformedPayload): void;
+  trackCustomerSelected(payload: CustomerSelectedPayload): void;
+  trackClaimPricesUpdated(payload: ClaimContextPayload): void;
+  trackClaimApprovalRequested(payload: ClaimContextPayload): void;
+  trackDocumentAction(payload: DocumentActionPayload): void;
+  trackReportGenerated(payload: ReportGeneratedPayload): void;
+  trackReimbursementCreated(): void;
+  trackEmployeeSaved(payload: EmployeeSavedPayload): void;
+  trackEmployeeStatusChanged(payload: EmployeeStatusChangedPayload): void;
+  trackAscSaved(payload: AscSavedPayload): void;
+  trackAscDeactivated(): void;
+  trackClientArchived(): void;
+  trackSessionStarted(): void;
+  trackLanguageChanged(): void;
+  trackUserLoggedOut(payload: UserLoggedOutPayload): void;
+  trackConsentAccepted(): void;
+  trackDashboardLinkClicked(payload: DashboardLinkClickedPayload): void;
 }
 
 export interface AnalyticsContextSource {
@@ -108,6 +148,81 @@ class AnalyticsFacade implements Analytics {
   trackActionFailed(payload: ActionFailedPayload): void {
     this.sink.track({ name: AnalyticsEventName.ACTION_FAILED, payload });
   }
+  trackDiagnosticStarted(payload: JobContextPayload): void {
+    this.sink.track({ name: AnalyticsEventName.DIAGNOSTIC_STARTED, payload });
+  }
+  trackJobHoldChanged(payload: JobHoldChangedPayload): void {
+    this.sink.track({ name: AnalyticsEventName.JOB_HOLD_CHANGED, payload });
+  }
+  trackCostEstimateCreated(payload: JobContextPayload): void {
+    this.sink.track({ name: AnalyticsEventName.COST_ESTIMATE_CREATED, payload });
+  }
+  trackCustomerAnswerRecorded(payload: CustomerAnswerRecordedPayload): void {
+    this.sink.track({ name: AnalyticsEventName.CUSTOMER_ANSWER_RECORDED, payload });
+  }
+  trackJobSectionSaved(payload: JobSectionSavedPayload): void {
+    this.sink.track({ name: AnalyticsEventName.JOB_SECTION_SAVED, payload });
+  }
+  trackTechnicianAssigned(payload: JobContextPayload): void {
+    this.sink.track({ name: AnalyticsEventName.TECHNICIAN_ASSIGNED, payload });
+  }
+  trackMaterialAdded(payload: MaterialAddedPayload): void {
+    this.sink.track({ name: AnalyticsEventName.MATERIAL_ADDED, payload });
+  }
+  trackPricesRecalculated(payload: JobContextPayload): void {
+    this.sink.track({ name: AnalyticsEventName.PRICES_RECALCULATED, payload });
+  }
+  trackWarrantyCheckPerformed(payload: WarrantyCheckPerformedPayload): void {
+    this.sink.track({ name: AnalyticsEventName.WARRANTY_CHECK_PERFORMED, payload });
+  }
+  trackCustomerSelected(payload: CustomerSelectedPayload): void {
+    this.sink.track({ name: AnalyticsEventName.CUSTOMER_SELECTED, payload });
+  }
+  trackClaimPricesUpdated(payload: ClaimContextPayload): void {
+    this.sink.track({ name: AnalyticsEventName.CLAIM_PRICES_UPDATED, payload });
+  }
+  trackClaimApprovalRequested(payload: ClaimContextPayload): void {
+    this.sink.track({ name: AnalyticsEventName.CLAIM_APPROVAL_REQUESTED, payload });
+  }
+  trackDocumentAction(payload: DocumentActionPayload): void {
+    this.sink.track({ name: AnalyticsEventName.DOCUMENT_ACTION, payload });
+  }
+  trackReportGenerated(payload: ReportGeneratedPayload): void {
+    this.sink.track({ name: AnalyticsEventName.REPORT_GENERATED, payload });
+  }
+  trackReimbursementCreated(): void {
+    this.sink.track({ name: AnalyticsEventName.REIMBURSEMENT_CREATED, payload: {} });
+  }
+  trackEmployeeSaved(payload: EmployeeSavedPayload): void {
+    this.sink.track({ name: AnalyticsEventName.EMPLOYEE_SAVED, payload });
+  }
+  trackEmployeeStatusChanged(payload: EmployeeStatusChangedPayload): void {
+    this.sink.track({ name: AnalyticsEventName.EMPLOYEE_STATUS_CHANGED, payload });
+  }
+  trackAscSaved(payload: AscSavedPayload): void {
+    this.sink.track({ name: AnalyticsEventName.ASC_SAVED, payload });
+  }
+  trackAscDeactivated(): void {
+    this.sink.track({ name: AnalyticsEventName.ASC_DEACTIVATED, payload: {} });
+  }
+  trackClientArchived(): void {
+    this.sink.track({ name: AnalyticsEventName.CLIENT_ARCHIVED, payload: {} });
+  }
+  trackSessionStarted(): void {
+    this.sink.track({ name: AnalyticsEventName.SESSION_STARTED, payload: {} });
+  }
+  trackLanguageChanged(): void {
+    this.sink.track({ name: AnalyticsEventName.LANGUAGE_CHANGED, payload: {} });
+  }
+  trackUserLoggedOut(payload: UserLoggedOutPayload): void {
+    this.sink.track({ name: AnalyticsEventName.USER_LOGGED_OUT, payload });
+  }
+  trackConsentAccepted(): void {
+    this.sink.track({ name: AnalyticsEventName.CONSENT_ACCEPTED, payload: {} });
+  }
+  trackDashboardLinkClicked(payload: DashboardLinkClickedPayload): void {
+    this.sink.track({ name: AnalyticsEventName.DASHBOARD_LINK_CLICKED, payload });
+  }
 }
 
 export const createNoopAnalytics = (): Analytics =>
@@ -129,6 +244,31 @@ export const createNoopAnalytics = (): Analytics =>
     trackListInteraction: () => {},
     trackListExported: () => {},
     trackActionFailed: () => {},
+    trackDiagnosticStarted: () => {},
+    trackJobHoldChanged: () => {},
+    trackCostEstimateCreated: () => {},
+    trackCustomerAnswerRecorded: () => {},
+    trackJobSectionSaved: () => {},
+    trackTechnicianAssigned: () => {},
+    trackMaterialAdded: () => {},
+    trackPricesRecalculated: () => {},
+    trackWarrantyCheckPerformed: () => {},
+    trackCustomerSelected: () => {},
+    trackClaimPricesUpdated: () => {},
+    trackClaimApprovalRequested: () => {},
+    trackDocumentAction: () => {},
+    trackReportGenerated: () => {},
+    trackReimbursementCreated: () => {},
+    trackEmployeeSaved: () => {},
+    trackEmployeeStatusChanged: () => {},
+    trackAscSaved: () => {},
+    trackAscDeactivated: () => {},
+    trackClientArchived: () => {},
+    trackSessionStarted: () => {},
+    trackLanguageChanged: () => {},
+    trackUserLoggedOut: () => {},
+    trackConsentAccepted: () => {},
+    trackDashboardLinkClicked: () => {},
   });
 
 interface AnalyticsTrackerDependencies {

@@ -23,9 +23,18 @@ const { bulkApproveMutate, setMessagesMock } = vi.hoisted(() => ({
 }));
 let claimsState: { data: unknown[]; isLoading: boolean } = { data: [], isLoading: false };
 let bulkApproveOptions: {
-  onSuccess?: (data: unknown, variables: { decision: string }) => void;
-  onError?: (error: unknown, variables: { decision: string }) => void;
+  onSuccess?: (data: unknown, variables: { decision: string; claimIds: string[] }) => void;
+  onError?: (error: unknown, variables: { decision: string; claimIds: string[] }) => void;
 } = {};
+
+const analyticsMock = vi.hoisted(() => ({
+  trackClaimReviewed: vi.fn(),
+  trackActionFailed: vi.fn(),
+}));
+vi.mock("@/analytics", async () => ({
+  ...(await vi.importActual<Record<string, unknown>>("@/analytics")),
+  useAnalytics: () => analyticsMock,
+}));
 
 vi.mock("api/services/claims/hooks", () => ({
   useClaims: () => claimsState,
@@ -257,7 +266,7 @@ describe("ClaimList", () => {
     renderClaimList();
 
     act(() => {
-      bulkApproveOptions.onSuccess?.(undefined, { decision });
+      bulkApproveOptions.onSuccess?.(undefined, { decision, claimIds: ["C1", "C2"] });
     });
 
     const updater = setMessagesMock.mock.calls[0][0] as (prev: unknown[]) => unknown[];
@@ -271,9 +280,26 @@ describe("ClaimList", () => {
   ])("pushes error message for %s decision", (decision, expectedText) => {
     renderClaimList();
 
-    bulkApproveOptions.onError?.(new Error("failed"), { decision });
+    bulkApproveOptions.onError?.(new Error("failed"), { decision, claimIds: ["C1", "C2"] });
 
     const updater = setMessagesMock.mock.calls[0][0] as (prev: unknown[]) => unknown[];
     expect(updater([])).toEqual([{ type: "error", text: expectedText, duration: 3000 }]);
+    expect(analyticsMock.trackActionFailed).toHaveBeenCalledTimes(2);
+    expect(analyticsMock.trackActionFailed).toHaveBeenCalledWith(
+      expect.objectContaining({ failedAction: "claim_reviewed", failureReason: "system_problem" }),
+    );
+  });
+
+  it("sends one claim_reviewed per claim in a bulk decision", () => {
+    renderClaimList();
+
+    act(() => {
+      bulkApproveOptions.onSuccess?.(undefined, { decision: "REJECTED", claimIds: ["C1", "C2"] });
+    });
+
+    expect(analyticsMock.trackClaimReviewed).toHaveBeenCalledTimes(2);
+    expect(analyticsMock.trackClaimReviewed).toHaveBeenCalledWith(
+      expect.objectContaining({ claimStatus: "rejected", claimAction: "rejected" }),
+    );
   });
 });

@@ -1,6 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
 
+const analyticsMock = vi.hoisted(() => ({
+  trackTechnicianAssigned: vi.fn(),
+  trackJobSectionSaved: vi.fn(),
+  trackActionFailed: vi.fn(),
+}));
+vi.mock("@/analytics", async () => ({
+  ...(await vi.importActual<Record<string, unknown>>("@/analytics")),
+  useAnalytics: () => analyticsMock,
+}));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
@@ -146,6 +156,9 @@ describe("PurchaseDateModal", () => {
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["job", "job-1"] });
     expect(setMessages).toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
+    expect(analyticsMock.trackJobSectionSaved).toHaveBeenCalledWith(
+      expect.objectContaining({ jobSection: "purchase_date" }),
+    );
   });
 
   it("invokes onError handler and displays the error message", () => {
@@ -154,6 +167,13 @@ describe("PurchaseDateModal", () => {
       mutationOptions.onError?.(new Error("boom"));
     });
     expect(screen.getByRole("alert")).toHaveTextContent("translated error message");
+    expect(analyticsMock.trackActionFailed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        failedAction: "job_section_saved",
+        failureReason: "system_problem",
+        jobSection: "purchase_date",
+      }),
+    );
   });
 
   it("clears api error when cancel is clicked", () => {

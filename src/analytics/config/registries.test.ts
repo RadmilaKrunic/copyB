@@ -15,7 +15,7 @@ const COMMON = [
 describe("EVENT_REGISTRY", () => {
   it("defines every event and requires the common context on each", () => {
     const names = Object.values(AnalyticsEventName);
-    expect(names).toHaveLength(17); // 16 business events + virtual_page_view
+    expect(names).toHaveLength(42); // 41 business events + virtual_page_view
     for (const name of names) {
       const definition = EVENT_REGISTRY[name];
       expect(definition.name).toBe(name);

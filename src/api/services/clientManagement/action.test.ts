@@ -1,15 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import axiosClient from "api/axios-client/axiosClient";
-import { fetchClientManagementCustomers } from "./action";
-import type { ClientManagementCustomersRequest } from "./clientManagement.types";
+import { fetchClientManagementCustomers, fetchClientManagementCustomerById } from "./action";
+import type {
+  ClientManagementCustomerDetails,
+  ClientManagementCustomersRequest,
+} from "./clientManagement.types";
 
 vi.mock("api/axios-client/axiosClient", () => ({
   default: {
     post: vi.fn(),
+    get: vi.fn(),
   },
 }));
 
 const mockPost = vi.mocked(axiosClient.post);
+const mockGet = vi.mocked(axiosClient.get);
 
 const request: ClientManagementCustomersRequest = {
   ascId: "asc-1",
@@ -73,6 +78,45 @@ describe("fetchClientManagementCustomers", () => {
     await expect(fetchClientManagementCustomers(request)).rejects.toThrow("Network error");
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       "Error fetching client management customers:",
+      error,
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
+});
+
+describe("fetchClientManagementCustomerById", () => {
+  const customerId = "customer-123";
+  const customerDetails = {
+    id: customerId,
+  } as unknown as ClientManagementCustomerDetails;
+
+  beforeEach(() => {
+    mockGet.mockReset();
+    mockGet.mockResolvedValue({ data: customerDetails } as any);
+  });
+
+  it("calls GET with the customer id in the URL", async () => {
+    await fetchClientManagementCustomerById(customerId);
+
+    expect(mockGet).toHaveBeenCalledTimes(1);
+    expect(mockGet).toHaveBeenCalledWith("/v1/data/client-management/customers/customer-123");
+  });
+
+  it("returns response.data on success", async () => {
+    const result = await fetchClientManagementCustomerById(customerId);
+
+    expect(result).toEqual(customerDetails);
+  });
+
+  it("logs and rethrows when the request fails", async () => {
+    const error = new Error("Not found");
+    mockGet.mockRejectedValue(error);
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(fetchClientManagementCustomerById(customerId)).rejects.toThrow("Not found");
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "Error fetching client management customer details:",
       error,
     );
 

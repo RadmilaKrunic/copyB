@@ -3,15 +3,30 @@ import { createTestAnalytics, type TestAnalyticsHarness } from "../testing";
 import { AnalyticsEventValidator } from "./validate";
 import {
   AnalyticsEventName,
+  AscSection,
   ClaimAction,
   ClaimStatus,
   CompletionType,
+  CustomerAnswer,
+  CustomerSelection,
+  DashboardLink,
+  DocumentAction,
+  DocumentType,
+  EmployeeAction,
   FailureReason,
+  HoldAction,
+  JobSection,
   JobStatus,
   JobType,
   ListInteractionType,
+  LogoutSource,
+  MaterialSource,
+  MaterialType,
   NoteContext,
   PreApprovalAction,
+  ReportType,
+  SaveType,
+  WarrantyResult,
 } from "../domain/enums";
 
 const BUSINESS_EVENT_NAMES = Object.values(AnalyticsEventName).filter(
@@ -219,6 +234,51 @@ describe("Analytics facade — every business event", () => {
     });
   });
 
+  it("job_section_saved carries the section, job context and common context only", () => {
+    harness.analytics.trackJobSectionSaved({
+      jobType: JobType.CHARGEABLE,
+      jobStatus: JobStatus.IN_DIAGNOSTICS,
+      jobSection: JobSection.CUSTOMER_DATA,
+    });
+    expect(harness.transport.last).toEqual({
+      event: "job_section_saved",
+      job_section: "customer_data",
+      job_type: "chargeable",
+      job_status: "in_diagnostics",
+      virtual_url: "/dashboard",
+      ...commonContext,
+    });
+  });
+
+  it("action_failed keeps the section of a failed save apart", () => {
+    harness.analytics.trackActionFailed({
+      failedAction: AnalyticsEventName.JOB_SECTION_SAVED,
+      failureReason: FailureReason.WRONG_ENTRY,
+      jobSection: JobSection.ASSET_DATA,
+    });
+    expect(harness.transport.last).toMatchObject({
+      failed_action: "job_section_saved",
+      failure_reason: "wrong_entry",
+      job_section: "asset_data",
+    });
+    const [pushed] = harness.transport.events;
+    expect(validator.validate(pushed).valid).toBe(true);
+  });
+
+  it("document_action carries the action and type only, never a file name", () => {
+    harness.analytics.trackDocumentAction({
+      documentAction: DocumentAction.DELETED,
+      documentType: DocumentType.PRODUCT_PHOTO,
+    });
+    expect(harness.transport.last).toEqual({
+      event: "document_action",
+      document_action: "deleted",
+      document_type: "product_photo",
+      virtual_url: "/dashboard",
+      ...commonContext,
+    });
+  });
+
   it("action_failed with an unknown reason fails validation", () => {
     harness.analytics.trackActionFailed({
       failedAction: AnalyticsEventName.NOTE_ADDED,
@@ -288,6 +348,45 @@ describe("Analytics facade — every business event", () => {
       failedAction: AnalyticsEventName.LIST_EXPORTED,
       failureReason: FailureReason.SYSTEM_PROBLEM,
     });
+    const jobContext = { jobType: JobType.WARRANTY, jobStatus: JobStatus.IN_DIAGNOSTICS };
+    harness.analytics.trackDiagnosticStarted(jobContext);
+    harness.analytics.trackJobHoldChanged({ ...jobContext, holdAction: HoldAction.PLACED });
+    harness.analytics.trackCostEstimateCreated(jobContext);
+    harness.analytics.trackCustomerAnswerRecorded({
+      ...jobContext,
+      customerAnswer: CustomerAnswer.REPAIR,
+    });
+    harness.analytics.trackJobSectionSaved({ jobSection: JobSection.DOCUMENTS });
+    harness.analytics.trackTechnicianAssigned({});
+    harness.analytics.trackMaterialAdded({
+      ...jobContext,
+      materialType: MaterialType.SPARE_PART,
+      materialSource: MaterialSource.DRAWING,
+    });
+    harness.analytics.trackPricesRecalculated(jobContext);
+    harness.analytics.trackWarrantyCheckPerformed({ warrantyResult: WarrantyResult.INELIGIBLE });
+    harness.analytics.trackCustomerSelected({ customerSelection: CustomerSelection.EXISTING });
+    harness.analytics.trackClaimPricesUpdated({
+      claimStatus: ClaimStatus.PENDING,
+      jobType: JobType.WARRANTY,
+    });
+    harness.analytics.trackClaimApprovalRequested({});
+    harness.analytics.trackDocumentAction({
+      documentAction: DocumentAction.UPLOADED,
+      documentType: DocumentType.INVOICE,
+    });
+    harness.analytics.trackReportGenerated({ reportType: ReportType.BIQIC });
+    harness.analytics.trackReimbursementCreated();
+    harness.analytics.trackEmployeeSaved({ saveType: SaveType.CREATED });
+    harness.analytics.trackEmployeeStatusChanged({ employeeAction: EmployeeAction.SUSPENDED });
+    harness.analytics.trackAscSaved({ saveType: SaveType.UPDATED, ascSection: AscSection.BANKING });
+    harness.analytics.trackAscDeactivated();
+    harness.analytics.trackClientArchived();
+    harness.analytics.trackSessionStarted();
+    harness.analytics.trackLanguageChanged();
+    harness.analytics.trackUserLoggedOut({ logoutSource: LogoutSource.HEADER });
+    harness.analytics.trackConsentAccepted();
+    harness.analytics.trackDashboardLinkClicked({ dashboardLink: DashboardLink.CREATE_JOB });
 
     const tracked = new Set(harness.transport.events.map((event) => event.event));
     for (const businessEvent of BUSINESS_EVENT_NAMES) {

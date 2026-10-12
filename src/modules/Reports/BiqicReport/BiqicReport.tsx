@@ -1,5 +1,6 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useAnalytics, toFailureReason, AnalyticsEventName, ReportType } from "@/analytics";
 import { Formik, Form, useFormikContext } from "formik";
 import { Button, ActivityIndicator, Notification } from "@bosch/react-frok";
 import { useBreadcrumbs } from "../../../hooks/useBreadcrumbs";
@@ -40,6 +41,7 @@ function DateChangeObserver({ onDateChange }: { onDateChange: () => void }) {
 }
 function BiqicReport() {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
+  const analytics = useAnalytics();
   const { setMessages } = useContext(MessagesContext);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,8 +122,13 @@ function BiqicReport() {
         ...prev,
         { text: t("biqicReportSuccess"), type: "success", duration: 5000 },
       ]);
-    } catch {
+      analytics.trackReportGenerated({ reportType: ReportType.BIQIC });
+    } catch (error) {
       setError(t("biqicReportError"));
+      analytics.trackActionFailed({
+        failedAction: AnalyticsEventName.REPORT_GENERATED,
+        failureReason: toFailureReason(error),
+      });
     } finally {
       setIsLoading(false);
     }

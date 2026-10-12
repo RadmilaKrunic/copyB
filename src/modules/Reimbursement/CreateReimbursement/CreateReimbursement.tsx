@@ -1,6 +1,7 @@
 import React, { useCallback, useContext, useMemo, useState } from "react";
 import { useBreadcrumbs } from "../../../hooks/useBreadcrumbs";
 import { useTranslation } from "react-i18next";
+import { useAnalytics, toFailureReason, AnalyticsEventName } from "@/analytics";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { HeaderUserData } from "../../../api/services/header/action";
 import GenericForm from "../../../components/generics/Form/GenericForm.types";
@@ -22,6 +23,7 @@ import { MessagesContext } from "../../../contexts/messagescontext";
 
 function CreateReimbursement() {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
+  const analytics = useAnalytics();
   useBreadcrumbs([
     { label: t("ascList"), href: "/reimbursement#asc-list" },
     { label: t("createReimbursement"), href: "" },
@@ -75,13 +77,20 @@ function CreateReimbursement() {
     mandatoryFieldsMap: mandatoryFields,
   });
 
-  const createReimbursementError = useCallback(() => {
-    setIsCreatingReimbursement(false);
-    setMessages((prev) => [
-      ...prev,
-      { text: t("createReimbursementError"), type: "error", duration: 3000 },
-    ]);
-  }, [setMessages, t]);
+  const createReimbursementError = useCallback(
+    (error: unknown) => {
+      setIsCreatingReimbursement(false);
+      setMessages((prev) => [
+        ...prev,
+        { text: t("createReimbursementError"), type: "error", duration: 3000 },
+      ]);
+      analytics.trackActionFailed({
+        failedAction: AnalyticsEventName.REIMBURSEMENT_CREATED,
+        failureReason: toFailureReason(error),
+      });
+    },
+    [setMessages, t, analytics],
+  );
 
   const createReimbursement = useCallback(() => {
     const payload = {
@@ -95,10 +104,11 @@ function CreateReimbursement() {
       .then(() => {
         setIsCreatingReimbursement(false);
         queryClient.invalidateQueries({ queryKey: ["reimbursements"] });
+        analytics.trackReimbursementCreated();
         navigate("/reimbursement#reimbursement-list");
       })
       .catch(createReimbursementError);
-  }, [formValues, navigate, createReimbursementError, queryClient]);
+  }, [formValues, navigate, createReimbursementError, queryClient, analytics]);
 
   const handleGenericAction = useCallback(
     (actionName: string) => {
