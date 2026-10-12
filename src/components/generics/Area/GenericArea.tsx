@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useFormikContext } from "formik";
 import { isDependedAndVisible } from "../utils";
 import { getCustomArea } from "./CustomAreasMapper";
-import { useCallback, useContext, useEffect, useState } from "react";
+import { type SyntheticEvent, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { GenericFormContext } from "../Form/GenericForm.context";
 import { useHasPermission } from "hooks/useHasPermission";
 
@@ -77,6 +77,30 @@ function GenericArea({
     [actionCallbacks, formValues, setFieldValue, setErrors, setTouched, shouldShowActionsOnEdit],
   );
 
+  // Date pickers set their value via Formik (calendar click, confirm, blur), not a DOM
+  // change event, so onChangeCapture never sees it. Notify once the new date is in the form.
+  const datepickerValuesKey = JSON.stringify(
+    area.fields
+      .filter((field) => field.type === "datepicker")
+      .map((field) => formValues[field.name] ?? null),
+  );
+  const prevDatepickerValuesKeyRef = useRef(datepickerValuesKey);
+  const datepickerInteractionRef = useRef(false);
+
+  useEffect(() => {
+    if (prevDatepickerValuesKeyRef.current === datepickerValuesKey) return;
+    prevDatepickerValuesKeyRef.current = datepickerValuesKey;
+    if (!datepickerInteractionRef.current) return;
+    datepickerInteractionRef.current = false;
+    onAreaValueChange?.(area.name, formValues);
+  }, [area.name, datepickerValuesKey, formValues, onAreaValueChange]);
+
+  const markDatepickerInteraction = (event: SyntheticEvent) => {
+    if (event.target instanceof Element && event.target.closest(".custom-date-picker")) {
+      datepickerInteractionRef.current = true;
+    }
+  };
+
   if (
     isSubArea &&
     !isDependedAndVisible(formValues, allFields ?? [], dependentFields, dependFieldCondition)
@@ -109,6 +133,9 @@ function GenericArea({
         className="area-fields"
         onFocusCapture={handleFieldInteraction}
         onChangeCapture={handleAreaChange}
+        onClickCapture={markDatepickerInteraction}
+        onKeyDownCapture={markDatepickerInteraction}
+        onBlurCapture={markDatepickerInteraction}
       >
         {area.fields
           .toSorted((a, b) => (a.position ?? 0) - (b.position ?? 0))
