@@ -7,6 +7,8 @@ import { updateJobAssignee } from "api/services/jobs/action";
 import { AscUser } from "types/user.type";
 import { DEFAULT_STALE_TIME_MS } from "utils/queryConstants";
 import { MessagesContext } from "contexts/messagescontext";
+import { useAnalytics, toFailureReason, AnalyticsEventName } from "@/analytics";
+import { getCachedJobContext } from "modules/JobManagement/jobAnalyticsContext";
 
 export default function TechnicianSelect({
   assigneeName,
@@ -26,6 +28,7 @@ export default function TechnicianSelect({
   const [selectedAssignee, setSelectedAssignee] = useState(assigneeName);
   const [hasChangedAssignee, setHasChangedAssignee] = useState(false);
   const { setMessages } = useContext(MessagesContext);
+  const analytics = useAnalytics();
 
   useEffect(() => {
     const loadUsers = async () => {
@@ -109,13 +112,19 @@ export default function TechnicianSelect({
             ...prev,
             { text: t("successAssigneeUpdated"), type: "success", duration: 2000 },
           ]);
+          analytics.trackTechnicianAssigned(getCachedJobContext(queryClient, jobId));
         })
-        .catch(() => {
+        .catch((error: unknown) => {
           setMessages((prev) => [
             ...prev,
             { text: t("errorUpdateAssignee"), type: "error", duration: 2000 },
           ]);
           setSelectedAssignee(assigneeName);
+          analytics.trackActionFailed({
+            ...getCachedJobContext(queryClient, jobId),
+            failedAction: AnalyticsEventName.TECHNICIAN_ASSIGNED,
+            failureReason: toFailureReason(error),
+          });
         });
     }
   };

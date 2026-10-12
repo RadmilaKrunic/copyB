@@ -1,19 +1,34 @@
 import type {
   AnalyticsEnvironment,
+  AscSection,
+  DashboardLink,
+  DocumentAction,
+  DocumentType,
+  EmployeeAction,
+  LogoutSource,
+  ReportType,
+  SaveType,
   ClaimAction,
   ClaimStatus,
   CompletionType,
+  CustomerAnswer,
+  CustomerSelection,
   FailedAction,
   FailureReason,
+  HoldAction,
+  JobSection,
   JobStatus,
   JobType,
   ListInteractionType,
+  MaterialSource,
+  MaterialType,
   ModuleName,
   NoteContext,
   PageName,
   PreApprovalAction,
   UserRole,
   VirtualUrl,
+  WarrantyResult,
 } from "./enums";
 import { AnalyticsEventName } from "./enums";
 
@@ -46,6 +61,21 @@ export enum AnalyticsParameterKey {
   EXPORTED_ROW_COUNT = "exported_row_count",
   FAILED_ACTION = "failed_action",
   FAILURE_REASON = "failure_reason",
+  HOLD_ACTION = "hold_action",
+  CUSTOMER_ANSWER = "customer_answer",
+  JOB_SECTION = "job_section",
+  MATERIAL_TYPE = "material_type",
+  MATERIAL_SOURCE = "material_source",
+  WARRANTY_RESULT = "warranty_result",
+  CUSTOMER_SELECTION = "customer_selection",
+  DOCUMENT_ACTION = "document_action",
+  DOCUMENT_TYPE = "document_type",
+  REPORT_TYPE = "report_type",
+  SAVE_TYPE = "save_type",
+  EMPLOYEE_ACTION = "employee_action",
+  ASC_SECTION = "asc_section",
+  LOGOUT_SOURCE = "logout_source",
+  DASHBOARD_LINK = "dashboard_link",
 }
 
 /** Primitive value types allowed in a push. `undefined` is stripped before pushing. */
@@ -158,12 +188,87 @@ export interface ListExportedPayload {
   readonly exportedRowCount?: number;
 }
 
+export interface JobContextPayload {
+  readonly jobType?: JobType;
+  readonly jobStatus?: JobStatus;
+}
+
+export interface JobHoldChangedPayload extends JobContextPayload {
+  readonly holdAction: HoldAction;
+}
+
+export interface CustomerAnswerRecordedPayload extends JobContextPayload {
+  readonly customerAnswer: CustomerAnswer;
+}
+
+export interface JobSectionSavedPayload extends JobContextPayload {
+  readonly jobSection: JobSection;
+}
+
+export interface MaterialAddedPayload extends JobContextPayload {
+  readonly materialType: MaterialType;
+  readonly materialSource: MaterialSource;
+}
+
+export interface WarrantyCheckPerformedPayload {
+  readonly warrantyResult: WarrantyResult;
+}
+
+export interface CustomerSelectedPayload {
+  readonly customerSelection: CustomerSelection;
+}
+
+export interface ClaimContextPayload {
+  readonly claimStatus?: ClaimStatus;
+  readonly jobType?: JobType;
+}
+
+export type NoPayload = Readonly<Record<never, never>>;
+
+export interface DocumentActionPayload {
+  readonly documentAction: DocumentAction;
+  readonly documentType: DocumentType;
+}
+
+export interface ReportGeneratedPayload {
+  readonly reportType: ReportType;
+}
+
+export interface EmployeeSavedPayload {
+  readonly saveType: SaveType;
+}
+
+export interface EmployeeStatusChangedPayload {
+  readonly employeeAction: EmployeeAction;
+}
+
+export interface AscSavedPayload {
+  readonly saveType: SaveType;
+  readonly ascSection?: AscSection;
+}
+
+export interface UserLoggedOutPayload {
+  readonly logoutSource: LogoutSource;
+}
+
+export interface DashboardLinkClickedPayload {
+  readonly dashboardLink: DashboardLink;
+}
+
 export interface ActionFailedPayload {
   readonly failedAction: FailedAction;
   readonly failureReason: FailureReason;
   readonly jobType?: JobType;
   readonly jobStatus?: JobStatus;
   readonly claimStatus?: ClaimStatus;
+  readonly holdAction?: HoldAction;
+  readonly customerAnswer?: CustomerAnswer;
+  readonly jobSection?: JobSection;
+  readonly documentAction?: DocumentAction;
+  readonly documentType?: DocumentType;
+  readonly saveType?: SaveType;
+  readonly employeeAction?: EmployeeAction;
+  readonly ascSection?: AscSection;
 }
 
 export type AnalyticsEvent =
@@ -207,4 +312,53 @@ export type AnalyticsEvent =
     }
   | { readonly name: AnalyticsEventName.LIST_INTERACTION; readonly payload: ListInteractionPayload }
   | { readonly name: AnalyticsEventName.LIST_EXPORTED; readonly payload: ListExportedPayload }
-  | { readonly name: AnalyticsEventName.ACTION_FAILED; readonly payload: ActionFailedPayload };
+  | { readonly name: AnalyticsEventName.ACTION_FAILED; readonly payload: ActionFailedPayload }
+  | { readonly name: AnalyticsEventName.DIAGNOSTIC_STARTED; readonly payload: JobContextPayload }
+  | { readonly name: AnalyticsEventName.JOB_HOLD_CHANGED; readonly payload: JobHoldChangedPayload }
+  | { readonly name: AnalyticsEventName.COST_ESTIMATE_CREATED; readonly payload: JobContextPayload }
+  | {
+      readonly name: AnalyticsEventName.CUSTOMER_ANSWER_RECORDED;
+      readonly payload: CustomerAnswerRecordedPayload;
+    }
+  | {
+      readonly name: AnalyticsEventName.JOB_SECTION_SAVED;
+      readonly payload: JobSectionSavedPayload;
+    }
+  | { readonly name: AnalyticsEventName.TECHNICIAN_ASSIGNED; readonly payload: JobContextPayload }
+  | { readonly name: AnalyticsEventName.MATERIAL_ADDED; readonly payload: MaterialAddedPayload }
+  | { readonly name: AnalyticsEventName.PRICES_RECALCULATED; readonly payload: JobContextPayload }
+  | {
+      readonly name: AnalyticsEventName.WARRANTY_CHECK_PERFORMED;
+      readonly payload: WarrantyCheckPerformedPayload;
+    }
+  | {
+      readonly name: AnalyticsEventName.CUSTOMER_SELECTED;
+      readonly payload: CustomerSelectedPayload;
+    }
+  | {
+      readonly name: AnalyticsEventName.CLAIM_PRICES_UPDATED;
+      readonly payload: ClaimContextPayload;
+    }
+  | {
+      readonly name: AnalyticsEventName.CLAIM_APPROVAL_REQUESTED;
+      readonly payload: ClaimContextPayload;
+    }
+  | { readonly name: AnalyticsEventName.DOCUMENT_ACTION; readonly payload: DocumentActionPayload }
+  | { readonly name: AnalyticsEventName.REPORT_GENERATED; readonly payload: ReportGeneratedPayload }
+  | { readonly name: AnalyticsEventName.REIMBURSEMENT_CREATED; readonly payload: NoPayload }
+  | { readonly name: AnalyticsEventName.EMPLOYEE_SAVED; readonly payload: EmployeeSavedPayload }
+  | {
+      readonly name: AnalyticsEventName.EMPLOYEE_STATUS_CHANGED;
+      readonly payload: EmployeeStatusChangedPayload;
+    }
+  | { readonly name: AnalyticsEventName.ASC_SAVED; readonly payload: AscSavedPayload }
+  | { readonly name: AnalyticsEventName.ASC_DEACTIVATED; readonly payload: NoPayload }
+  | { readonly name: AnalyticsEventName.CLIENT_ARCHIVED; readonly payload: NoPayload }
+  | { readonly name: AnalyticsEventName.SESSION_STARTED; readonly payload: NoPayload }
+  | { readonly name: AnalyticsEventName.LANGUAGE_CHANGED; readonly payload: NoPayload }
+  | { readonly name: AnalyticsEventName.USER_LOGGED_OUT; readonly payload: UserLoggedOutPayload }
+  | { readonly name: AnalyticsEventName.CONSENT_ACCEPTED; readonly payload: NoPayload }
+  | {
+      readonly name: AnalyticsEventName.DASHBOARD_LINK_CLICKED;
+      readonly payload: DashboardLinkClickedPayload;
+    };

@@ -399,17 +399,17 @@ describe("AddASC", () => {
     useQueryMock.mockImplementation(() => ({ data: ascQueryDataRef.current }));
 
     useMutationMock.mockImplementation(({ onSuccess, onError }: any) => {
-      mutateMock.mockImplementation(() => {
+      mutateMock.mockImplementation((variables: unknown) => {
         if (mutationModeRef.current === "success") {
-          onSuccess?.();
+          onSuccess?.(undefined, variables);
           return;
         }
         if (mutationModeRef.current === "userCreationFailed") {
-          onError?.({ response: { data: { detail: "userCreationFailed" } } });
+          onError?.({ response: { data: { detail: "userCreationFailed" } } }, variables);
           return;
         }
         if (mutationModeRef.current === "error") {
-          onError?.({ response: { data: { detail: "somethingElse" } } });
+          onError?.({ response: { data: { detail: "somethingElse" } } }, variables);
         }
       });
       return { mutate: mutateMock };

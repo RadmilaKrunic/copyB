@@ -5,6 +5,13 @@ import { DEFAULT_STALE_TIME_MS } from "../../../../utils/queryConstants";
 import ActivityIndicatorWithDelay from "../../../../components/ui/ActivityIndicatorWithDelay/ActivityIndicatorWithDelay";
 import { useBreadcrumbs } from "../../../../hooks/useBreadcrumbs";
 import { useTranslation } from "react-i18next";
+import {
+  useAnalytics,
+  toFailureReason,
+  AnalyticsEventName,
+  EmployeeAction,
+  SaveType,
+} from "@/analytics";
 import OverviewHeader from "../../../../components/ui/OverviewHeader";
 import { Tab, TabNavigation } from "@bosch/react-frok";
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
@@ -29,6 +36,7 @@ import DeleteEmployeeDialog from "../DeleteEmployeeDialog/DeleteEmployeeDialog";
 
 function EmployeeOverview() {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
+  const analytics = useAnalytics();
   const queryClient = useQueryClient();
   const { employeeId } = useParams<{ employeeId: string }>();
   const { setMessages } = useContext(MessagesContext);
@@ -177,12 +185,18 @@ function EmployeeOverview() {
       void queryClient.invalidateQueries({ queryKey: ["employees"] });
       void queryClient.invalidateQueries({ queryKey: ["employee", employeeId] });
       setMessages([{ type: "success", duration: 5000, text: t("employeeUpdatedSuccessfully") }]);
+      analytics.trackEmployeeSaved({ saveType: SaveType.UPDATED });
       if (employeeInfoSection) {
         employeeInfoSection.isDisabled = true;
         toggleFieldDisabledState();
       }
     },
     onError: (error: any) => {
+      analytics.trackActionFailed({
+        failedAction: AnalyticsEventName.EMPLOYEE_SAVED,
+        failureReason: toFailureReason(error),
+        saveType: SaveType.UPDATED,
+      });
       if (error?.status === 409) {
         setMessages([{ type: "error", duration: 5000, text: t("emailAlreadyExists") }]);
         return;
@@ -214,10 +228,22 @@ function EmployeeOverview() {
   );
 
   const onDeactivateEmployee = useCallback(() => {
-    void axiosClient.put(`/v1/users/suspend/${employeeId}`).then(() => {
-      void queryClient.invalidateQueries({ queryKey: ["employee", employeeId] });
-    });
-  }, [employeeId, queryClient]);
+    const employeeAction = EmployeeAction.SUSPENDED;
+    void axiosClient.put(`/v1/users/suspend/${employeeId}`).then(
+      () => {
+        void queryClient.invalidateQueries({ queryKey: ["employee", employeeId] });
+        analytics.trackEmployeeStatusChanged({ employeeAction });
+      },
+      (error: unknown) => {
+        analytics.trackActionFailed({
+          failedAction: AnalyticsEventName.EMPLOYEE_STATUS_CHANGED,
+          failureReason: toFailureReason(error),
+          employeeAction,
+        });
+        throw error;
+      },
+    );
+  }, [employeeId, queryClient, analytics]);
 
   const handleGenericAction = useCallback(
     (actionName: string) => {

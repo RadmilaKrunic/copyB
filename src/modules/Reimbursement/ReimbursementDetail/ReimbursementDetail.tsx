@@ -24,7 +24,7 @@ import {
   useReimbursementDateRangeFilter,
   useReimbursementPagination,
 } from "../ReimbursementDateFilter.utils";
-import { useListTracking } from "@/analytics";
+import { useAnalytics, useListTracking } from "@/analytics";
 
 interface ReimbursementDetailLocationState {
   ascName?: string;
@@ -33,6 +33,7 @@ interface ReimbursementDetailLocationState {
 function ReimbursementDetail() {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
   const { setMessages } = useContext(MessagesContext);
+  const analytics = useAnalytics();
 
   const queryClient = useQueryClient();
   const user = queryClient.getQueryData<HeaderUserData>(["user"]);
@@ -140,7 +141,7 @@ function ReimbursementDetail() {
             iconName="document-pdf"
             t={t}
             onGenerateReceipt={(reimbursementId, receiptWindow) => {
-              void handleGenerateReceipt(reimbursementId, setMessages, t, receiptWindow);
+              void handleGenerateReceipt(reimbursementId, setMessages, t, receiptWindow, analytics);
             }}
           />
         )}

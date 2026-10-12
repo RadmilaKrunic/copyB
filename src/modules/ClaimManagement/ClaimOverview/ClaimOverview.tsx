@@ -21,8 +21,10 @@ import {
   useAnalytics,
   toClaimStatus,
   toFailureReason,
+  toJobType,
   NoteContext,
   AnalyticsEventName,
+  type ClaimContextPayload,
 } from "@/analytics";
 import { useBreadcrumbs } from "hooks/useBreadcrumbs";
 import { postMessage } from "api/services/jobs/action";
@@ -129,9 +131,10 @@ export default function ClaimOverview() {
         },
       ]);
 
+      analytics.trackClaimPricesUpdated(getClaimContext());
       await queryClient.refetchQueries({ queryKey: ["claim", claimId] });
     },
-    onError: () => {
+    onError: (error) => {
       setMessages((prev) => [
         ...prev,
         {
@@ -142,6 +145,11 @@ export default function ClaimOverview() {
       ]);
       setArePricesValidated(false);
       scrollToTop();
+      analytics.trackActionFailed({
+        ...getClaimContext(),
+        failedAction: AnalyticsEventName.CLAIM_PRICES_UPDATED,
+        failureReason: toFailureReason(error),
+      });
     },
   });
   const requestApprovalMutation = useClaimRequestApproval();
@@ -186,6 +194,13 @@ export default function ClaimOverview() {
 
   const currentStatus = claimData?.claimStatus || "";
   const isClaimPending = currentStatus === "PENDING";
+  const getClaimContext = useCallback(
+    (): ClaimContextPayload => ({
+      claimStatus: toClaimStatus(currentStatus),
+      jobType: toJobType(claimData?.jobType),
+    }),
+    [currentStatus, claimData?.jobType],
+  );
 
   const [selectedTab, setSelectedTab] = useState<string>("");
   const prevClaimDataRef = useRef<typeof claimData>(undefined);
@@ -532,12 +547,18 @@ export default function ClaimOverview() {
             ...prev,
             { text: t("claimRequestApprovalSuccess"), type: "success", duration: 3000 },
           ]);
-        } catch {
+          analytics.trackClaimApprovalRequested(getClaimContext());
+        } catch (error) {
           scrollToTop();
           setMessages((prev) => [
             ...prev,
             { text: t("claimRequestApprovalError"), type: "error", duration: 3000 },
           ]);
+          analytics.trackActionFailed({
+            ...getClaimContext(),
+            failedAction: AnalyticsEventName.CLAIM_APPROVAL_REQUESTED,
+            failureReason: toFailureReason(error),
+          });
         }
       });
     },
@@ -548,6 +569,8 @@ export default function ClaimOverview() {
       requestApprovalMutation,
       setMessages,
       t,
+      analytics,
+      getClaimContext,
     ],
   );
 

@@ -6,6 +6,14 @@ import { useMutation } from "@tanstack/react-query";
 import { deleteFileFromServer, downloadFileFromServer } from "../../../api/services/file/action";
 import { deleteJobAttachment } from "../../../api/services/jobs/action";
 import { Attachment } from "../DocumentsModal/DocumentsModal";
+import {
+  useAnalytics,
+  toDocumentType,
+  toFailureReason,
+  AnalyticsEventName,
+  DocumentAction,
+} from "@/analytics";
+import { trackDocumentDownload } from "utils/trackDocumentDownload";
 
 type DocumentFileProps = Readonly<{
   name: string;
@@ -41,6 +49,8 @@ export default function DocumentFile({
   hideDelete = false,
 }: DocumentFileProps) {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
+  const analytics = useAnalytics();
+  const documentType = toDocumentType(type);
 
   const deleteFileMutation = useMutation<Attachment[] | void, Error, string>({
     mutationFn: (fileId: string) => {
@@ -56,10 +66,17 @@ export default function DocumentFile({
       const attachments = Array.isArray(responseData) ? responseData : undefined;
       onDeleteSuccess?.(attachments);
       onDeleteEnd?.();
+      analytics.trackDocumentAction({ documentAction: DocumentAction.DELETED, documentType });
     },
     onError: (error) => {
       console.error("Error deleting file:", error);
       onDeleteEnd?.();
+      analytics.trackActionFailed({
+        failedAction: AnalyticsEventName.DOCUMENT_ACTION,
+        failureReason: toFailureReason(error),
+        documentAction: DocumentAction.DELETED,
+        documentType,
+      });
     },
   });
 
@@ -74,6 +91,7 @@ export default function DocumentFile({
       sourceReferenceId?: string;
     }) => downloadFileFromServer(fileId, type, sourceReferenceId ?? null),
     onSuccess: (blob) => {
+      trackDocumentDownload(analytics, documentType, blob);
       if (!blob) return;
       const extension = name.split(".").pop();
       const mimeType = getMimeType(extension);
@@ -92,6 +110,12 @@ export default function DocumentFile({
     },
     onError: (error) => {
       console.error("Failed to open document:", error);
+      analytics.trackActionFailed({
+        failedAction: AnalyticsEventName.DOCUMENT_ACTION,
+        failureReason: toFailureReason(error),
+        documentAction: DocumentAction.DOWNLOADED,
+        documentType,
+      });
     },
   });
 

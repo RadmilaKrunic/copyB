@@ -1,6 +1,9 @@
 import {
   CLAIM_ACTIONS,
   CLAIM_STATUSES,
+  CUSTOMER_ANSWERS,
+  DOCUMENT_TYPES,
+  DocumentType,
   FailureReason,
   JOB_STATUSES,
   JOB_TYPES,
@@ -8,6 +11,7 @@ import {
   UserRole,
   type ClaimAction,
   type ClaimStatus,
+  type CustomerAnswer,
   type JobStatus,
   type JobType,
   type PreApprovalAction,
@@ -35,6 +39,11 @@ export const toClaimStatus = makeEnumNormalizer<ClaimStatus>(CLAIM_STATUSES);
 export const toClaimAction = makeEnumNormalizer<ClaimAction>(CLAIM_ACTIONS);
 /** `"APPROVED"` → `PreApprovalAction.APPROVED`, or `undefined`. */
 export const toPreApprovalAction = makeEnumNormalizer<PreApprovalAction>(PRE_APPROVAL_ACTIONS);
+export const toCustomerAnswer = makeEnumNormalizer<CustomerAnswer>(CUSTOMER_ANSWERS);
+
+const normalizeDocumentType = makeEnumNormalizer<DocumentType>(DOCUMENT_TYPES);
+export const toDocumentType = (raw: string | null | undefined): DocumentType =>
+  normalizeDocumentType(raw) ?? DocumentType.OTHERS;
 
 const NO_PERMISSION_STATUSES: ReadonlySet<number> = new Set([401, 403]);
 const WRONG_ENTRY_STATUSES: ReadonlySet<number> = new Set([400, 409, 422]);

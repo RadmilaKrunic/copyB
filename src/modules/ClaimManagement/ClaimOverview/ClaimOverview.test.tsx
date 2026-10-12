@@ -27,6 +27,8 @@ const h = vi.hoisted(() => ({
   invalidateQueries: vi.fn(),
   trackNoteAdded: vi.fn(),
   trackActionFailed: vi.fn(),
+  trackClaimPricesUpdated: vi.fn(),
+  trackClaimApprovalRequested: vi.fn(),
   scrollToTop: vi.fn(),
   setMessages: vi.fn(),
   useClaimById: vi.fn(),
@@ -62,11 +64,18 @@ vi.mock("@/analytics", () => ({
   useAnalytics: () => ({
     trackNoteAdded: h.trackNoteAdded,
     trackActionFailed: h.trackActionFailed,
+    trackClaimPricesUpdated: h.trackClaimPricesUpdated,
+    trackClaimApprovalRequested: h.trackClaimApprovalRequested,
   }),
   toClaimStatus: (status: string) => status,
+  toJobType: (jobType: string) => jobType,
   toFailureReason: () => "system_problem",
   NoteContext: { CLAIM: "CLAIM" },
-  AnalyticsEventName: { NOTE_ADDED: "note_added" },
+  AnalyticsEventName: {
+    NOTE_ADDED: "note_added",
+    CLAIM_PRICES_UPDATED: "claim_prices_updated",
+    CLAIM_APPROVAL_REQUESTED: "claim_approval_requested",
+  },
 }));
 
 vi.mock("utils/scrollToError", () => ({ scrollToTop: h.scrollToTop }));
@@ -1080,6 +1089,7 @@ describe("ClaimOverview validate action", () => {
       duration: 3000,
     });
     expect(h.captured.generic.actionCallbacks.arePricesValidated()).toBe(true);
+    expect(h.trackClaimPricesUpdated).toHaveBeenCalledTimes(1);
   });
 
   it("merges the server response into the form after a successful validation", async () => {
@@ -1108,6 +1118,9 @@ describe("ClaimOverview validate action", () => {
     });
     expect(h.scrollToTop).toHaveBeenCalled();
     expect(h.mgr.markAllValidated).not.toHaveBeenCalled();
+    expect(h.trackActionFailed).toHaveBeenCalledWith(
+      expect.objectContaining({ failedAction: "claim_prices_updated" }),
+    );
   });
 
   it("does not send the request when validation rejects the form", async () => {
@@ -1185,6 +1198,7 @@ describe("ClaimOverview request approval", () => {
       }),
     );
     expect(h.scrollToTop).toHaveBeenCalled();
+    expect(h.trackClaimApprovalRequested).toHaveBeenCalledTimes(1);
   });
 
   it("reports an error when requesting approval fails", async () => {
@@ -1199,6 +1213,9 @@ describe("ClaimOverview request approval", () => {
         type: "error",
         duration: 3000,
       }),
+    );
+    expect(h.trackActionFailed).toHaveBeenCalledWith(
+      expect.objectContaining({ failedAction: "claim_approval_requested" }),
     );
   });
 

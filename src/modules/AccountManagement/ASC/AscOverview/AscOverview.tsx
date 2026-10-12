@@ -1,5 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import {
+  useAnalytics,
+  toFailureReason,
+  AnalyticsEventName,
+  AscSection,
+  SaveType,
+} from "@/analytics";
 import { useLocation, useParams } from "react-router-dom";
 import { DEFAULT_STALE_TIME_MS } from "utils/queryConstants";
 import { createASC, getASCById } from "api/services/serviceCenters/action";
@@ -34,8 +41,18 @@ import GenericAction from "../../../../components/generics/Action/GenericAction"
 import axiosClient from "../../../../api/axios-client/axiosClient";
 import { useResourceUIConfiguration } from "hooks/useUIConfiguration";
 
+const ASC_SECTION_BY_TAB: Readonly<Record<string, AscSection>> = {
+  generalInfo: AscSection.GENERAL_INFO,
+  banking: AscSection.BANKING,
+  notifications: AscSection.NOTIFICATIONS,
+  pricing: AscSection.PRICING,
+  boschInternalConfiguration: AscSection.BOSCH_INTERNAL_CONFIGURATION,
+  reimbursement: AscSection.REIMBURSEMENT,
+};
+
 function AscOverview() {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
+  const analytics = useAnalytics();
   const { setMessages } = useContext(MessagesContext);
 
   const queryClient = useQueryClient();
@@ -241,8 +258,18 @@ function AscOverview() {
       queryClient.setQueryData(["ASC", ascId], response);
       setMessages([{ type: "success", duration: 5000, text: t("dataUpdatedSuccessfully") }]);
       scrollToTop();
+      analytics.trackAscSaved({
+        saveType: SaveType.UPDATED,
+        ascSection: ASC_SECTION_BY_TAB[selectedTab],
+      });
     },
-    onError: () => {
+    onError: (error) => {
+      analytics.trackActionFailed({
+        failedAction: AnalyticsEventName.ASC_SAVED,
+        failureReason: toFailureReason(error),
+        saveType: SaveType.UPDATED,
+        ascSection: ASC_SECTION_BY_TAB[selectedTab],
+      });
       if (!asc) return;
 
       const oldValues = mapValuesToFormFields(asc);
@@ -336,12 +363,22 @@ function AscOverview() {
   const handleAscOverviewAction = useCallback(
     (actionName: string) => {
       if (actionName === "onDeactivateASC") {
-        void axiosClient.put(`/v1/service-centers/${ascId}`).then(() => {
-          void queryClient.invalidateQueries({ queryKey: ["ASC", ascId] });
-        });
+        void axiosClient.put(`/v1/service-centers/${ascId}`).then(
+          () => {
+            void queryClient.invalidateQueries({ queryKey: ["ASC", ascId] });
+            analytics.trackAscDeactivated();
+          },
+          (error: unknown) => {
+            analytics.trackActionFailed({
+              failedAction: AnalyticsEventName.ASC_DEACTIVATED,
+              failureReason: toFailureReason(error),
+            });
+            throw error;
+          },
+        );
       }
     },
-    [ascId, queryClient],
+    [ascId, queryClient, analytics],
   );
 
   const genericFormContextValue = useMemo(

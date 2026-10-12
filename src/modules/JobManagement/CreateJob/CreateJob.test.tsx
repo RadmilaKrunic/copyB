@@ -74,6 +74,7 @@ vi.mock("react-router", async () => {
     ...actual,
     useNavigate: () => vi.fn(),
     useParams: () => useParamsMock,
+    useLocation: () => ({ state: null }),
   };
 });
 
@@ -384,6 +385,8 @@ const analyticsMock = vi.hoisted(() => ({
   trackJobCreated: vi.fn(),
   trackJobSavedAsDraft: vi.fn(),
   trackActionFailed: vi.fn(),
+  trackWarrantyCheckPerformed: vi.fn(),
+  trackCustomerSelected: vi.fn(),
 }));
 vi.mock("@/analytics", async () => ({
   ...(await vi.importActual<Record<string, unknown>>("@/analytics")),
@@ -990,6 +993,11 @@ describe("CreateJob", () => {
       });
 
       expect(screen.getByTestId("section-customerAndPaymentData")).toBeInTheDocument();
+      await waitFor(() => {
+        expect(analyticsMock.trackWarrantyCheckPerformed).toHaveBeenCalledWith({
+          warrantyResult: "skipped",
+        });
+      });
     });
 
     it("handles warranty API rejection without crashing", async () => {
@@ -1008,6 +1016,13 @@ describe("CreateJob", () => {
       await waitFor(() => {
         expect(screen.getByTestId("section-customerAndPaymentData")).toBeInTheDocument();
       });
+      await waitFor(() => {
+        expect(analyticsMock.trackActionFailed).toHaveBeenCalledWith({
+          failedAction: "warranty_check_performed",
+          failureReason: "system_problem",
+        });
+      });
+      expect(analyticsMock.trackWarrantyCheckPerformed).not.toHaveBeenCalled();
     });
 
     it("ELIGIBLE with disallowed current warranty type clears warrantyType field", async () => {

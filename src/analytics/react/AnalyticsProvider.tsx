@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, type ReactElement, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, type ReactElement, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { AnalyticsContext } from "./analytics-context";
@@ -78,6 +78,10 @@ export const AnalyticsProvider = ({
   const handlePageResolved = useCallback((page: VirtualPageDefinition): void => {
     currentPageRef.current = page;
   }, []);
+
+  useEffect(() => {
+    analytics.trackSessionStarted();
+  }, [analytics]);
 
   useVirtualPageViews({
     analytics,

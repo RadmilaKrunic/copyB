@@ -34,6 +34,15 @@ const {
   mutateMock: vi.fn(),
 }));
 
+const analyticsMock = vi.hoisted(() => ({
+  trackEmployeeSaved: vi.fn(),
+  trackActionFailed: vi.fn(),
+}));
+vi.mock("@/analytics", async () => ({
+  ...(await vi.importActual<Record<string, unknown>>("@/analytics")),
+  useAnalytics: () => analyticsMock,
+}));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
@@ -263,6 +272,9 @@ describe("AddEmployee", () => {
         { type: "error", duration: 5000, text: "emailAlreadyExists" },
       ]);
     });
+    expect(analyticsMock.trackActionFailed).toHaveBeenCalledWith(
+      expect.objectContaining({ failedAction: "employee_saved", saveType: "created" }),
+    );
   });
 
   it("resets form on cancel action", async () => {

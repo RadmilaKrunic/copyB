@@ -57,12 +57,23 @@ vi.mock("../ApprovalDecisionModal/ApprovalDecisionModal", () => ({
 }));
 
 vi.mock("api/services/approvals/hooks", () => ({
-  useUpdateApprovalStatus: vi.fn((cfg: { onSuccess?: () => void; onError?: () => void }) => ({
-    mutate: (payload: unknown) => {
-      mutateMock(payload);
-      cfg.onSuccess?.();
-    },
-  })),
+  useUpdateApprovalStatus: vi.fn(
+    (cfg: { onSuccess?: (data: unknown, variables: unknown) => void; onError?: () => void }) => ({
+      mutate: (payload: unknown) => {
+        mutateMock(payload);
+        cfg.onSuccess?.(undefined, payload);
+      },
+    }),
+  ),
+}));
+
+const analyticsMock = vi.hoisted(() => ({
+  trackPreApprovalReviewed: vi.fn(),
+  trackActionFailed: vi.fn(),
+}));
+vi.mock("@/analytics", async () => ({
+  ...(await vi.importActual<Record<string, unknown>>("@/analytics")),
+  useAnalytics: () => analyticsMock,
 }));
 
 import ApprovalActionsFlyout from "./ApprovalActionsFlyout";
@@ -71,7 +82,7 @@ import { MessagesContext } from "contexts/messagescontext";
 function renderFlyout() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   queryClient.setQueryData(["job", "J1"], {
-    job: { pendingApprovals: [] },
+    job: { pendingApprovals: [], jobStatus: "READY_FOR_REPAIR" },
   });
   const setMessages = vi.fn();
 
@@ -126,6 +137,10 @@ describe("ApprovalActionsFlyout", () => {
     await waitFor(() => expect(mutateMock).toHaveBeenCalled());
     expect(setMessages).toHaveBeenCalled();
     expect(navigateMock).toHaveBeenCalledWith("/approval-list");
+    expect(analyticsMock.trackPreApprovalReviewed).toHaveBeenCalledWith({
+      jobStatus: "ready_for_repair",
+      preApprovalAction: "approved",
+    });
   });
 
   it("opens revised modal title for clarification action", () => {

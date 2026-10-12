@@ -2,6 +2,8 @@ import { Breadcrumb } from "@/contexts/breadcrumbscontext";
 import { getReimbursementReceipt } from "../../api/services/reimbursements/action";
 import { SetStateAction } from "react";
 import { Message } from "../../contexts/messagescontext";
+import { DocumentType, type Analytics } from "@/analytics";
+import { trackDocumentDownload } from "utils/trackDocumentDownload";
 
 export const getInitialFieldValues = (fieldNames: string[]) => {
   const initialValues = fieldNames.reduce(
@@ -119,8 +121,10 @@ export const handleGenerateReceipt = async (
   setMessages: React.Dispatch<SetStateAction<Message[]>>,
   t: (key: string) => string,
   targetWindow: Window | null,
+  analytics: Analytics,
 ) => {
   const receiptBlob = await getReimbursementReceipt(reimbursementId);
+  trackDocumentDownload(analytics, DocumentType.REIMBURSEMENT_RECEIPT_PDF, receiptBlob);
   if (receiptBlob) {
     const pdfUrl = URL.createObjectURL(receiptBlob);
     if (targetWindow) {

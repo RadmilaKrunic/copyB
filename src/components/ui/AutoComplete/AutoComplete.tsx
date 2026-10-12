@@ -13,6 +13,7 @@ import { DEFAULT_GC_TIME_MS, DEFAULT_STALE_TIME_MS } from "utils/queryConstants"
 import { useTranslation } from "react-i18next";
 import InfoIconWithTooltip from "../TooltipContent/InfoIconWithTooltip";
 import { HeaderUserData } from "api/services/header/action";
+import { useAnalytics, CustomerSelection } from "@/analytics";
 import { BareToolOption } from "api/services/orders/orders.types";
 
 interface AutoCompleteProps {
@@ -69,6 +70,7 @@ export default function AutoComplete({
   incompatibleSelectionMessage = "",
 }: Readonly<AutoCompleteProps>) {
   const queryClient = useQueryClient();
+  const analytics = useAnalytics();
   const user = queryClient.getQueryData<HeaderUserData>(["user"]);
   const { t } = useTranslation("translation", { keyPrefix: "app" });
   const [input, setInput] = useState(value);
@@ -246,6 +248,7 @@ export default function AutoComplete({
   const handleOptionSelect = (option: AutoCompleteOption) => {
     if (customerAutocompleteFields.includes(name)) {
       queryClient.setQueryData(["selectedCustomer"], option);
+      analytics.trackCustomerSelected({ customerSelection: CustomerSelection.EXISTING });
     }
 
     const newValue = isSparePartLookupField

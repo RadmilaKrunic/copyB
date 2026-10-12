@@ -5,6 +5,7 @@ import {
   type AnalyticsParameterBag,
   type DataLayerEvent,
   type DataLayerValue,
+  type JobContextPayload,
 } from "../domain/types";
 
 /**
@@ -27,7 +28,11 @@ export const serializeEventPayload = (event: AnalyticsEvent): AnalyticsParameter
     case AnalyticsEventName.JOB_APPROVED_FOR_REPAIR:
     case AnalyticsEventName.REPAIR_STARTED:
     case AnalyticsEventName.REPAIR_FINISHED:
-    case AnalyticsEventName.PRE_APPROVAL_REQUESTED: {
+    case AnalyticsEventName.PRE_APPROVAL_REQUESTED:
+    case AnalyticsEventName.DIAGNOSTIC_STARTED:
+    case AnalyticsEventName.COST_ESTIMATE_CREATED:
+    case AnalyticsEventName.TECHNICIAN_ASSIGNED:
+    case AnalyticsEventName.PRICES_RECALCULATED: {
       const p = event.payload;
       return { [P.JOB_TYPE]: p.jobType, [P.JOB_STATUS]: p.jobStatus };
     }
@@ -101,12 +106,68 @@ export const serializeEventPayload = (event: AnalyticsEvent): AnalyticsParameter
         [P.JOB_TYPE]: p.jobType,
         [P.JOB_STATUS]: p.jobStatus,
         [P.CLAIM_STATUS]: p.claimStatus,
+        [P.HOLD_ACTION]: p.holdAction,
+        [P.CUSTOMER_ANSWER]: p.customerAnswer,
+        [P.JOB_SECTION]: p.jobSection,
+        [P.DOCUMENT_ACTION]: p.documentAction,
+        [P.DOCUMENT_TYPE]: p.documentType,
+        [P.SAVE_TYPE]: p.saveType,
+        [P.EMPLOYEE_ACTION]: p.employeeAction,
+        [P.ASC_SECTION]: p.ascSection,
       };
     }
+    case AnalyticsEventName.JOB_HOLD_CHANGED:
+      return { [P.HOLD_ACTION]: event.payload.holdAction, ...jobContext(event.payload) };
+    case AnalyticsEventName.CUSTOMER_ANSWER_RECORDED:
+      return { [P.CUSTOMER_ANSWER]: event.payload.customerAnswer, ...jobContext(event.payload) };
+    case AnalyticsEventName.JOB_SECTION_SAVED:
+      return { [P.JOB_SECTION]: event.payload.jobSection, ...jobContext(event.payload) };
+    case AnalyticsEventName.MATERIAL_ADDED:
+      return {
+        [P.MATERIAL_TYPE]: event.payload.materialType,
+        [P.MATERIAL_SOURCE]: event.payload.materialSource,
+        ...jobContext(event.payload),
+      };
+    case AnalyticsEventName.WARRANTY_CHECK_PERFORMED:
+      return { [P.WARRANTY_RESULT]: event.payload.warrantyResult };
+    case AnalyticsEventName.CUSTOMER_SELECTED:
+      return { [P.CUSTOMER_SELECTION]: event.payload.customerSelection };
+    case AnalyticsEventName.CLAIM_PRICES_UPDATED:
+    case AnalyticsEventName.CLAIM_APPROVAL_REQUESTED:
+      return { [P.CLAIM_STATUS]: event.payload.claimStatus, [P.JOB_TYPE]: event.payload.jobType };
+    case AnalyticsEventName.DOCUMENT_ACTION:
+      return {
+        [P.DOCUMENT_ACTION]: event.payload.documentAction,
+        [P.DOCUMENT_TYPE]: event.payload.documentType,
+      };
+    case AnalyticsEventName.REPORT_GENERATED:
+      return { [P.REPORT_TYPE]: event.payload.reportType };
+    case AnalyticsEventName.EMPLOYEE_SAVED:
+      return { [P.SAVE_TYPE]: event.payload.saveType };
+    case AnalyticsEventName.EMPLOYEE_STATUS_CHANGED:
+      return { [P.EMPLOYEE_ACTION]: event.payload.employeeAction };
+    case AnalyticsEventName.ASC_SAVED:
+      return { [P.SAVE_TYPE]: event.payload.saveType, [P.ASC_SECTION]: event.payload.ascSection };
+    case AnalyticsEventName.USER_LOGGED_OUT:
+      return { [P.LOGOUT_SOURCE]: event.payload.logoutSource };
+    case AnalyticsEventName.DASHBOARD_LINK_CLICKED:
+      return { [P.DASHBOARD_LINK]: event.payload.dashboardLink };
+    case AnalyticsEventName.REIMBURSEMENT_CREATED:
+    case AnalyticsEventName.ASC_DEACTIVATED:
+    case AnalyticsEventName.CLIENT_ARCHIVED:
+    case AnalyticsEventName.SESSION_STARTED:
+    case AnalyticsEventName.LANGUAGE_CHANGED:
+    case AnalyticsEventName.CONSENT_ACCEPTED:
+      return {};
     default:
       return assertNever(event);
   }
 };
+
+const jobContext = (p: JobContextPayload): AnalyticsParameterBag => ({
+  [P.JOB_TYPE]: p.jobType,
+  [P.JOB_STATUS]: p.jobStatus,
+});
 
 export const buildDataLayerEvent = (
   eventName: AnalyticsEventName,

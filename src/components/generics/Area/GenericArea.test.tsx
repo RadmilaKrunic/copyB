@@ -652,7 +652,7 @@ describe("GenericArea", () => {
 
       fireEvent.click(screen.getByTestId("programmatic-set"));
 
-      await waitFor(() => expect(screen.getByTestId("pick-purchaseDate")).toBeInTheDocument());
+      await waitFor(() => expect(screen.findByTestId("pick-purchaseDate")).toBeInTheDocument());
       expect(onAreaValueChange).not.toHaveBeenCalled();
     });
   });

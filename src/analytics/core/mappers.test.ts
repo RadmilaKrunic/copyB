@@ -3,6 +3,8 @@ import {
   resolveUserRole,
   toClaimAction,
   toClaimStatus,
+  toCustomerAnswer,
+  toDocumentType,
   toFailureReason,
   toJobStatus,
   toJobType,
@@ -11,6 +13,8 @@ import {
 import {
   ClaimAction,
   ClaimStatus,
+  CustomerAnswer,
+  DocumentType,
   FailureReason,
   JobStatus,
   JobType,
@@ -41,6 +45,19 @@ describe("workflow value mappers", () => {
     expect(toClaimAction("unknown")).toBeUndefined();
     expect(toPreApprovalAction("REJECTED")).toBe(PreApprovalAction.REJECTED);
     expect(toPreApprovalAction(null)).toBeUndefined();
+  });
+
+  it("normalises the customer answer and drops unknown values", () => {
+    expect(toCustomerAnswer("RETURN_ASSEMBLY")).toBe(CustomerAnswer.RETURN_ASSEMBLY);
+    expect(toCustomerAnswer("SCRAP_TOOL")).toBe(CustomerAnswer.SCRAP_TOOL);
+    expect(toCustomerAnswer("approve")).toBeUndefined();
+  });
+
+  it("maps document types to the fixed list and anything else to others", () => {
+    expect(toDocumentType("INVOICE")).toBe(DocumentType.INVOICE);
+    expect(toDocumentType("ASC_LOGO")).toBe(DocumentType.ASC_LOGO);
+    expect(toDocumentType("my-scan.pdf")).toBe(DocumentType.OTHERS);
+    expect(toDocumentType(undefined)).toBe(DocumentType.OTHERS);
   });
 });
 

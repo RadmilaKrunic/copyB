@@ -1,8 +1,17 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+const analyticsMock = vi.hoisted(() => ({
+  trackDocumentAction: vi.fn(),
+  trackActionFailed: vi.fn(),
+}));
+vi.mock("@/analytics", async () => ({
+  ...(await vi.importActual<Record<string, unknown>>("@/analytics")),
+  useAnalytics: () => analyticsMock,
+}));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -92,6 +101,12 @@ describe("DocumentFile", () => {
     await userEvent.click(screen.getByRole("button", { name: "Download document: test.pdf" }));
 
     expect(downloadFileFromServer).toHaveBeenCalledWith("file-123", "INVOICE", "source-456");
+    await waitFor(() =>
+      expect(analyticsMock.trackDocumentAction).toHaveBeenCalledWith({
+        documentAction: "downloaded",
+        documentType: "invoice",
+      }),
+    );
   });
 
   it("passes null sourceReferenceId to download api when missing", async () => {

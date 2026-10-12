@@ -18,6 +18,16 @@ const {
   axiosPutMock: vi.fn(),
 }));
 
+const analyticsMock = vi.hoisted(() => ({
+  trackEmployeeSaved: vi.fn(),
+  trackEmployeeStatusChanged: vi.fn(),
+  trackActionFailed: vi.fn(),
+}));
+vi.mock("@/analytics", async () => ({
+  ...(await vi.importActual<Record<string, unknown>>("@/analytics")),
+  useAnalytics: () => analyticsMock,
+}));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
@@ -248,5 +258,10 @@ describe("EmployeeOverview", () => {
       expect(axiosPutMock).toHaveBeenCalledWith("/v1/users/suspend/u1");
       expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ["employee", "u1"] });
     });
+    await waitFor(() =>
+      expect(analyticsMock.trackEmployeeStatusChanged).toHaveBeenCalledWith({
+        employeeAction: "suspended",
+      }),
+    );
   });
 });

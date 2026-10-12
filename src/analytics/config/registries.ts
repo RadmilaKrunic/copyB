@@ -22,6 +22,16 @@ const JOB_WORKFLOW_REQUIRED: readonly P[] = Object.freeze([
   P.JOB_STATUS,
   P.JOB_TYPE,
 ]);
+const CLAIM_CONTEXT_OPTIONAL: readonly P[] = Object.freeze([
+  ...COMMON_OPTIONAL,
+  P.CLAIM_STATUS,
+  P.JOB_TYPE,
+]);
+const JOB_CONTEXT_OPTIONAL: readonly P[] = Object.freeze([
+  ...COMMON_OPTIONAL,
+  P.JOB_TYPE,
+  P.JOB_STATUS,
+]);
 
 const define = (
   name: AnalyticsEventName,
@@ -120,7 +130,143 @@ export const EVENT_REGISTRY: Readonly<Record<AnalyticsEventName, EventDefinition
   [AnalyticsEventName.ACTION_FAILED]: define(
     AnalyticsEventName.ACTION_FAILED,
     [...COMMON_REQUIRED, P.FAILED_ACTION, P.FAILURE_REASON],
-    [...COMMON_OPTIONAL, P.JOB_TYPE, P.JOB_STATUS, P.CLAIM_STATUS],
+    [
+      ...JOB_CONTEXT_OPTIONAL,
+      P.CLAIM_STATUS,
+      P.HOLD_ACTION,
+      P.CUSTOMER_ANSWER,
+      P.JOB_SECTION,
+      P.DOCUMENT_ACTION,
+      P.DOCUMENT_TYPE,
+      P.SAVE_TYPE,
+      P.EMPLOYEE_ACTION,
+      P.ASC_SECTION,
+    ],
+  ),
+  [AnalyticsEventName.DIAGNOSTIC_STARTED]: define(
+    AnalyticsEventName.DIAGNOSTIC_STARTED,
+    COMMON_REQUIRED,
+    JOB_CONTEXT_OPTIONAL,
+  ),
+  [AnalyticsEventName.JOB_HOLD_CHANGED]: define(
+    AnalyticsEventName.JOB_HOLD_CHANGED,
+    [...COMMON_REQUIRED, P.HOLD_ACTION],
+    JOB_CONTEXT_OPTIONAL,
+  ),
+  [AnalyticsEventName.COST_ESTIMATE_CREATED]: define(
+    AnalyticsEventName.COST_ESTIMATE_CREATED,
+    COMMON_REQUIRED,
+    JOB_CONTEXT_OPTIONAL,
+  ),
+  [AnalyticsEventName.CUSTOMER_ANSWER_RECORDED]: define(
+    AnalyticsEventName.CUSTOMER_ANSWER_RECORDED,
+    [...COMMON_REQUIRED, P.CUSTOMER_ANSWER],
+    JOB_CONTEXT_OPTIONAL,
+  ),
+  [AnalyticsEventName.JOB_SECTION_SAVED]: define(
+    AnalyticsEventName.JOB_SECTION_SAVED,
+    [...COMMON_REQUIRED, P.JOB_SECTION],
+    JOB_CONTEXT_OPTIONAL,
+  ),
+  [AnalyticsEventName.TECHNICIAN_ASSIGNED]: define(
+    AnalyticsEventName.TECHNICIAN_ASSIGNED,
+    COMMON_REQUIRED,
+    JOB_CONTEXT_OPTIONAL,
+  ),
+  [AnalyticsEventName.MATERIAL_ADDED]: define(
+    AnalyticsEventName.MATERIAL_ADDED,
+    [...COMMON_REQUIRED, P.MATERIAL_TYPE, P.MATERIAL_SOURCE],
+    JOB_CONTEXT_OPTIONAL,
+  ),
+  [AnalyticsEventName.PRICES_RECALCULATED]: define(
+    AnalyticsEventName.PRICES_RECALCULATED,
+    COMMON_REQUIRED,
+    JOB_CONTEXT_OPTIONAL,
+  ),
+  [AnalyticsEventName.WARRANTY_CHECK_PERFORMED]: define(
+    AnalyticsEventName.WARRANTY_CHECK_PERFORMED,
+    [...COMMON_REQUIRED, P.WARRANTY_RESULT],
+    COMMON_OPTIONAL,
+  ),
+  [AnalyticsEventName.CUSTOMER_SELECTED]: define(
+    AnalyticsEventName.CUSTOMER_SELECTED,
+    [...COMMON_REQUIRED, P.CUSTOMER_SELECTION],
+    COMMON_OPTIONAL,
+  ),
+  [AnalyticsEventName.CLAIM_PRICES_UPDATED]: define(
+    AnalyticsEventName.CLAIM_PRICES_UPDATED,
+    COMMON_REQUIRED,
+    CLAIM_CONTEXT_OPTIONAL,
+  ),
+  [AnalyticsEventName.CLAIM_APPROVAL_REQUESTED]: define(
+    AnalyticsEventName.CLAIM_APPROVAL_REQUESTED,
+    COMMON_REQUIRED,
+    CLAIM_CONTEXT_OPTIONAL,
+  ),
+  [AnalyticsEventName.DOCUMENT_ACTION]: define(
+    AnalyticsEventName.DOCUMENT_ACTION,
+    [...COMMON_REQUIRED, P.DOCUMENT_ACTION, P.DOCUMENT_TYPE],
+    COMMON_OPTIONAL,
+  ),
+  [AnalyticsEventName.REPORT_GENERATED]: define(
+    AnalyticsEventName.REPORT_GENERATED,
+    [...COMMON_REQUIRED, P.REPORT_TYPE],
+    COMMON_OPTIONAL,
+  ),
+  [AnalyticsEventName.REIMBURSEMENT_CREATED]: define(
+    AnalyticsEventName.REIMBURSEMENT_CREATED,
+    COMMON_REQUIRED,
+    COMMON_OPTIONAL,
+  ),
+  [AnalyticsEventName.EMPLOYEE_SAVED]: define(
+    AnalyticsEventName.EMPLOYEE_SAVED,
+    [...COMMON_REQUIRED, P.SAVE_TYPE],
+    COMMON_OPTIONAL,
+  ),
+  [AnalyticsEventName.EMPLOYEE_STATUS_CHANGED]: define(
+    AnalyticsEventName.EMPLOYEE_STATUS_CHANGED,
+    [...COMMON_REQUIRED, P.EMPLOYEE_ACTION],
+    COMMON_OPTIONAL,
+  ),
+  [AnalyticsEventName.ASC_SAVED]: define(
+    AnalyticsEventName.ASC_SAVED,
+    [...COMMON_REQUIRED, P.SAVE_TYPE],
+    [...COMMON_OPTIONAL, P.ASC_SECTION],
+  ),
+  [AnalyticsEventName.ASC_DEACTIVATED]: define(
+    AnalyticsEventName.ASC_DEACTIVATED,
+    COMMON_REQUIRED,
+    COMMON_OPTIONAL,
+  ),
+  [AnalyticsEventName.CLIENT_ARCHIVED]: define(
+    AnalyticsEventName.CLIENT_ARCHIVED,
+    COMMON_REQUIRED,
+    COMMON_OPTIONAL,
+  ),
+  [AnalyticsEventName.SESSION_STARTED]: define(
+    AnalyticsEventName.SESSION_STARTED,
+    COMMON_REQUIRED,
+    COMMON_OPTIONAL,
+  ),
+  [AnalyticsEventName.LANGUAGE_CHANGED]: define(
+    AnalyticsEventName.LANGUAGE_CHANGED,
+    COMMON_REQUIRED,
+    COMMON_OPTIONAL,
+  ),
+  [AnalyticsEventName.USER_LOGGED_OUT]: define(
+    AnalyticsEventName.USER_LOGGED_OUT,
+    [...COMMON_REQUIRED, P.LOGOUT_SOURCE],
+    COMMON_OPTIONAL,
+  ),
+  [AnalyticsEventName.CONSENT_ACCEPTED]: define(
+    AnalyticsEventName.CONSENT_ACCEPTED,
+    COMMON_REQUIRED,
+    COMMON_OPTIONAL,
+  ),
+  [AnalyticsEventName.DASHBOARD_LINK_CLICKED]: define(
+    AnalyticsEventName.DASHBOARD_LINK_CLICKED,
+    [...COMMON_REQUIRED, P.DASHBOARD_LINK],
+    COMMON_OPTIONAL,
   ),
 });
 

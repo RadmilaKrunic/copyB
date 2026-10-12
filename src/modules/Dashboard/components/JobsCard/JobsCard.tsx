@@ -3,6 +3,7 @@ import { ActivityIndicator, Button, Chip, Icon, TextField } from "@bosch/react-f
 import StatusIndicator from "components/ui/StatusIndicator/StatusIndicator";
 import { JobsCardProps } from "./JobsCard.types";
 import { useTranslation } from "react-i18next";
+import { useAnalytics, DashboardLink } from "@/analytics";
 import { useJobs } from "api/services/jobs/hooks";
 import { useMemo, useState } from "react";
 import { CUSTOMER_TYPE_ICON_NAME } from "utils/customerUtils";
@@ -30,6 +31,7 @@ function JobsCard({
   actionButton,
 }: Readonly<JobsCardProps>) {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
+  const analytics = useAnalytics();
   const navigate = useNavigate();
   const { data: jobs = [], isLoading: isJobsLoading } = useJobs();
   const [selectedFilter, setSelectedFilter] = useState("ALL");
@@ -70,6 +72,7 @@ function JobsCard({
           type="button"
           className="jobs-card__view-more"
           onClick={() => {
+            analytics.trackDashboardLinkClicked({ dashboardLink: DashboardLink.JOBS_VIEW_MORE });
             const navigateResult = navigate(hasASAPermission ? "/approval-list" : "/job-list");
             if (navigateResult instanceof Promise) {
               navigateResult.catch(() => undefined);

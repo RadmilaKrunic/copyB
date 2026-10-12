@@ -93,6 +93,15 @@ const analyticsMock = vi.hoisted(() => ({
   trackDiagnosticValidated: vi.fn(),
   trackPreApprovalReviewed: vi.fn(),
   trackActionFailed: vi.fn(),
+  trackDiagnosticStarted: vi.fn(),
+  trackJobHoldChanged: vi.fn(),
+  trackCostEstimateCreated: vi.fn(),
+  trackCustomerAnswerRecorded: vi.fn(),
+  trackJobSectionSaved: vi.fn(),
+  trackTechnicianAssigned: vi.fn(),
+  trackMaterialAdded: vi.fn(),
+  trackPricesRecalculated: vi.fn(),
+  trackDocumentAction: vi.fn(),
 }));
 
 vi.mock("@/analytics", async () => {
@@ -201,7 +210,7 @@ const warrantyMutateMock = vi.hoisted(() => vi.fn());
 const addSpecialMaterialsAllowedMock = vi.hoisted(() => ({ value: false }));
 const warrantyCheckDataMock = vi.hoisted(() => ({ value: null as unknown }));
 const diagnosticDataMock = vi.hoisted(() => ({
-  value: undefined as { customerAnswer?: string } | undefined,
+  value: undefined as { customerAnswer?: string; actionType?: string } | undefined,
 }));
 
 const areaChangeTrigger = vi.hoisted(() => ({
@@ -605,6 +614,7 @@ vi.mock("api/services/jobs/action", async () => {
 beforeEach(() => {
   vi.clearAllMocks();
   locationStateMock.value = null;
+  diagnosticDataMock.value = undefined;
   warrantyCheckDataMock.value = null;
   initialFormValuesMock.value = {};
   tabsDataMock.value = [];
@@ -688,6 +698,9 @@ describe("JobOverview", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add Spare Part" }));
 
     expect(onAddRowMock).toHaveBeenCalledTimes(1);
+    expect(analyticsMock.trackMaterialAdded).toHaveBeenCalledWith(
+      expect.objectContaining({ materialType: "spare_part", materialSource: "manual" }),
+    );
   });
 
   it("executes multiple mutation-backed actions", () => {
@@ -939,7 +952,7 @@ describe("JobOverview", () => {
     expect(setMessagesMock).toHaveBeenCalled();
     const messageUpdater = setMessagesMock.mock.calls[0]?.[0] as (prev: unknown[]) => unknown[];
     expect(messageUpdater([])).toEqual([
-      { text: "InvoiceWarrantyValidation", type: "error", duration: 3000 },
+      { text: "InvoiceWarrantyValidation", type: "error", duration: 6000 },
     ]);
   });
 
@@ -1700,6 +1713,7 @@ const makeField = (name: string, subtype: string, overrides: Partial<Field> = {}
 beforeEach(() => {
   vi.clearAllMocks();
   locationStateMock.value = null;
+  diagnosticDataMock.value = undefined;
   editingSectionsMock.value = new Set<string>();
   tabsDataMock.value = [
     {
@@ -1764,15 +1778,15 @@ const getHookOptions = (key: string): CapturedMutationOptions => {
   return options;
 };
 
-const runOnSuccess = async (key: string, data?: unknown) => {
+const runOnSuccess = async (key: string, data?: unknown, variables?: unknown) => {
   await act(async () => {
-    await getHookOptions(key).onSuccess?.(data);
+    await getHookOptions(key).onSuccess?.(data, variables);
   });
 };
 
-const runOnError = async (key: string, error: unknown = new Error("boom")) => {
+const runOnError = async (key: string, error: unknown = new Error("boom"), variables?: unknown) => {
   await act(async () => {
-    await getHookOptions(key).onError?.(error);
+    await getHookOptions(key).onError?.(error, variables);
   });
 };
 
@@ -1954,12 +1968,80 @@ describe("JobOverview mutation callbacks", () => {
     });
   });
 
+  describe("job action tracking", () => {
+    const jobContext = { jobType: "REPAIR", jobStatus: "IN_REPAIR" };
+
+    beforeEach(() => {
+      initialFormValuesMock.value = { jobType: "REPAIR" };
+      queryCacheMock.value = { job: { job: { jobStatus: "IN_REPAIR" } } };
+    });
+
+    it.each([
+      { key: "patchJob", tracker: "trackJobSectionSaved", detail: { jobSection: "asset_data" } },
+      {
+        key: "postCustomer",
+        tracker: "trackJobSectionSaved",
+        detail: { jobSection: "customer_data" },
+      },
+      { key: "postJobStatus", tracker: "trackDiagnosticStarted", detail: {} },
+      { key: "toggleJobHold", tracker: "trackJobHoldChanged", detail: { holdAction: "placed" } },
+      { key: "createCostEstimate", tracker: "trackCostEstimateCreated", detail: {} },
+      { key: "recalculate", tracker: "trackPricesRecalculated", detail: {} },
+    ] as const)("$key: sends $tracker on success", async ({ key, tracker, detail }) => {
+      renderWithMessages();
+
+      await runOnSuccess(key, {});
+
+      expect(analyticsMock[tracker]).toHaveBeenCalledWith({ ...jobContext, ...detail });
+    });
+
+    it("customerAnswer: sends the recorded answer on success", async () => {
+      renderWithMessages();
+
+      await runOnSuccess("customerAnswer", undefined, { jobId: "J-1", answer: "REPAIR" });
+
+      expect(analyticsMock.trackCustomerAnswerRecorded).toHaveBeenCalledWith({
+        ...jobContext,
+        customerAnswer: "repair",
+      });
+    });
+
+    it.each([
+      { key: "patchJob", failedAction: "job_section_saved", detail: { jobSection: "asset_data" } },
+      {
+        key: "postCustomer",
+        failedAction: "job_section_saved",
+        detail: { jobSection: "customer_data" },
+      },
+      { key: "postJobStatus", failedAction: "diagnostic_started", detail: {} },
+      { key: "toggleJobHold", failedAction: "job_hold_changed", detail: { holdAction: "placed" } },
+      { key: "createCostEstimate", failedAction: "cost_estimate_created", detail: {} },
+      { key: "recalculate", failedAction: "prices_recalculated", detail: {} },
+      {
+        key: "customerAnswer",
+        failedAction: "customer_answer_recorded",
+        detail: { customerAnswer: "scrap_tool" },
+      },
+    ])("$key: records $failedAction as failed", async ({ key, failedAction, detail }) => {
+      renderWithMessages();
+
+      await runOnError(key, { response: { status: 422 } }, { jobId: "J-1", answer: "SCRAP_TOOL" });
+
+      expect(analyticsMock.trackActionFailed).toHaveBeenCalledWith({
+        ...jobContext,
+        ...detail,
+        failedAction,
+        failureReason: "wrong_entry",
+      });
+    });
+  });
+
   describe("approvePreApproval", () => {
     it("navigates back to approval list when no Bosch-internal approval is pending", async () => {
       queryCacheMock.value = { job: { job: { pendingApprovals: ["CUSTOMER"] } } };
       const { setMessagesMock } = renderWithMessages();
 
-      await runOnSuccess("approvePreApproval");
+      await runOnSuccess("approvePreApproval", undefined, { approvalStatus: "APPROVED" });
 
       expect(queryClientMock.refetchQueries).toHaveBeenCalledWith({ queryKey: ["approvals"] });
       expect(navigateMock).toHaveBeenCalledWith("/approval-list");
@@ -1975,7 +2057,7 @@ describe("JobOverview mutation callbacks", () => {
       queryCacheMock.value = { job: { job: { pendingApprovals: ["BOSCH_INTERNAL"] } } };
       renderWithMessages();
 
-      await runOnSuccess("approvePreApproval");
+      await runOnSuccess("approvePreApproval", undefined, { approvalStatus: "APPROVED" });
 
       expect(navigateMock).not.toHaveBeenCalled();
       expect(scrollToTopMock).toHaveBeenCalled();
@@ -2027,6 +2109,10 @@ describe("JobOverview mutation callbacks", () => {
       await runOnSuccess("createCostEstimate");
 
       expect(getCostEstimationPdf).toHaveBeenCalledWith("J-1");
+      expect(analyticsMock.trackDocumentAction).toHaveBeenCalledWith({
+        documentAction: "downloaded",
+        documentType: "cost_estimate_pdf",
+      });
       expect(openSpy).toHaveBeenCalledWith("blob:cost-estimate", "_blank");
       expect(revokeObjectURLMock).not.toHaveBeenCalled();
       vi.advanceTimersByTime(1000);
@@ -2572,6 +2658,9 @@ describe("JobOverview special materials and explosion drawing", () => {
         origin: "specialMaterial",
       },
     ]);
+    expect(analyticsMock.trackMaterialAdded).toHaveBeenCalledWith(
+      expect.objectContaining({ materialType: "special_material", materialSource: "manual" }),
+    );
   });
 
   it("defaults material type to empty string when job type is not set", () => {
@@ -2609,6 +2698,9 @@ describe("JobOverview special materials and explosion drawing", () => {
         origin: "explosionDrawing",
       },
     ]);
+    expect(analyticsMock.trackMaterialAdded).toHaveBeenCalledWith(
+      expect.objectContaining({ materialType: "spare_part", materialSource: "drawing" }),
+    );
   });
 
   it("maps existing materials to explosion drawing position items", () => {
@@ -2685,8 +2777,101 @@ describe("JobOverview finish repair upload validation", () => {
 
     expect(finishRepairMutateMock).not.toHaveBeenCalled();
     expect(collectMessages(setMessagesMock)).toEqual([
-      { text: "uploadRequired", type: "error", duration: 3000 },
+      { text: "uploadRequired", type: "error", duration: 6000 },
     ]);
+    expect(scrollToTopMock).toHaveBeenCalled();
+  });
+
+  it("blocks finish repair with combined invoice and product photo error for exchange actions", async () => {
+    tabsDataMock.value = [makeTab("assetData", 1), makeTab("documents", 2)];
+    allFieldsMock.value = [
+      uploadField,
+      { name: "row0_type", label: "type", type: "dropdown", subtype: "diagnosticType" } as Field,
+    ];
+    initialFormValuesMock.value = {
+      actionType: "NEW_TOOL_EXCHANGE",
+      purchaseDate: "2024-06-15",
+      row0_type: "WARRANTY",
+    };
+    diagnosticDataMock.value = { actionType: "NEW_TOOL_EXCHANGE" };
+    mockJob({ asset: { attachments: [] } });
+    const { setMessagesMock } = renderWithMessages();
+
+    fireEvent.click(screen.getByRole("button", { name: "Finish Repair" }));
+
+    expect(finishRepairMutateMock).not.toHaveBeenCalled();
+    expect(collectMessages(setMessagesMock)).toEqual([
+      { text: "errorMissingProductPhotoAndInvoice", type: "error", duration: 6000 },
+    ]);
+    await waitFor(() => {
+      expect(screen.getByTestId("active-section")).toHaveTextContent("documents");
+    });
+    expect(scrollToTopMock).toHaveBeenCalled();
+  });
+
+  it("blocks finish repair with product photo error when invoice exists for exchange actions", async () => {
+    tabsDataMock.value = [makeTab("assetData", 1), makeTab("documents", 2)];
+    allFieldsMock.value = [
+      uploadField,
+      { name: "row0_type", label: "type", type: "dropdown", subtype: "diagnosticType" } as Field,
+    ];
+    initialFormValuesMock.value = {
+      actionType: "ACCESSORIES_EXCHANGE",
+      purchaseDate: "2024-06-15",
+      row0_type: "WARRANTY",
+    };
+    diagnosticDataMock.value = { actionType: "ACCESSORIES_EXCHANGE" };
+    mockJob({ asset: { attachments: [{ type: "Invoice" }] } });
+    const { setMessagesMock } = renderWithMessages();
+
+    fireEvent.click(screen.getByRole("button", { name: "Finish Repair" }));
+
+    expect(finishRepairMutateMock).not.toHaveBeenCalled();
+    expect(collectMessages(setMessagesMock)).toEqual([
+      { text: "errorMissingProductPhoto", type: "error", duration: 6000 },
+    ]);
+    await waitFor(() => {
+      expect(screen.getByTestId("active-section")).toHaveTextContent("documents");
+    });
+    expect(scrollToTopMock).toHaveBeenCalled();
+  });
+});
+
+describe("JobOverview exchange action product photo guard", () => {
+  beforeEach(() => {
+    tabsDataMock.value = [makeTab("assetData", 1), makeTab("documents", 2)];
+    initialFormValuesMock.value = { actionType: "SPARE_PARTS_EXCHANGE" };
+    diagnosticDataMock.value = { actionType: "SPARE_PARTS_EXCHANGE" };
+    mockJob({ asset: { attachments: [] } });
+  });
+
+  it("blocks internal approval request when exchange action has no product photo", async () => {
+    const { setMessagesMock } = renderWithMessages();
+
+    fireEvent.click(screen.getByRole("button", { name: "Request Internal" }));
+
+    expect(internalApprovalMutateMock).not.toHaveBeenCalled();
+    expect(collectMessages(setMessagesMock)).toEqual([
+      { text: "errorMissingProductPhoto", type: "error", duration: 6000 },
+    ]);
+    await waitFor(() => {
+      expect(screen.getByTestId("active-section")).toHaveTextContent("documents");
+    });
+    expect(scrollToTopMock).toHaveBeenCalled();
+  });
+
+  it("blocks submit for review when exchange action has no product photo", async () => {
+    const { setMessagesMock } = renderWithMessages();
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit Review" }));
+
+    expect(startReviewMutateMock).not.toHaveBeenCalled();
+    expect(collectMessages(setMessagesMock)).toEqual([
+      { text: "errorMissingProductPhoto", type: "error", duration: 6000 },
+    ]);
+    await waitFor(() => {
+      expect(screen.getByTestId("active-section")).toHaveTextContent("documents");
+    });
     expect(scrollToTopMock).toHaveBeenCalled();
   });
 });
@@ -2721,7 +2906,7 @@ describe("JobOverview pre-approval decision", () => {
     { button: "Approve Pre", status: "APPROVED", title: "approvePreApproval" },
     { button: "Reject Pre", status: "REJECTED", title: "rejectPreApproval" },
     { button: "Revise Pre", status: "REVISED", title: "revisePreApproval" },
-  ])("$button submits $status for checked materials and tracks the review", (testCase) => {
+  ])("$button submits $status for checked materials and tracks the review", async (testCase) => {
     queryCacheMock.value = { job: { job: { jobStatus: "WAITING_FOR_APPROVAL" } } };
     renderWithMessages();
 
@@ -2732,19 +2917,16 @@ describe("JobOverview pre-approval decision", () => {
       captured.approvalModal?.onConfirm("looks good");
     });
 
-    expect(approvePreApprovalMutateMock).toHaveBeenCalledWith(
-      {
-        jobId: "J-1",
-        materialIds: ["M-0"],
-        approvalStatus: testCase.status,
-        message: "looks good",
-      },
-      expect.any(Object),
-    );
+    const variables = {
+      jobId: "J-1",
+      materialIds: ["M-0"],
+      approvalStatus: testCase.status,
+      message: "looks good",
+    };
+    expect(approvePreApprovalMutateMock).toHaveBeenCalledWith(variables);
     expect(screen.queryByText(/approval-decision-modal:/)).not.toBeInTheDocument();
 
-    const options = approvePreApprovalMutateMock.mock.calls[0][1] as CapturedMutationOptions;
-    options.onSuccess?.();
+    await runOnSuccess("approvePreApproval", undefined, variables);
     expect(analyticsMock.trackPreApprovalReviewed).toHaveBeenCalledWith({
       jobType: "REPAIR",
       jobStatus: "WAITING_FOR_APPROVAL",
@@ -2752,7 +2934,7 @@ describe("JobOverview pre-approval decision", () => {
     });
   });
 
-  it("sends null message for empty comment and skips analytics without job status", () => {
+  it("sends null message for empty comment and skips analytics without job status", async () => {
     renderWithMessages();
 
     fireEvent.click(screen.getByRole("button", { name: "Approve Pre" }));
@@ -2762,10 +2944,12 @@ describe("JobOverview pre-approval decision", () => {
 
     expect(approvePreApprovalMutateMock).toHaveBeenCalledWith(
       expect.objectContaining({ message: null }),
-      expect.any(Object),
     );
-    const options = approvePreApprovalMutateMock.mock.calls[0][1] as CapturedMutationOptions;
-    options.onSuccess?.();
+    await runOnSuccess(
+      "approvePreApproval",
+      undefined,
+      approvePreApprovalMutateMock.mock.calls[0][0],
+    );
     expect(analyticsMock.trackPreApprovalReviewed).not.toHaveBeenCalled();
   });
 

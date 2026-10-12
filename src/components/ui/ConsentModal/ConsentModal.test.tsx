@@ -2,6 +2,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import React from "react";
 
+const analyticsMock = vi.hoisted(() => ({
+  trackConsentAccepted: vi.fn(),
+  trackUserLoggedOut: vi.fn(),
+  trackActionFailed: vi.fn(),
+}));
+vi.mock("@/analytics", async () => ({
+  ...(await vi.importActual<Record<string, unknown>>("@/analytics")),
+  useAnalytics: () => analyticsMock,
+}));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => key,
@@ -193,6 +203,9 @@ describe("ConsentModal", () => {
     vi.advanceTimersByTime(100);
     expect(replaceSpy).toHaveBeenCalledWith(expect.stringContaining("/v1/auth/logout"));
     vi.useRealTimers();
+    expect(analyticsMock.trackUserLoggedOut).toHaveBeenCalledWith({
+      logoutSource: "consent_declined",
+    });
   });
 
   it("logs an error when handleExit throws", () => {

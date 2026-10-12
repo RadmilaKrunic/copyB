@@ -1,6 +1,7 @@
 import { Button, Checkbox, Dialog } from "@bosch/react-frok";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useAnalytics, toFailureReason, AnalyticsEventName, LogoutSource } from "@/analytics";
 import { useQueryClient } from "@tanstack/react-query";
 import { CountryConfig } from "../../../api/services/countryConfiguration/countryConfiguration";
 import { HeaderUserData } from "../../../api/services/header/action";
@@ -14,6 +15,7 @@ interface ConsentModalProps {
 
 function ConsentModal({ isOpen }: Readonly<ConsentModalProps>) {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
+  const analytics = useAnalytics();
   const modalRef = useRef<HTMLDialogElement>(null);
   const previousFocusRef = useRef<Element | null>(null);
   const [privacyChecked, setPrivacyChecked] = useState(false);
@@ -36,7 +38,14 @@ function ConsentModal({ isOpen }: Readonly<ConsentModalProps>) {
 
   const allChecked = (!showTac || termsChecked) && (!showPrivacy || privacyChecked);
 
-  const { mutate: acceptConsent, isPending } = useAcceptConsent();
+  const { mutate: acceptConsent, isPending } = useAcceptConsent({
+    onSuccess: () => analytics.trackConsentAccepted(),
+    onError: (error) =>
+      analytics.trackActionFailed({
+        failedAction: AnalyticsEventName.CONSENT_ACCEPTED,
+        failureReason: toFailureReason(error),
+      }),
+  });
 
   useEffect(() => {
     if (isOpen) {
@@ -68,6 +77,7 @@ function ConsentModal({ isOpen }: Readonly<ConsentModalProps>) {
     const baseUrl = import.meta.env.VITE_API_BASE_URL;
     try {
       localStorage.removeItem("selectedLanguage");
+      analytics.trackUserLoggedOut({ logoutSource: LogoutSource.CONSENT_DECLINED });
       const logoutUrl = `${baseUrl}/v1/auth/logout`;
       setTimeout(() => {
         globalThis.location.replace(logoutUrl);
