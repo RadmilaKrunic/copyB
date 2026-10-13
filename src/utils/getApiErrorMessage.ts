@@ -1,3 +1,4 @@
+import { isObject } from "formik";
 import { TFunction } from "i18next";
 
 interface ApiErrorBody {
@@ -5,9 +6,12 @@ interface ApiErrorBody {
   params?: Record<string, string | string[]>;
 }
 
-function parseParamValue(value: string | string[]): string {
+function parseParamValue(value: string | string[] | object): string {
+  if (isObject(value)) {
+    return Object.keys(value)[0] + ":" + Object.values(value)[0];
+  }
   if (Array.isArray(value)) {
-    return value.join(", ");
+    return (value as Array<string>).join(", ");
   }
   // Try valid JSON first (e.g. '["06010000","06010001"]')
   try {
@@ -20,7 +24,7 @@ function parseParamValue(value: string | string[]): string {
     // Fall through
   }
   // Handle Java List.toString() format: [item1, item2] (no quotes around items)
-  if (value.startsWith("[") && value.endsWith("]")) {
+  if (value?.startsWith("[") && value?.endsWith("]")) {
     return value
       .slice(1, -1)
       .split(",")

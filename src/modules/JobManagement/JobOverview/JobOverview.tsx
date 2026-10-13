@@ -1376,11 +1376,13 @@ export default function JobOverview() {
       if (uploadErrors.size > 0) {
         setMessages((prev) => [
           ...prev,
-          ...Array.from(uploadErrors).map((key): Message => ({
-            text: t(key),
-            type: "error",
-            duration: 6000,
-          })),
+          ...Array.from(uploadErrors).map(
+            (key): Message => ({
+              text: t(key),
+              type: "error",
+              duration: 6000,
+            }),
+          ),
         ]);
         scrollToTop();
         return;
