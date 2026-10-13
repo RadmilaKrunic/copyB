@@ -358,7 +358,7 @@ vi.mock("hooks/useDiagnosticsManager", () => ({
 vi.mock("components/generics/Form/useFormValidation", () => ({
   useFormValidation: () => ({
     validate: vi.fn(),
-    validateByAction: vi.fn(),
+    validateByAction: vi.fn(() => ({})),
     startValidation: vi.fn(),
     stopValidation: vi.fn(),
     setCurrentAction: vi.fn(),

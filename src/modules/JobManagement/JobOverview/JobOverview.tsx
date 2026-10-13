@@ -50,6 +50,8 @@ import {
   buildJobOverviewWarrantyCheckPayload,
   updateJobOverviewWarrantyTabs,
   extractDiagnosticFromValidateResponse,
+  getRecalculationRowErrors,
+  isRecalculationValueEmpty,
 } from "./JobOverview.utils";
 import {
   getAllowedWarrantyTypes,
@@ -897,6 +899,7 @@ export default function JobOverview() {
     (f) => !f.name.includes("archivedSpareParts"),
   );
   const setFieldValueRef = useRef<((field: string, value: unknown) => void) | null>(null);
+  const showFieldErrorsRef = useRef<((errors: Record<string, string>) => void) | null>(null);
 
   const preToggleHoldStateRef = useRef(false);
   const getHoldAction = (): HoldAction =>
@@ -1373,9 +1376,11 @@ export default function JobOverview() {
       if (uploadErrors.size > 0) {
         setMessages((prev) => [
           ...prev,
-          ...Array.from(uploadErrors).map(
-            (key): Message => ({ text: t(key), type: "error", duration: 6000 }),
-          ),
+          ...Array.from(uploadErrors).map((key): Message => ({
+            text: t(key),
+            type: "error",
+            duration: 6000,
+          })),
         ]);
         scrollToTop();
         return;
@@ -1537,13 +1542,12 @@ export default function JobOverview() {
   const onRecalculatePrices = useCallback(
     (fieldName: string, value: unknown) => {
       if (recalculatePricesMutation.isPending) return;
-      if (!value) return;
+      if (isRecalculationValueEmpty(value)) return;
       if (!allFieldsRef.current) return;
       const field = allFieldsRef.current?.find((f) => f.name === fieldName);
       if (!field) return;
       const isMaterial = field.fieldMapping?.originalName?.endsWith("Material");
 
-      if (isMaterial && !value) return;
       setArePricesValidated(false);
       const matrerialIdFieldName =
         allFieldsRef.current?.find(
@@ -1559,6 +1563,16 @@ export default function JobOverview() {
         )?.name ?? "";
       const materialId = formValuesRef.current?.[matrerialIdFieldName];
       if (!materialId) return;
+      // Same rules as validate-and-save, limited to the edited row: an invalid row is not sent.
+      const rowErrors = getRecalculationRowErrors(
+        allFieldsRef.current,
+        fieldName,
+        validateByAction("validate", formValuesRef.current),
+      );
+      if (Object.keys(rowErrors).length > 0) {
+        showFieldErrorsRef.current?.(rowErrors);
+        return;
+      }
       const payload = buildDiagnosticPayload(formValuesRef.current, allFieldsRef.current);
       payload.countryCode = jobData?.order?.countryCode;
       const changes: Record<string, unknown>[] = [];
@@ -1601,6 +1615,7 @@ export default function JobOverview() {
       jobData?.order?.countryCode,
       recalculatePricesMutation,
       setRecalculatedPricesChanges,
+      validateByAction,
     ],
   );
 
@@ -2380,10 +2395,23 @@ export default function JobOverview() {
               enableReinitialize={true}
               validateOnBlur={false}
             >
-              {({ values, setFieldValue, setErrors, setTouched }) => {
+              {({
+                values,
+                setFieldValue,
+                setErrors,
+                setTouched,
+                setFieldError,
+                setFieldTouched,
+              }) => {
                 formValuesRef.current = values;
                 setFieldValueRef.current = (field: string, value: unknown) => {
                   void setFieldValue(field, value);
+                };
+                showFieldErrorsRef.current = (fieldErrors: Record<string, string>) => {
+                  Object.entries(fieldErrors).forEach(([field, error]) => {
+                    void setFieldTouched(field, true, false);
+                    setFieldError(field, error);
+                  });
                 };
                 const currentMode: "view" | "edit" = editingSections.size > 0 ? "edit" : "view";
                 const dependencyActionCallbacks: Record<string, (...args: unknown[]) => unknown> =

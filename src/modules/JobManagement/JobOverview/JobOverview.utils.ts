@@ -1,5 +1,5 @@
 import Section from "components/generics/Section/GenericSection.types";
-import { WarrantyInfoPayload } from "components/generics/Field/GenericField.types";
+import Field, { WarrantyInfoPayload } from "components/generics/Field/GenericField.types";
 import { WarrantyCheckRequest, WarrantyCheckResponse } from "api/services/orders/orders.types";
 import { type ValidateAndSaveResponse } from "api/services/jobs/action";
 import { JobDiagnostic } from "../JobList/JobList.types";
@@ -73,3 +73,27 @@ export const extractDiagnosticFromValidateResponse = (
   const responce = { ...(data as any), jobId } as JobDiagnostic;
   return responce;
 };
+
+/**
+ * Keeps only the validation errors of the spare-part row the triggering field belongs to.
+ * Rows are identified by `fieldMapping.nameStartsWith`; fields without it are not row fields.
+ */
+export const getRecalculationRowErrors = (
+  allFields: Field[],
+  fieldName: string,
+  formErrors: Record<string, string>,
+): Record<string, string> => {
+  const rowPrefix = allFields.find((f) => f.name === fieldName)?.fieldMapping?.nameStartsWith;
+  if (!rowPrefix) return {};
+  const rowErrors: Record<string, string> = {};
+  allFields.forEach((f) => {
+    if (f.fieldMapping?.nameStartsWith === rowPrefix && formErrors[f.name]) {
+      rowErrors[f.name] = formErrors[f.name];
+    }
+  });
+  return rowErrors;
+};
+
+/** Recalculation skips empty values only; `0` is a valid quantity, price or discount. */
+export const isRecalculationValueEmpty = (value: unknown): boolean =>
+  value === null || value === undefined || value === "";
