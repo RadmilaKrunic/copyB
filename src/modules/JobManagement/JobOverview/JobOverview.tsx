@@ -1633,16 +1633,17 @@ export default function JobOverview() {
       }
 
       const payload = buildDiagnosticPayload(formValues, currentAllFields);
+      // Action or job type changed: existing line ids no longer apply, so send rows as new.
+      // payload.materials is absent when the form has no spare-part rows.
       if (
-        currentActionType !== jobFullData?.diagnostic?.actionType ||
-        currentJobType !== jobFullData?.diagnostic?.jobType
+        Array.isArray(payload.materials) &&
+        (currentActionType !== jobFullData?.diagnostic?.actionType ||
+          currentJobType !== jobFullData?.diagnostic?.jobType)
       ) {
-        payload.materials = (payload.materials as Record<string, unknown>[]).map(
-          (m: Record<string, unknown>) => {
-            m.id = null;
-            return m;
-          },
-        );
+        payload.materials = payload.materials.map((m: Record<string, unknown>) => ({
+          ...m,
+          id: null,
+        }));
       }
       payload.changes = recalculatedPricesChanges;
       if (helpers) {
