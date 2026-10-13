@@ -130,3 +130,33 @@ export const getCustomerAssets = async (
   });
   return response.data;
 };
+
+export interface UpdateCustomerQuery {
+  pickupType: "PICKUP_IN_WORKSHOP" | "DELIVERY";
+  isDraft?: boolean;
+  isBillingAddressMandatory?: boolean;
+}
+
+export const updateCustomer = async (
+  payload: Partial<Customer>,
+  query: UpdateCustomerQuery,
+): Promise<Customer> => {
+  try {
+    const response: AxiosResponse<Customer> = await customersAxiosClient.post<Customer>(
+      "",
+      payload,
+      {
+        params: {
+          pickupType: query.pickupType,
+          isDraft: query.isDraft ?? true,
+          isBillingAddressMandatory: query.isBillingAddressMandatory ?? true,
+        },
+      },
+    );
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      `Error updating customer: ${(axios.isAxiosError(error) && error.message) || String(error)}`,
+    );
+  }
+};

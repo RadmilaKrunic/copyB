@@ -14,7 +14,7 @@ export interface Customer {
   boschCustomerNumber: string;
   vatNumber: string;
   communicationMedium: string;
-  deliveryAddress: Address;
+  deliveryAddress: Address | null;
   billingAddress: Address;
   useBillingAddressForDelivery: boolean;
   // Not returned by the current API response. Populate when the backend/data model supports it.

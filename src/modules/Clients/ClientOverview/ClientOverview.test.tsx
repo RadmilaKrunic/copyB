@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React, { useContext } from "react";
@@ -7,15 +7,6 @@ import { getCustomerById } from "../../../api/services/customers/customers";
 import type { ClientManagementCustomerDetails } from "../../../api/services/clientManagement/clientManagement.types";
 import { GenericFormContext } from "../../../components/generics/Form/GenericForm.context";
 import { MessagesContext } from "../../../contexts/messagescontext";
-
-const analyticsMock = vi.hoisted(() => ({
-  trackClientArchived: vi.fn(),
-  trackActionFailed: vi.fn(),
-}));
-vi.mock("@/analytics", async () => ({
-  ...(await vi.importActual<Record<string, unknown>>("@/analytics")),
-  useAnalytics: () => analyticsMock,
-}));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -38,6 +29,18 @@ vi.mock("../../../api/services/clientManagement/hooks", () => ({
     mockUseClientManagementCustomerDetails(...args),
 }));
 
+// useUpdateCustomer is replaced so tests can trigger onSuccess / onError and inspect mutate calls.
+// The rest of the module (e.g. useDeleteCustomer) stays real.
+const mockMutate = vi.fn();
+let updateCustomerOptions: any;
+vi.mock("../../../api/services/customers/hooks", async () => ({
+  ...(await vi.importActual<Record<string, unknown>>("../../../api/services/customers/hooks")),
+  useUpdateCustomer: (options: unknown) => {
+    updateCustomerOptions = options;
+    return { mutate: mockMutate };
+  },
+}));
+
 vi.mock("../../../utils/queryConstants", () => ({
   DEFAULT_STALE_TIME_MS: 60000,
 }));
@@ -53,7 +56,6 @@ vi.mock("../../../components/ui/ActivityIndicatorWithDelay/ActivityIndicatorWith
 vi.mock("../../../components/ui/OverviewHeader/OverviewHeader", () => ({
   default: (props: any) => (
     <div data-testid="overview-header">
-      <span data-testid="header-status">{props.status}</span>
       <span data-testid="header-id">{props.id}</span>
       {props.items.map((item: any, idx: number) => (
         <div key={idx} data-testid={`header-item-${idx}`}>
@@ -65,6 +67,10 @@ vi.mock("../../../components/ui/OverviewHeader/OverviewHeader", () => ({
 }));
 
 // Tab content overrides rendered by ClientOverview via tabContentOverrides.
+vi.mock("./ClientAssetsTab/ClientAssetsTab", () => ({
+  default: (props: any) => <div data-testid="assets-tab">{props.clientId}</div>,
+}));
+
 vi.mock("./ClientOrdersTab/ClientOrdersTab", () => ({
   default: (props: any) => <div data-testid="orders-tab">{props.clientId}</div>,
 }));
@@ -83,9 +89,9 @@ vi.mock("./ClientJobsTab/ClientJobsTab", () => ({
   ),
 }));
 
-// Mocked once here; GenericOverviewFormSection also imports this module,
+// Mocked once here; GenericOverviewFormSection and DeleteClientDialog also import this module,
 // but Vitest resolves module mocks by absolute path, so this single mock
-// intercepts both import sites.
+// intercepts all import sites.
 vi.mock("@bosch/react-frok", () => ({
   Button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
   TextArea: ({ label, id, ...props }: any) => (
@@ -132,9 +138,10 @@ vi.mock("../../../hooks/useFormInitialization", () => ({
     mandatoryFields: {},
     tabs: [
       { name: "clientInfo", label: "clientInfo", position: 0 },
-      { name: "Orders", label: "orders", position: 1 },
-      { name: "Jobs", label: "jobs", position: 2 },
-      { name: "otherTab", label: "otherTab", position: 3 },
+      { name: "Assets", label: "assets", position: 1 },
+      { name: "Orders", label: "orders", position: 2 },
+      { name: "Jobs", label: "jobs", position: 3 },
+      { name: "otherTab", label: "otherTab", position: 4 },
     ],
     isInitialized: true,
   }),
@@ -227,9 +234,11 @@ vi.mock("../../../components/generics/Section/GenericSection", () => ({
   },
 }));
 
+const mockMapValuesToAPI = vi.fn();
 vi.mock("../../../components/generics/utils", () => ({
   toggleSectionFieldsDisabled: (allFields: unknown[]) => allFields,
   convertAPIDataToFormValues: () => ({ firstName: "Jane", lastName: "Doe" }),
+  mapValuesToAPI: (...args: unknown[]) => mockMapValuesToAPI(...args),
 }));
 
 const mockAxiosDelete = vi.fn();
@@ -253,23 +262,30 @@ const clientOverviewForm = {
       areas: [{ fields: baseFields }],
     },
     {
+      name: "Assets",
+      label: "assets",
+      position: 1,
+      isDisabled: true,
+      areas: [],
+    },
+    {
       name: "Orders",
       label: "orders",
-      position: 1,
+      position: 2,
       isDisabled: true,
       areas: [],
     },
     {
       name: "Jobs",
       label: "jobs",
-      position: 2,
+      position: 3,
       isDisabled: true,
       areas: [],
     },
     {
       name: "otherTab",
       label: "otherTab",
-      position: 3,
+      position: 4,
       isDisabled: true,
       areas: [],
     },
@@ -278,12 +294,16 @@ const clientOverviewForm = {
 };
 
 const mockClient = {
+  customerId: "customer-1",
+  ascId: "asc-1",
+  customerType: "PRIVATE",
   firstName: "Jane",
   lastName: "Doe",
   isActive: true,
   assetsCount: 3,
   createdOn: "2024-01-01",
   billingAddress: { street: "Main St", city: "Springfield", stateProvinceRegion: "IL" },
+  deliveryAddress: { street: "Side St", city: "Springfield" },
   phoneNumber: "555-0000",
   mobileNumber: "555-1111",
   primaryEmail: "jane@example.com",
@@ -334,8 +354,11 @@ function renderWithProviders(queryClient: QueryClient) {
 describe("ClientOverview", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAxiosDelete.mockReset();
     sessionStorage.clear();
+    updateCustomerOptions = undefined;
     mockUseClientManagementCustomerDetails.mockReturnValue({ data: mockCustomerDetails });
+    mockMapValuesToAPI.mockReturnValue({});
   });
 
   it("shows loading indicator while fetching the client", () => {
@@ -436,6 +459,17 @@ describe("ClientOverview", () => {
   });
 
   describe("tab content overrides", () => {
+    it("renders the assets tab with the clientId when the Assets tab is selected", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      renderWithProviders(createQueryClient());
+
+      await screen.findByTestId("section-clientInfo");
+      fireEvent.click(screen.getByTestId("tab-Assets"));
+
+      expect(screen.getByTestId("assets-tab")).toHaveTextContent("client-123");
+      expect(screen.queryByTestId("section-clientInfo")).not.toBeInTheDocument();
+    });
+
     it("renders the orders tab with the clientId when the Orders tab is selected", async () => {
       vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
       renderWithProviders(createQueryClient());
@@ -507,185 +541,308 @@ describe("ClientOverview", () => {
   });
 
   describe("save flow", () => {
-    let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+    const expectedQuery = {
+      pickupType: "PICKUP_IN_WORKSHOP",
+      isDraft: false,
+      isBillingAddressMandatory: true,
+    };
 
-    beforeEach(() => {
-      consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    });
-
-    afterEach(() => {
-      consoleLogSpy.mockRestore();
-    });
-
-    it("logs the form values to the console instead of saving", async () => {
+    it("maps the form values to the API and submits the merged customer payload", async () => {
       vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      mockMapValuesToAPI.mockReturnValue({
+        firstName: "Janet",
+        useBillingAddressForDelivery: false,
+        billingAddress: { city: "Shelbyville" },
+        deliveryAddress: { city: "Capital City" },
+      });
       renderWithProviders(createQueryClient());
 
       await screen.findByTestId("trigger-save");
       fireEvent.click(screen.getByTestId("trigger-save"));
 
-      expect(consoleLogSpy).toHaveBeenCalledWith("onSaveClient formValues:", saveFormValues);
-      expect(mockSetMessages).not.toHaveBeenCalled();
+      expect(mockMapValuesToAPI).toHaveBeenCalledWith(saveFormValues, expect.any(Array));
+      expect(mockMutate).toHaveBeenCalledTimes(1);
+      expect(mockMutate).toHaveBeenCalledWith({
+        payload: expect.objectContaining({
+          ...mockClient,
+          firstName: "Janet",
+          billingAddress: { ...mockClient.billingAddress, city: "Shelbyville" },
+          deliveryAddress: { ...mockClient.deliveryAddress, city: "Capital City" },
+          customerId: "customer-1",
+          ascId: "asc-1",
+          customerType: "PRIVATE",
+        }),
+        query: expectedQuery,
+      });
+    });
+
+    it("sends a null delivery address when the billing address is used for delivery", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      mockMapValuesToAPI.mockReturnValue({
+        useBillingAddressForDelivery: true,
+        billingAddress: { city: "Shelbyville" },
+        deliveryAddress: { city: "Capital City" },
+      });
+      renderWithProviders(createQueryClient());
+
+      await screen.findByTestId("trigger-save");
+      fireEvent.click(screen.getByTestId("trigger-save"));
+
+      expect(mockMutate).toHaveBeenCalledWith({
+        payload: expect.objectContaining({ deliveryAddress: null }),
+        query: expectedQuery,
+      });
+    });
+
+    it("keeps the existing billing address when the form does not provide one", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      mockMapValuesToAPI.mockReturnValue({ firstName: "Janet" });
+      renderWithProviders(createQueryClient());
+
+      await screen.findByTestId("trigger-save");
+      fireEvent.click(screen.getByTestId("trigger-save"));
+
+      expect(mockMutate).toHaveBeenCalledWith({
+        payload: expect.objectContaining({
+          firstName: "Janet",
+          billingAddress: mockClient.billingAddress,
+          deliveryAddress: null,
+        }),
+        query: expectedQuery,
+      });
+    });
+
+    it("invalidates the client queries and shows a success message on successful update", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      const queryClient = createQueryClient();
+      const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+      renderWithProviders(queryClient);
+
+      await screen.findByTestId("trigger-save");
+      updateCustomerOptions.onSuccess();
+
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["client", "client-123"] });
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ["clientManagementCustomerDetails", "client-123"],
+      });
+      expect(mockSetMessages).toHaveBeenCalledTimes(1);
+      const updater = mockSetMessages.mock.calls[0][0];
+      expect(updater([])).toEqual([
+        { text: "clientUpdatedSuccessfully", type: "success", duration: 3000 },
+      ]);
+    });
+
+    it("shows an error message when the update fails", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      renderWithProviders(createQueryClient());
+
+      await screen.findByTestId("trigger-save");
+      updateCustomerOptions.onError();
+
+      expect(mockSetMessages).toHaveBeenCalledTimes(1);
+      const updater = mockSetMessages.mock.calls[0][0];
+      expect(updater([])).toEqual([
+        { text: "errorUpdateClientData", type: "error", duration: 3000 },
+      ]);
     });
   });
 
-  it("archives the client only after explicit confirmation", async () => {
-    vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
-    mockAxiosDelete.mockResolvedValue({ status: 204 });
-    const queryClient = createQueryClient();
-    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
-    renderWithProviders(queryClient);
-
-    await screen.findByText("onDeleteClient");
-    fireEvent.click(screen.getByText("onDeleteClient"));
-
-    expect(mockAxiosDelete).not.toHaveBeenCalled();
-    expect(screen.getByText("deleteClientConfirmationText")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "delete" }));
-
-    await waitFor(() => expect(mockAxiosDelete).toHaveBeenCalledWith("/v1/customers/client-123"));
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/clients"));
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["clientManagementCustomers"] });
-    expect(invalidateQueries).toHaveBeenCalledTimes(1);
-    expect(getCustomerById).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-
-  it("does not archive the client when confirmation is cancelled", async () => {
-    vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
-    renderWithProviders(createQueryClient());
-
-    fireEvent.click(await screen.findByText("onDeleteClient"));
-    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "cancel" }));
-
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(mockAxiosDelete).not.toHaveBeenCalled();
-  });
-
-  it.each(["ASC_MANAGER", "ASC_MANAGER_WITHOUT_CLAIM", "ASC_RECEPTIONIST"])(
-    "allows %s with anonymize permission to open confirmation",
-    async (role) => {
+  describe("cancel flow", () => {
+    it("resets form values to the client data and clears errors and touched state", async () => {
       vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
-      renderWithProviders(createQueryClient([role]));
+      renderWithProviders(createQueryClient());
+
+      await screen.findByTestId("trigger-cancel");
+      fireEvent.click(screen.getByTestId("trigger-cancel"));
+
+      expect(cancelHelpers.setFieldValue).toHaveBeenCalledWith("firstName", "Jane");
+      expect(cancelHelpers.setFieldValue).toHaveBeenCalledWith("lastName", "Doe");
+      expect(cancelHelpers.setErrors).toHaveBeenCalledWith({});
+      expect(cancelHelpers.setTouched).toHaveBeenCalledWith({});
+    });
+  });
+
+  describe("delete flow", () => {
+    it("deletes the client and navigates to the clients list", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      mockAxiosDelete.mockResolvedValue({ status: 204 });
+      const queryClient = createQueryClient();
+      const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+      renderWithProviders(queryClient);
+
+      await screen.findByText("onDeleteClient");
+      fireEvent.click(screen.getByText("onDeleteClient"));
+
+      expect(mockAxiosDelete).not.toHaveBeenCalled();
+      expect(screen.getByText("deleteClientConfirmationText")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "delete" }));
+
+      await waitFor(() => expect(mockAxiosDelete).toHaveBeenCalledWith("/v1/customers/client-123"));
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/clients"));
+      expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["clientManagementCustomers"] });
+      expect(invalidateQueries).toHaveBeenCalledTimes(1);
+      expect(getCustomerById).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("does not delete the client when confirmation is cancelled", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      renderWithProviders(createQueryClient());
 
       fireEvent.click(await screen.findByText("onDeleteClient"));
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "cancel" }));
 
-      expect(
-        screen.getByRole("dialog", { name: "deleteClientConfirmationTitle" }),
-      ).toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(mockAxiosDelete).not.toHaveBeenCalled();
-    },
-  );
+    });
 
-  it.each(["ASA_MANAGER", "ASA_ADMIN", "ASC_TECHNICIAN"])(
-    "hides deletion for %s even with anonymize permission",
-    async (role) => {
+    it.each(["ASC_MANAGER", "ASC_MANAGER_WITHOUT_CLAIM", "ASC_RECEPTIONIST"])(
+      "allows %s with anonymize permission to open confirmation",
+      async (role) => {
+        vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+        renderWithProviders(createQueryClient([role]));
+
+        fireEvent.click(await screen.findByText("onDeleteClient"));
+
+        expect(
+          screen.getByRole("dialog", { name: "deleteClientConfirmationTitle" }),
+        ).toBeInTheDocument();
+        expect(mockAxiosDelete).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(["ASA_MANAGER", "ASA_ADMIN", "ASC_TECHNICIAN"])(
+      "hides deletion for %s even with anonymize permission",
+      async (role) => {
+        vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+        renderWithProviders(createQueryClient([role]));
+
+        await screen.findByTestId("overview-header");
+
+        expect(screen.queryByText("onDeleteClient")).not.toBeInTheDocument();
+        expect(mockAxiosDelete).not.toHaveBeenCalled();
+      },
+    );
+
+    it("hides deletion when required permission is missing", async () => {
       vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
-      renderWithProviders(createQueryClient([role]));
+      renderWithProviders(createQueryClient(["ASC_MANAGER"], []));
 
       await screen.findByTestId("overview-header");
 
       expect(screen.queryByText("onDeleteClient")).not.toBeInTheDocument();
       expect(mockAxiosDelete).not.toHaveBeenCalled();
-    },
-  );
-
-  it("hides deletion when required permission is missing", async () => {
-    vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
-    renderWithProviders(createQueryClient(["ASC_MANAGER"], []));
-
-    await screen.findByTestId("overview-header");
-
-    expect(screen.queryByText("onDeleteClient")).not.toBeInTheDocument();
-    expect(mockAxiosDelete).not.toHaveBeenCalled();
-  });
-
-  it("hides deletion when user has edit permission but not anonymize permission", async () => {
-    vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
-    renderWithProviders(createQueryClient(["ASC_MANAGER"], ["CL_E"]));
-
-    await screen.findByTestId("overview-header");
-
-    expect(screen.queryByText("onDeleteClient")).not.toBeInTheDocument();
-    expect(mockAxiosDelete).not.toHaveBeenCalled();
-  });
-
-  it("closes confirmation without deletion through dialog close", async () => {
-    vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
-    renderWithProviders(createQueryClient());
-
-    fireEvent.click(await screen.findByText("onDeleteClient"));
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
-
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(mockAxiosDelete).not.toHaveBeenCalled();
-  });
-
-  it("keeps dialog open after failure and allows retry", async () => {
-    vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
-    mockAxiosDelete
-      .mockRejectedValueOnce(new Error("Delete failed"))
-      .mockResolvedValueOnce({ status: 204 });
-    renderWithProviders(createQueryClient());
-
-    fireEvent.click(await screen.findByText("onDeleteClient"));
-    fireEvent.click(screen.getByRole("button", { name: "delete" }));
-
-    expect(await screen.findByRole("alert")).toHaveTextContent("errorDeleteClient");
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(mockNavigate).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: "delete" }));
-
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/clients"));
-    expect(mockAxiosDelete).toHaveBeenCalledTimes(2);
-  });
-
-  it("blocks duplicate requests and dismissal while deletion is pending", async () => {
-    vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
-    let resolveArchive: (value: unknown) => void = () => {};
-    mockAxiosDelete.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveArchive = resolve;
-      }),
-    );
-    renderWithProviders(createQueryClient());
-
-    fireEvent.click(await screen.findByText("onDeleteClient"));
-    const deleteButton = screen.getByRole("button", { name: "delete" });
-    fireEvent.click(deleteButton);
-    fireEvent.click(deleteButton);
-
-    await waitFor(() => expect(deleteButton).toBeDisabled());
-    expect(
-      within(screen.getByRole("dialog")).getByRole("button", { name: "cancel" }),
-    ).toBeDisabled();
-    expect(screen.getByRole("textbox", { name: "deleteClientNotesLabel" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(mockAxiosDelete).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      resolveArchive({});
     });
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/clients"));
-  });
 
-  it("accepts optional notes and clears them when confirmation is reopened", async () => {
-    vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
-    renderWithProviders(createQueryClient());
+    it("hides deletion when user has edit permission but not anonymize permission", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      renderWithProviders(createQueryClient(["ASC_MANAGER"], ["CL_E"]));
 
-    fireEvent.click(await screen.findByText("onDeleteClient"));
-    const notes = screen.getByRole("textbox", { name: "deleteClientNotesLabel" });
-    expect(notes).toHaveAttribute("placeholder", "deleteClientNotesPlaceholder");
-    fireEvent.change(notes, { target: { value: "Client requested removal" } });
-    expect(notes).toHaveValue("Client requested removal");
-    expect(mockAxiosDelete).not.toHaveBeenCalled();
+      await screen.findByTestId("overview-header");
 
-    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "cancel" }));
-    fireEvent.click(screen.getByText("onDeleteClient"));
+      expect(screen.queryByText("onDeleteClient")).not.toBeInTheDocument();
+      expect(mockAxiosDelete).not.toHaveBeenCalled();
+    });
 
-    expect(screen.getByRole("textbox", { name: "deleteClientNotesLabel" })).toHaveValue("");
+    it("keeps the other actions visible when deletion is hidden", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      renderWithProviders(createQueryClient(["ASC_TECHNICIAN"]));
+
+      await screen.findByTestId("overview-header");
+
+      expect(screen.getByText("onCreateJob")).toBeInTheDocument();
+      expect(screen.queryByText("onDeleteClient")).not.toBeInTheDocument();
+    });
+
+    it("closes confirmation without deletion through dialog close", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      renderWithProviders(createQueryClient());
+
+      fireEvent.click(await screen.findByText("onDeleteClient"));
+      fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      expect(mockAxiosDelete).not.toHaveBeenCalled();
+    });
+
+    it("keeps dialog open after failure and allows retry", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      mockAxiosDelete
+        .mockRejectedValueOnce(new Error("Delete failed"))
+        .mockResolvedValueOnce({ status: 204 });
+      renderWithProviders(createQueryClient());
+
+      fireEvent.click(await screen.findByText("onDeleteClient"));
+      fireEvent.click(screen.getByRole("button", { name: "delete" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("errorDeleteClient");
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(mockNavigate).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("button", { name: "delete" }));
+
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/clients"));
+      expect(mockAxiosDelete).toHaveBeenCalledTimes(2);
+    });
+
+    it("blocks duplicate requests and dismissal while deletion is pending", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      let resolveDelete: (value: unknown) => void = () => {};
+      mockAxiosDelete.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveDelete = resolve;
+        }),
+      );
+      renderWithProviders(createQueryClient());
+
+      fireEvent.click(await screen.findByText("onDeleteClient"));
+      const deleteButton = screen.getByRole("button", { name: "delete" });
+      fireEvent.click(deleteButton);
+      fireEvent.click(deleteButton);
+
+      await waitFor(() => expect(deleteButton).toBeDisabled());
+      expect(
+        within(screen.getByRole("dialog")).getByRole("button", { name: "cancel" }),
+      ).toBeDisabled();
+      expect(screen.getByRole("textbox", { name: "deleteClientNotesLabel" })).toBeDisabled();
+      fireEvent.click(screen.getByRole("button", { name: "Close" }));
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(mockAxiosDelete).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        resolveDelete({});
+      });
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/clients"));
+    });
+
+    it("swallows a rejected navigation promise after deleting the client", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      mockAxiosDelete.mockResolvedValue({ status: 204 });
+      mockNavigate.mockImplementationOnce(() => Promise.reject(new Error("nav failed")));
+      renderWithProviders(createQueryClient());
+
+      fireEvent.click(await screen.findByText("onDeleteClient"));
+      fireEvent.click(screen.getByRole("button", { name: "delete" }));
+
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/clients"));
+    });
+
+    it("accepts optional notes and clears them when confirmation is reopened", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      renderWithProviders(createQueryClient());
+
+      fireEvent.click(await screen.findByText("onDeleteClient"));
+      const notes = screen.getByRole("textbox", { name: "deleteClientNotesLabel" });
+      expect(notes).toHaveAttribute("placeholder", "deleteClientNotesPlaceholder");
+      fireEvent.change(notes, { target: { value: "Client requested removal" } });
+      expect(notes).toHaveValue("Client requested removal");
+      expect(mockAxiosDelete).not.toHaveBeenCalled();
+
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "cancel" }));
+      fireEvent.click(screen.getByText("onDeleteClient"));
+
+      expect(screen.getByRole("textbox", { name: "deleteClientNotesLabel" })).toHaveValue("");
+    });
   });
 
   it("navigates to the create-job page with the client prefilled", async () => {

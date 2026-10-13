@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockGet = vi.hoisted(() => vi.fn());
-const mockPut = vi.hoisted(() => vi.fn());
+const mockPost = vi.hoisted(() => vi.fn());
 
 vi.mock("axios", () => ({
   default: {
-    create: vi.fn(() => ({ get: mockGet, put: mockPut, defaults: {} })),
+    create: vi.fn(() => ({ get: mockGet, post: mockPost, defaults: {} })),
     isAxiosError: vi.fn((err) => !!(err && typeof err === "object" && "message" in err)),
   },
   isAxiosError: vi.fn((err) => !!(err && typeof err === "object" && "message" in err)),
@@ -27,6 +27,7 @@ import {
   getCustomerAssets,
   getCustomerJobs,
   getCustomerOrders,
+  updateCustomer,
 } from "./customers";
 
 const mockCustomers = [{ id: "1", firstName: "John", lastName: "Doe" }];
@@ -51,6 +52,26 @@ describe("getCustomerAssets", () => {
     mockGet.mockResolvedValueOnce({ data: response });
 
     await expect(getCustomerAssets("client-123", { page: 0, size: 10 })).resolves.toEqual(response);
+    expect(mockGet).toHaveBeenCalledWith("/client-123/assets", {
+      params: { searchTerm: undefined, page: 0, size: 10 },
+    });
+  });
+
+  it("passes the trimmed search term and pagination params", async () => {
+    mockGet.mockResolvedValueOnce({ data: { page: {}, content: [] } });
+
+    await getCustomerAssets("client-123", { searchTerm: "  drill  ", page: 2, size: 5 });
+
+    expect(mockGet).toHaveBeenCalledWith("/client-123/assets", {
+      params: { searchTerm: "drill", page: 2, size: 5 },
+    });
+  });
+
+  it("uses backend defaults and omits blank search terms", async () => {
+    mockGet.mockResolvedValueOnce({ data: { page: {}, content: [] } });
+
+    await getCustomerAssets("client-123", { searchTerm: "   " });
+
     expect(mockGet).toHaveBeenCalledWith("/client-123/assets", {
       params: { searchTerm: undefined, page: 0, size: 10 },
     });
@@ -230,5 +251,67 @@ describe("getCustomerById", () => {
   it("throws error with message on failure", async () => {
     mockGet.mockRejectedValueOnce({ message: "not found" });
     await expect(getCustomerById("1")).rejects.toThrow("Error fetching customer by id: not found");
+  });
+});
+
+describe("updateCustomer", () => {
+  const payload = { customerId: "1", firstName: "Jane" };
+
+  it("posts the payload to the base customers URL and returns the updated customer", async () => {
+    const updated = { ...mockCustomer, firstName: "Jane" };
+    mockPost.mockResolvedValueOnce({ data: updated });
+
+    const result = await updateCustomer(payload, {
+      pickupType: "PICKUP_IN_WORKSHOP",
+      isDraft: false,
+      isBillingAddressMandatory: false,
+    });
+
+    expect(result).toEqual(updated);
+    expect(mockPost).toHaveBeenCalledWith("", payload, {
+      params: {
+        pickupType: "PICKUP_IN_WORKSHOP",
+        isDraft: false,
+        isBillingAddressMandatory: false,
+      },
+    });
+  });
+
+  it("defaults isDraft and isBillingAddressMandatory to true when omitted", async () => {
+    mockPost.mockResolvedValueOnce({ data: mockCustomer });
+
+    await updateCustomer(payload, { pickupType: "DELIVERY" });
+
+    expect(mockPost).toHaveBeenCalledWith("", payload, {
+      params: { pickupType: "DELIVERY", isDraft: true, isBillingAddressMandatory: true },
+    });
+  });
+
+  it("keeps explicit false values instead of applying the defaults", async () => {
+    mockPost.mockResolvedValueOnce({ data: mockCustomer });
+
+    await updateCustomer(payload, {
+      pickupType: "DELIVERY",
+      isDraft: false,
+      isBillingAddressMandatory: true,
+    });
+
+    expect(mockPost).toHaveBeenCalledWith("", payload, {
+      params: { pickupType: "DELIVERY", isDraft: false, isBillingAddressMandatory: true },
+    });
+  });
+
+  it("throws error with axios message on failure", async () => {
+    mockPost.mockRejectedValueOnce({ message: "Bad request" });
+    await expect(updateCustomer(payload, { pickupType: "PICKUP_IN_WORKSHOP" })).rejects.toThrow(
+      "Error updating customer: Bad request",
+    );
+  });
+
+  it("throws error with stringified error when not an axios error", async () => {
+    mockPost.mockRejectedValueOnce("plain string failure");
+    await expect(updateCustomer(payload, { pickupType: "PICKUP_IN_WORKSHOP" })).rejects.toThrow(
+      "Error updating customer: plain string failure",
+    );
   });
 });

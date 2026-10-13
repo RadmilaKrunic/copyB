@@ -15200,11 +15200,7 @@
                   "radioButtons": [],
                   "isSubField": true,
                   "dependFieldCondition": "AND",
-                  "dependentFields": [
-                    {
-                      "fieldName": "discountBase",
-                      "fieldValue": "GROSS_PRICE"
-                    },
+                  "dependentFields": [                    
                     {
                       "fieldName": "summaryType",
                       "fieldValue": "totalSummary"
@@ -15561,16 +15557,7 @@
                   "radioButtons": [],
                   "isSubField": true,
                   "dependFieldCondition": "AND",
-                  "dependentFields": [
-                    {
-                      "fieldName": "discountBase",
-                      "fieldValue": "NET_PRICE"
-                    },
-                    {
-                      "fieldName": "summaryType",
-                      "fieldValue": "chargeable"
-                    }
-                  ],
+                  "dependentFields": [],
                   "position": 1,
                   "options": [],
                   "patternText": "",
@@ -15618,6 +15605,50 @@
                   "permissions": [],
                   "multiSelect": false
                 },
+		{
+                  "name": "summarySuggestedNetMaterial",
+                  "label": "sparePartsSuggestedNetPrice",
+                  "type": "price",
+                  "subtype": "diagnosticSummaryDiscountNetMaterial",
+                  "pattern": "",
+                  "patternText": "",
+                  "maxLength": 0,
+                  "minLength": 0,
+                  "minValue": 0,
+                  "maxValue": 100,
+                  "isDisabled": true,
+                  "isHidden": false,
+                  "isRequired": false,
+                  "disabledForStatuses": [],
+                  "alwaysDisabled": false,
+                  "isInfoIcon": false,
+                  "infoText": "",
+                  "size": "3",
+                  "radioButtons": [],
+                  "isSubField": true,
+                  "dependFieldCondition": "AND",
+                  "dependentFields": [
+                    {
+                      "fieldName": "discountBase",
+                      "fieldValue": "NET_PRICE"
+                    },
+                    {
+                      "fieldName": "summaryType",
+                      "fieldValue": "chargeable"
+                    }
+                  ],
+                  "position": 1,
+                  "options": [],
+                  "autoFillFields": [],
+                  "attributeMapping": "diagnostic.priceSummaryDetailed.byJobType#.materialRelated.suggestedNetPrice",
+                  "defaultValue": 0,
+                  "sameDataFieldAs": "",
+                  "allowedFormats": [],
+                  "isMultiple": false,
+                  "permissions": [],
+                  "multiSelect": false,
+                  "onBlur": "onRecalculatePrices"
+                },
                 {
                   "name": "summaryDiscountNetMaterial",
                   "label": "summaryDiscount",
@@ -15658,7 +15689,6 @@
                   "sameDataFieldAs": "",
                   "allowedFormats": [],
                   "isMultiple": false,
-                  "onValueChange": "onSummaryDiscountNetChange",
                   "permissions": [],
                   "multiSelect": false,
                   "onBlur": "onRecalculatePrices"
@@ -22789,12 +22819,12 @@
       ],
       "actions": [
         {
-          "name": "archiveClient",
+          "name": "deleteClient",
           "mandatoryFields": [],
           "mode": "secondary",
           "cssContainer": "left",
           "cssButton": "half-width",
-          "onAction": "onArchiveClient",
+          "onAction": "onDeleteClient",
           "permissions": []
         },
         {

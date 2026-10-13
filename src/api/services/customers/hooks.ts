@@ -1,7 +1,18 @@
-import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, UseMutationOptions, useQuery } from "@tanstack/react-query";
 import { DEFAULT_STALE_TIME_MS } from "../../../utils/queryConstants";
-import { getCustomerAssets, getCustomerJobs, getCustomerOrders } from "./customers";
-import { CustomerAssetsQuery, CustomerJobsQuery, CustomerOrdersQuery } from "./customers.types";
+import {
+  getCustomerAssets,
+  getCustomerJobs,
+  getCustomerOrders,
+  updateCustomer,
+  UpdateCustomerQuery,
+} from "./customers";
+import {
+  Customer,
+  CustomerAssetsQuery,
+  CustomerJobsQuery,
+  CustomerOrdersQuery,
+} from "./customers.types";
 import { deleteCustomer } from "./action";
 
 export const useDeleteCustomer = () =>
@@ -33,4 +44,17 @@ export const useCustomerOrders = (customerId: string, query: CustomerOrdersQuery
     enabled: !!customerId,
     refetchOnWindowFocus: false,
     staleTime: DEFAULT_STALE_TIME_MS,
+  });
+
+export const useUpdateCustomer = (
+  options?: UseMutationOptions<
+    Customer,
+    Error,
+    { payload: Partial<Customer>; query: UpdateCustomerQuery }
+  >,
+) =>
+  useMutation({
+    mutationFn: ({ payload, query }: { payload: Partial<Customer>; query: UpdateCustomerQuery }) =>
+      updateCustomer(payload, query),
+    ...options,
   });

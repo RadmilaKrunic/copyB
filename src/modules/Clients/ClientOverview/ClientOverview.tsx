@@ -1,14 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { getCustomerById } from "../../../api/services/customers/customers";
-import { Customer, CustomerJob } from "../../../api/services/customers/customers.types";
+import { Address, Customer, CustomerJob } from "../../../api/services/customers/customers.types";
 import { useClientManagementCustomerDetails } from "../../../api/services/clientManagement/hooks";
 import { DEFAULT_STALE_TIME_MS } from "../../../utils/queryConstants";
 import ActivityIndicatorWithDelay from "../../../components/ui/ActivityIndicatorWithDelay/ActivityIndicatorWithDelay";
 import { useBreadcrumbs } from "../../../hooks/useBreadcrumbs";
 import { useTranslation } from "react-i18next";
 import OverviewHeader from "../../../components/ui/OverviewHeader/OverviewHeader";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useFormInitialization } from "../../../hooks/useFormInitialization";
 import GenericForm from "../../../components/generics/Form/GenericForm.types";
 import { HeaderUserData } from "../../../api/services/header/action";
@@ -18,12 +18,14 @@ import { useFormValidation } from "../../../components/generics/Form/useFormVali
 import {
   toggleSectionFieldsDisabled,
   convertAPIDataToFormValues,
+  mapValuesToAPI,
 } from "../../../components/generics/utils";
-import { useDeleteCustomer } from "../../../api/services/customers/hooks";
+import { useDeleteCustomer, useUpdateCustomer } from "../../../api/services/customers/hooks";
 import { useHasPermission } from "../../../hooks/useHasPermission";
 import { PERMISSIONS } from "../../../utils/Permissions";
 import DeleteClientDialog from "./DeleteClientDialog/DeleteClientDialog";
 import { useActionWithValidation } from "../../../hooks/useActionWithValidation";
+import { MessagesContext } from "../../../contexts/messagescontext";
 import OverviewContent from "../../../components/ui/OverviewContent/OverviewContent";
 import ClientJobsTab from "./ClientJobsTab/ClientJobsTab";
 import ClientOrdersTab from "./ClientOrdersTab/ClientOrdersTab";
@@ -34,6 +36,7 @@ function ClientOverview() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { clientId } = useParams<{ clientId: string }>();
+  const { setMessages } = useContext(MessagesContext);
 
   const { data: client, isLoading } = useQuery({
     queryKey: ["client", clientId],
@@ -182,6 +185,26 @@ function ClientOverview() {
     setCurrentAction,
   });
 
+  const updateCustomerMutation = useUpdateCustomer({
+    onSuccess: () => {
+      setClientInfoDisabled(true);
+      void queryClient.invalidateQueries({ queryKey: ["client", clientId] });
+      void queryClient.invalidateQueries({
+        queryKey: ["clientManagementCustomerDetails", clientId],
+      });
+      setMessages((prev) => [
+        ...prev,
+        { text: t("clientUpdatedSuccessfully"), type: "success", duration: 3000 },
+      ]);
+    },
+    onError: () => {
+      setMessages((prev) => [
+        ...prev,
+        { text: t("errorUpdateClientData"), type: "error", duration: 3000 },
+      ]);
+    },
+  });
+
   const onSaveClient = useMemo(
     () =>
       (
@@ -189,10 +212,43 @@ function ClientOverview() {
         { setErrors, setTouched }: { setFieldValue: any; setErrors: any; setTouched: any },
       ) => {
         void handleActionWithValidation("save", formValues, { setErrors, setTouched }, () => {
-          console.log("onSaveClient formValues:", formValues);
+          if (!allFields || !client) {
+            return;
+          }
+          const mappedCustomer = mapValuesToAPI(formValues, allFields) as Record<string, unknown>;
+          const mappedBillingAddress = mappedCustomer["billingAddress"] as
+            | Record<string, unknown>
+            | undefined;
+          const mappedDeliveryAddress = mappedCustomer["useBillingAddressForDelivery"]
+            ? null
+            : (mappedCustomer["deliveryAddress"] as Record<string, unknown> | undefined);
+          const payload: Partial<Customer> = {
+            ...client,
+            ...mappedCustomer,
+            billingAddress: mappedBillingAddress
+              ? { ...client.billingAddress, ...mappedBillingAddress }
+              : client.billingAddress,
+            deliveryAddress: mappedDeliveryAddress
+              ? ({
+                  ...client.deliveryAddress,
+                  ...mappedDeliveryAddress,
+                } as Address)
+              : null,
+            customerId: client.customerId,
+            ascId: client.ascId,
+            customerType: client.customerType,
+          };
+          updateCustomerMutation.mutate({
+            payload,
+            query: {
+              pickupType: "PICKUP_IN_WORKSHOP",
+              isDraft: false,
+              isBillingAddressMandatory: true,
+            },
+          });
         });
       },
-    [handleActionWithValidation],
+    [handleActionWithValidation, allFields, client, updateCustomerMutation],
   );
 
   const onDeleteClient = () => {
