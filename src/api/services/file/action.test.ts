@@ -5,16 +5,13 @@ const mockDelete = vi.hoisted(() => vi.fn());
 
 vi.mock("axios", () => ({
   default: {
-    create: vi.fn(() => ({ post: mockPost, delete: mockDelete, defaults: {} })),
     isAxiosError: vi.fn(),
   },
   isAxiosError: vi.fn(),
 }));
 
 vi.mock("../../axios-client/axiosClient", () => ({
-  default: {
-    defaults: { baseURL: "http://localhost", headers: {} },
-  },
+  createApiClient: vi.fn(() => ({ post: mockPost, delete: mockDelete })),
 }));
 
 import { uploadFileToServer, deleteFileFromServer, downloadFileFromServer } from "./action";

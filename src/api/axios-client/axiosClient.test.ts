@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { InternalAxiosRequestConfig, AxiosResponse } from "axios";
-import axiosClient from "./axiosClient";
+import axiosClient, { createApiClient } from "./axiosClient";
+import { API_TIMEOUTS } from "./timeouts";
 
 type Handler = {
   fulfilled: (value: unknown) => unknown;
@@ -113,5 +114,27 @@ describe("axiosClient response interceptor", () => {
   it("rejects with the original Error instance when already an Error", async () => {
     const err = new Error("boom");
     await expect(getResponseHandler().rejected(err)).rejects.toBe(err);
+  });
+});
+
+describe("createApiClient", () => {
+  it("applies base path and timeout", () => {
+    const client = createApiClient({ basePath: "/v1/files", timeout: API_TIMEOUTS.LONG });
+    expect(client.defaults.baseURL).toBe(`${import.meta.env.VITE_API_BASE_URL}/v1/files`);
+    expect(client.defaults.timeout).toBe(API_TIMEOUTS.LONG);
+    expect(client.defaults.withCredentials).toBe(true);
+  });
+
+  it("defaults to the standard timeout", () => {
+    expect(createApiClient({ basePath: "/v1/orders" }).defaults.timeout).toBe(API_TIMEOUTS.DEFAULT);
+    expect(axiosClient.defaults.timeout).toBe(API_TIMEOUTS.DEFAULT);
+  });
+
+  it("registers the shared auth and error interceptors on every instance", () => {
+    const client = createApiClient({ basePath: "/v1/customers" });
+    const request = (client.interceptors.request as any).handlers[0];
+    const response = (client.interceptors.response as any).handlers[0];
+    expect(request.fulfilled).toBe(getRequestHandler().fulfilled);
+    expect(response.rejected).toBe(getResponseHandler().rejected);
   });
 });

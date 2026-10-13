@@ -1,11 +1,7 @@
-import axios from "axios";
-import axiosClient from "../../axios-client/axiosClient";
+import { createApiClient } from "../../axios-client/axiosClient";
+import { API_TIMEOUTS } from "../../axios-client/timeouts";
 
-const filesAxiosClient = axios.create({
-  ...axiosClient.defaults,
-  baseURL: `${axiosClient.defaults.baseURL}/v1/files`,
-  timeout: 120000,
-});
+const filesAxiosClient = createApiClient({ basePath: "/v1/files", timeout: API_TIMEOUTS.LONG });
 
 export interface FileResponse {
   id: string;

@@ -1,4 +1,4 @@
-import axiosClient from "../../axios-client/axiosClient";
+import { createApiClient } from "../../axios-client/axiosClient";
 import {
   Customer,
   CustomerAssetsQuery,
@@ -10,10 +10,7 @@ import {
 } from "./customers.types";
 import axios, { AxiosResponse } from "axios";
 
-const customersAxiosClient = axios.create({
-  ...axiosClient.defaults,
-  baseURL: `${axiosClient.defaults.baseURL}/v1/customers`,
-});
+const customersAxiosClient = createApiClient({ basePath: "/v1/customers" });
 
 const searchCustomers = async (
   ascId: string,
