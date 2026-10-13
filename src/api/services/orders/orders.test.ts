@@ -5,16 +5,13 @@ const mockPost = vi.hoisted(() => vi.fn());
 
 vi.mock("axios", () => ({
   default: {
-    create: vi.fn(() => ({ get: mockGet, post: mockPost, defaults: {} })),
     isAxiosError: vi.fn(),
   },
   isAxiosError: vi.fn(),
 }));
 
 vi.mock("../../axios-client/axiosClient", () => ({
-  default: {
-    defaults: { baseURL: "http://localhost", headers: {} },
-  },
+  createApiClient: vi.fn(() => ({ get: mockGet, post: mockPost })),
 }));
 
 import {

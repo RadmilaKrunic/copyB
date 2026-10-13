@@ -29,6 +29,19 @@ Features:
 - **403 on `/auth/me`**: redirects to `${VITE_API_BASE_URL}/v1/auth/logout`
 - **403 on other paths**: logs error, does not redirect
 
+### Per-domain base path or timeout
+
+Never `axios.create({ ...axiosClient.defaults })`: it drops the auth/401/403 interceptors. Use the factory:
+
+```typescript
+import { createApiClient } from "api/axios-client/axiosClient";
+import { API_TIMEOUTS } from "api/axios-client/timeouts";
+
+const filesAxiosClient = createApiClient({ basePath: "/v1/files", timeout: API_TIMEOUTS.LONG });
+```
+
+One slow endpoint only -> per-request `{ timeout: API_TIMEOUTS.LONG }` on `axiosClient`. No hardcoded timeout numbers.
+
 ## action.ts — Raw API Calls
 
 Contains **pure axios calls** — no React Query, no hooks, no component logic.

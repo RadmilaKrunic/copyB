@@ -1,4 +1,4 @@
-import axiosClient from "../../axios-client/axiosClient";
+import { createApiClient } from "../../axios-client/axiosClient";
 import {
   Order,
   BareToolOption,
@@ -6,13 +6,9 @@ import {
   WarrantyCheckResponse,
   SparePartsSearchRequest,
 } from "./orders.types";
-import axios, { AxiosResponse } from "axios";
+import { AxiosResponse } from "axios";
 
-const ordersAxiosClient = axios.create({
-  ...axiosClient.defaults,
-  baseURL: `${axiosClient.defaults.baseURL}/v1/orders`,
-  timeout: 30000,
-});
+const ordersAxiosClient = createApiClient({ basePath: "/v1/orders" });
 
 export const getOrderById = async (orderId: string): Promise<Order | null> => {
   try {
