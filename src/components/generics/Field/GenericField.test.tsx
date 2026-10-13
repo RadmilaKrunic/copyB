@@ -22,9 +22,11 @@ import {
   getSparePartCompatibilityMessage,
 } from "../../ui/AutoComplete/AutoComplete.helper";
 
-const mockUseDiagnosticsContext = vi.fn(
-  () => ({ allowedPositions: [] }) as { allowedPositions: AllowedPosition[]; jobStatus?: string },
-);
+interface DiagnosticsContextMock {
+  allowedPositions: AllowedPosition[];
+  jobStatus?: string;
+}
+const mockUseDiagnosticsContext = vi.fn((): DiagnosticsContextMock => ({ allowedPositions: [] }));
 vi.mock("modules/JobManagement/JobOverview/DiagnosticsContext", () => ({
   useDiagnosticsContext: () => mockUseDiagnosticsContext(),
 }));
@@ -1319,16 +1321,16 @@ describe("GenericField", () => {
         { value: "AC", name: "AC" },
       ],
       fieldMapping: { originalName: "position", nameStartsWith: "row0_" },
-    } as Field;
+    };
 
     it("applies the diagnostic rules before recalculating prices", async () => {
-      const order: string[] = [];
+      const order: unknown[] = [];
       vi.mocked(applyPositionRules).mockImplementationOnce(() => {
         order.push("rules");
         return Promise.resolve(true);
       });
       const onRecalculatePrices = (name: unknown, value: unknown) => {
-        order.push(`recalculate:${String(name)}:${String(value)}`);
+        order.push({ recalculate: [name, value] });
       };
       renderWithContext(
         positionField,
@@ -1338,7 +1340,9 @@ describe("GenericField", () => {
 
       fireEvent.change(screen.getByTestId("dropdown-row0_position"), { target: { value: "AC" } });
 
-      await waitFor(() => expect(order).toEqual(["rules", "recalculate:row0_position:AC"]));
+      await waitFor(() =>
+        expect(order).toEqual(["rules", { recalculate: ["row0_position", "AC"] }]),
+      );
     });
 
     it("does not change the position or recalculate when the rules reject it", async () => {
@@ -1692,8 +1696,9 @@ describe("GenericField", () => {
     });
 
     it("invokes a single-argument onValueChange handler with the new value", async () => {
-      const handler = vi.fn((value: unknown): void => {
-        void value;
+      const received: unknown[] = [];
+      const handler = vi.fn((value: unknown) => {
+        received.push(value);
       });
       renderProbe(textField({ onValueChange: "onTestChange" }), {
         actionCallbacks: { onTestChange: handler },
@@ -1702,6 +1707,7 @@ describe("GenericField", () => {
       fireEvent.change(screen.getByTestId("text-field-testField"), { target: { value: "abc" } });
 
       await waitFor(() => expect(handler).toHaveBeenCalledWith("abc"));
+      expect(received).toEqual(["abc"]);
     });
 
     it("invokes a two-argument onValueChange handler with name and value", async () => {
