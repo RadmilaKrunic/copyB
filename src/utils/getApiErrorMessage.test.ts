@@ -74,6 +74,14 @@ describe("getApiErrorMessage", () => {
     expect(t).toHaveBeenCalledWith("errorDetail", { item: "06010000:2" });
   });
 
+  it("formats nested object params as JSON instead of [object Object]", () => {
+    const error = {
+      response: { data: { detail: "errorDetail", params: { item: { part: { qty: 2 } } } } },
+    };
+    getApiErrorMessage(error, t as never, "genericError");
+    expect(t).toHaveBeenCalledWith("errorDetail", { item: 'part:{"qty":2}' });
+  });
+
   it("parses JSON array string params", () => {
     const error = {
       response: {

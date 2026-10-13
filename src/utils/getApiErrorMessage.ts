@@ -14,7 +14,10 @@ function parseParamValue(value: ApiErrorParam): string {
   }
   if (typeof value === "object" && value !== null) {
     const [key, entry] = Object.entries(value)[0] ?? [];
-    return key === undefined ? "" : `${key}:${String(entry)}`;
+    if (key === undefined) return "";
+    // Nested objects/arrays as JSON, so they never render as "[object Object]"
+    const text = typeof entry === "string" ? entry : JSON.stringify(entry);
+    return `${key}:${text}`;
   }
   // Try valid JSON first (e.g. '["06010000","06010001"]')
   try {
