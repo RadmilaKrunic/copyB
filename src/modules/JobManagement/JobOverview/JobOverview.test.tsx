@@ -12,13 +12,13 @@ import { DiagnosticsContext } from "./DiagnosticsContext";
 import { getUploadFieldErrors } from "components/generics/Form/formValidation";
 import { getCostEstimationPdf } from "api/services/jobs/action";
 
-const locationStateMock = vi.hoisted(() => ({ value: null as { from?: string } | null }));
-const tabsDataMock = vi.hoisted(() => ({ value: [] as unknown[] }));
+const locationStateMock = vi.hoisted((): { value: { from?: string } | null } => ({ value: null }));
+const tabsDataMock = vi.hoisted((): { value: unknown[] } => ({ value: [] }));
 const editingSectionsMock = vi.hoisted(() => ({ value: new Set<string>() }));
-const allFieldsMock = vi.hoisted(() => ({ value: [] as Field[] }));
-const initialFormValuesMock = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
-const discountBaseMock = vi.hoisted(() => ({ value: "NET_PRICE" as discountBase }));
-const triggerValueMock = vi.hoisted(() => ({ value: 0 as unknown }));
+const allFieldsMock = vi.hoisted((): { value: Field[] } => ({ value: [] }));
+const initialFormValuesMock = vi.hoisted((): { value: Record<string, unknown> } => ({ value: {} }));
+const discountBaseMock = vi.hoisted((): { value: discountBase } => ({ value: "NET_PRICE" }));
+const triggerValueMock = vi.hoisted((): { value: unknown } => ({ value: 0 }));
 const hasExistingDiagnosticMock = vi.hoisted(() => ({ value: false }));
 
 type CapturedMutationOptions = {
@@ -26,9 +26,9 @@ type CapturedMutationOptions = {
   onError?: (error?: unknown, ...rest: unknown[]) => unknown;
 };
 /** Latest options object each mutation hook received on the most recent render. */
-const hookOptions = vi.hoisted(() => ({}) as Record<string, CapturedMutationOptions | undefined>);
+const hookOptions = vi.hoisted((): Record<string, CapturedMutationOptions | undefined> => ({}));
 /** Per-test React Query cache, keyed by the first element of the query key. */
-const queryCacheMock = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
+const queryCacheMock = vi.hoisted((): { value: Record<string, unknown> } => ({ value: {} }));
 const navigateMock = vi.hoisted(() => vi.fn());
 const setTabsMock = vi.hoisted(() => vi.fn());
 const resyncMaterialsFromAPIMock = vi.hoisted(() => vi.fn());
@@ -37,7 +37,7 @@ const silentDiagnosticMutateAsyncMock = vi.hoisted(() => vi.fn());
 const scrollToTopMock = vi.hoisted(() => vi.fn());
 // Captured props/contexts are intentionally loosely typed: tests poke at internals.
 type AnyRecord = Record<string, any>;
-const jobIdMock = vi.hoisted(() => ({ value: "J-1" as string | undefined }));
+const jobIdMock = vi.hoisted((): { value: string | undefined } => ({ value: "J-1" }));
 const permissionMock = vi.hoisted(() => ({ value: true }));
 const uiConfigEnabledMock = vi.hoisted(() => ({ value: true }));
 const postMessageMutateMock = vi.hoisted(() => vi.fn());
@@ -53,35 +53,36 @@ const onAddMaterialsMock = vi.hoisted(() => vi.fn());
 const setMaterialsMock = vi.hoisted(() => vi.fn());
 const managerEnableValidateMock = vi.hoisted(() => vi.fn(() => false));
 const getExistingPartNumbersMock = vi.hoisted(() => vi.fn(() => new Set<string>(["PN-X"])));
-const materialsMock = vi.hoisted(() => ({ value: [] as Array<Record<string, unknown>> }));
-const allowedPositionsMock = vi.hoisted(() => ({
-  value: [] as Array<{ position: string; maxCount: number }>,
-}));
+const materialsMock = vi.hoisted((): { value: Array<Record<string, unknown>> } => ({ value: [] }));
+const allowedPositionsMock = vi.hoisted(
+  (): { value: Array<{ position: string; maxCount: number }> } => ({ value: [] }),
+);
 type PendingInfo = { pendingTypeFields: Array<{ name: string }> };
-const pendingMock = vi.hoisted(() => ({
-  chargeable: { pendingTypeFields: [], hasChargeablePending: false } as PendingInfo & {
-    hasChargeablePending: boolean;
-  },
-  bosch: { pendingTypeFields: [], hasBoschInternalPending: false } as PendingInfo & {
-    hasBoschInternalPending: boolean;
-  },
-}));
+type PendingMock = {
+  chargeable: PendingInfo & { hasChargeablePending: boolean };
+  bosch: PendingInfo & { hasBoschInternalPending: boolean };
+};
+const pendingMock = vi.hoisted(
+  (): PendingMock => ({
+    chargeable: { pendingTypeFields: [], hasChargeablePending: false },
+    bosch: { pendingTypeFields: [], hasBoschInternalPending: false },
+  }),
+);
 /** Live handles captured from mocked children, refreshed on every render. */
-const captured = vi.hoisted(() => ({
-  formCtx: undefined as AnyRecord | undefined,
-  diagnosticsCtx: undefined as AnyRecord | undefined,
-  formik: undefined as
-    | { values: Record<string, unknown>; setFieldValue: (f: string, v: unknown) => unknown }
-    | undefined,
-  onActionClick: undefined as ((action: string | undefined) => void) | undefined,
-  dependencyCtx: undefined as { actionCallbacks: Record<string, () => unknown> } | undefined,
-  managerArgs: undefined as AnyRecord | undefined,
-  sectionProps: undefined as { onEdit?: () => void } | undefined,
-  answerModal: undefined as AnyRecord | undefined,
-  approvalModal: undefined as AnyRecord | undefined,
-  explosionModal: undefined as AnyRecord | undefined,
-  specialModal: undefined as AnyRecord | undefined,
-}));
+type Captured = {
+  formCtx?: AnyRecord;
+  diagnosticsCtx?: AnyRecord;
+  formik?: { values: Record<string, unknown>; setFieldValue: (f: string, v: unknown) => unknown };
+  onActionClick?: (action: string | undefined) => void;
+  dependencyCtx?: { actionCallbacks: Record<string, () => unknown> };
+  managerArgs?: AnyRecord;
+  sectionProps?: { onEdit?: () => void };
+  answerModal?: AnyRecord;
+  approvalModal?: AnyRecord;
+  explosionModal?: AnyRecord;
+  specialModal?: AnyRecord;
+};
+const captured = vi.hoisted((): Captured => ({}));
 const analyticsMock = vi.hoisted(() => ({
   trackNoteAdded: vi.fn(),
   trackRepairStarted: vi.fn(),
@@ -208,10 +209,10 @@ const toolDeliveredMutateMock = vi.hoisted(() => vi.fn());
 const createCostEstimateMutateMock = vi.hoisted(() => vi.fn());
 const warrantyMutateMock = vi.hoisted(() => vi.fn());
 const addSpecialMaterialsAllowedMock = vi.hoisted(() => ({ value: false }));
-const warrantyCheckDataMock = vi.hoisted(() => ({ value: null as unknown }));
-const diagnosticDataMock = vi.hoisted(() => ({
-  value: undefined as { customerAnswer?: string; actionType?: string } | undefined,
-}));
+const warrantyCheckDataMock = vi.hoisted((): { value: unknown } => ({ value: null }));
+const diagnosticDataMock = vi.hoisted(
+  (): { value?: { customerAnswer?: string; actionType?: string } } => ({ value: undefined }),
+);
 
 const areaChangeTrigger = vi.hoisted(() => ({
   enabled: false,
@@ -421,8 +422,8 @@ vi.mock("components/generics/Section/GenericSection", () => ({
     // below actually implement (value: unknown) => void at runtime. Cast through
     // their real signature so we can invoke them with a raw scalar test value.
     const callScalarHandler = (name: keyof typeof actionCallbacks) => {
-      const handler = actionCallbacks[name] as unknown as ((value: unknown) => void) | undefined;
-      handler?.(triggerValueMock.value);
+      const handler: unknown = actionCallbacks[name];
+      if (typeof handler === "function") handler(triggerValueMock.value);
     };
 
     return (
@@ -456,8 +457,8 @@ vi.mock("components/generics/Action/GenericAction", () => ({
   }) {
     const formCtx = useContext(GenericFormContext);
     const { actionCallbacks } = formCtx;
-    captured.formCtx = formCtx as unknown as AnyRecord;
-    captured.diagnosticsCtx = useContext(DiagnosticsContext) as unknown as AnyRecord;
+    captured.formCtx = formCtx;
+    captured.diagnosticsCtx = useContext(DiagnosticsContext);
     captured.formik = useFormikContext<Record<string, unknown>>();
     captured.onActionClick = onActionClick;
 
@@ -873,7 +874,7 @@ describe("JobOverview", () => {
           status: "DRAFT",
           materials: [materialWithCalculatedPrice],
         },
-      } as unknown as ReturnType<typeof mapValuesToAPI>);
+      });
       useJobByIdMock.mockReturnValue({
         data: { job: { jobStatus: "READY_FOR_DIAGNOSTIC", isOnHold: false } },
         isLoading: false,
@@ -1700,15 +1701,14 @@ describe("JobOverview", () => {
 // Field fixtures
 // ---------------------------------------------------------------------------
 
-const makeField = (name: string, subtype: string, overrides: Partial<Field> = {}): Field =>
-  ({
-    name,
-    label: name,
-    type: "text",
-    subtype,
-    isDisabled: false,
-    ...overrides,
-  }) as Field;
+const makeField = (name: string, subtype: string, overrides: Partial<Field> = {}): Field => ({
+  name,
+  label: name,
+  type: "text",
+  subtype,
+  isDisabled: false,
+  ...overrides,
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -2087,8 +2087,8 @@ describe("JobOverview mutation callbacks", () => {
     beforeEach(() => {
       createObjectURLMock = vi.fn(() => "blob:cost-estimate");
       revokeObjectURLMock = vi.fn();
-      URL.createObjectURL = createObjectURLMock as unknown as typeof URL.createObjectURL;
-      URL.revokeObjectURL = revokeObjectURLMock as unknown as typeof URL.revokeObjectURL;
+      URL.createObjectURL = createObjectURLMock;
+      URL.revokeObjectURL = revokeObjectURLMock;
     });
 
     afterEach(() => {
@@ -2138,7 +2138,7 @@ describe("JobOverview mutation callbacks", () => {
     });
 
     it("does not open a window when no PDF is returned", async () => {
-      vi.mocked(getCostEstimationPdf).mockResolvedValueOnce(undefined as unknown as Blob);
+      vi.mocked(getCostEstimationPdf).mockResolvedValueOnce(null);
       openSpy = vi.spyOn(globalThis, "open");
       renderWithMessages();
 
@@ -2315,8 +2315,7 @@ const formCtx = () => {
   return captured.formCtx;
 };
 const callbacks = () => formCtx().actionCallbacks as AnyRecord;
-const lastCallArg = (mock: ReturnType<typeof vi.fn>) =>
-  mock.mock.calls[mock.mock.calls.length - 1]?.[0];
+const lastCallArg = (mock: ReturnType<typeof vi.fn>) => mock.mock.calls.at(-1)?.[0];
 const diagnosticsCtx = () => {
   if (!captured.diagnosticsCtx) throw new Error("DiagnosticsContext not captured");
   return captured.diagnosticsCtx;
@@ -2439,7 +2438,7 @@ describe("JobOverview save customer / save asset", () => {
       order: {
         customer: { useBillingAddressForDelivery: true, deliveryAddress: { street: "Main" } },
       },
-    } as unknown as ReturnType<typeof mapValuesToAPI>);
+    });
     const { setMessagesMock } = renderWithMessages();
 
     fireEvent.click(screen.getByRole("button", { name: "Save Customer" }));
@@ -2482,9 +2481,7 @@ describe("JobOverview save customer / save asset", () => {
   });
 
   it("saves asset without validation helpers and nulls accessories when none are selected", async () => {
-    vi.mocked(mapValuesToAPI).mockReturnValueOnce(
-      {} as unknown as ReturnType<typeof mapValuesToAPI>,
-    );
+    vi.mocked(mapValuesToAPI).mockReturnValueOnce({});
     renderWithMessages();
 
     await act(async () => {
@@ -2756,7 +2753,7 @@ describe("JobOverview finish repair upload validation", () => {
   it("finishes repair when an invoice is attached for a warranty item", () => {
     allFieldsMock.value = [
       uploadField,
-      { name: "row0_type", label: "type", type: "dropdown", subtype: "diagnosticType" } as Field,
+      { name: "row0_type", label: "type", type: "dropdown", subtype: "diagnosticType" },
     ];
     initialFormValuesMock.value = { purchaseDate: "2024-06-15", row0_type: "WARRANTY" };
     mockJob({ asset: { attachments: [{ type: "Invoice" }] } });
@@ -2786,7 +2783,7 @@ describe("JobOverview finish repair upload validation", () => {
     tabsDataMock.value = [makeTab("assetData", 1), makeTab("documents", 2)];
     allFieldsMock.value = [
       uploadField,
-      { name: "row0_type", label: "type", type: "dropdown", subtype: "diagnosticType" } as Field,
+      { name: "row0_type", label: "type", type: "dropdown", subtype: "diagnosticType" },
     ];
     initialFormValuesMock.value = {
       actionType: "NEW_TOOL_EXCHANGE",
@@ -2813,7 +2810,7 @@ describe("JobOverview finish repair upload validation", () => {
     tabsDataMock.value = [makeTab("assetData", 1), makeTab("documents", 2)];
     allFieldsMock.value = [
       uploadField,
-      { name: "row0_type", label: "type", type: "dropdown", subtype: "diagnosticType" } as Field,
+      { name: "row0_type", label: "type", type: "dropdown", subtype: "diagnosticType" },
     ];
     initialFormValuesMock.value = {
       actionType: "ACCESSORIES_EXCHANGE",
@@ -2884,13 +2881,13 @@ describe("JobOverview pre-approval decision", () => {
         label: "pre",
         type: "checkbox",
         fieldMapping: { originalName: "preApprovalCheckbox" },
-      } as unknown as Field,
+      },
       {
         name: "row1_preApprovalCheckbox",
         label: "pre",
         type: "checkbox",
         fieldMapping: { originalName: "preApprovalCheckbox" },
-      } as unknown as Field,
+      },
     ];
     initialFormValuesMock.value = {
       jobType: "REPAIR",
@@ -3023,7 +3020,7 @@ describe("JobOverview buildDiagnosticPayload branches (validate)", () => {
           { id: "M-2", order: 2, partNumber: "PN-2", price: { unitPrice: 2 } },
         ],
       },
-    } as unknown as ReturnType<typeof mapValuesToAPI>);
+    });
     renderWithMessages();
     formCtx().sparePartNotBelongsToTool.current.row0_partNumber = true;
 
@@ -3047,7 +3044,7 @@ describe("JobOverview buildDiagnosticPayload branches (validate)", () => {
           { partNumber: "PN-NO-ORDER" },
         ],
       },
-    } as unknown as ReturnType<typeof mapValuesToAPI>);
+    });
     renderWithMessages();
 
     fireEvent.click(screen.getByRole("button", { name: "Validate" }));
