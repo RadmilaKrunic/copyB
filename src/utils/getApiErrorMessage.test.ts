@@ -66,6 +66,14 @@ describe("getApiErrorMessage", () => {
     expect(t).toHaveBeenCalledWith("errorDetail", { items: "a, b" });
   });
 
+  it("formats object params as key:value", () => {
+    const error = {
+      response: { data: { detail: "errorDetail", params: { item: { "06010000": 2 } } } },
+    };
+    getApiErrorMessage(error, t as never, "genericError");
+    expect(t).toHaveBeenCalledWith("errorDetail", { item: "06010000:2" });
+  });
+
   it("parses JSON array string params", () => {
     const error = {
       response: {
