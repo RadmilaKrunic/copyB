@@ -2023,11 +2023,13 @@ describe("useDiagnosticsManager effects", () => {
         expect(merged[`${SUMMARY_DETAILED}#1_jobType`]).toBe("GOODWILL");
         expect(merged[`${SUMMARY_DETAILED}#2_jobType`]).toBe("WARRANTY");
       });
-      const grownTabs = functionalCalls<Section[]>(mocks.setTabs)
-        .map((update) => update(props.tabs))
-        .find((tabs) => countAreas(tabs) > countAreas(props.tabs))!;
+      const grownTabs = defined(
+        functionalCalls<Section[]>(mocks.setTabs)
+          .map((update) => update(props.tabs))
+          .find((tabs) => countAreas(tabs) > countAreas(props.tabs)),
+      );
       expect(
-        grownTabs.find((tab) => tab.name === "diagnosticData")!.areas.map((a) => a.name),
+        defined(grownTabs.find((tab) => tab.name === "diagnosticData")).areas.map((a) => a.name),
       ).toContain(`${SUMMARY_DETAILED}#2`);
     });
 
@@ -2064,10 +2066,14 @@ describe("useDiagnosticsManager effects", () => {
           mergedInitialValues(mocks.setInitialFormValues)[`${SUMMARY_DETAILED}#0_jobType`],
         ).toBe("");
       });
-      const shrunk = functionalCalls<Section[]>(mocks.setTabs)
-        .map((update) => update(props.tabs))
-        .find((tabs) => countAreas(tabs) < countAreas(props.tabs))!;
-      const names = shrunk.find((tab) => tab.name === "diagnosticData")!.areas.map((a) => a.name);
+      const shrunk = defined(
+        functionalCalls<Section[]>(mocks.setTabs)
+          .map((update) => update(props.tabs))
+          .find((tabs) => countAreas(tabs) < countAreas(props.tabs)),
+      );
+      const names = defined(shrunk.find((tab) => tab.name === "diagnosticData")).areas.map(
+        (a) => a.name,
+      );
       expect(names).toContain(`${SUMMARY_DETAILED}#0`);
       expect(names).not.toContain(`${SUMMARY_DETAILED}#1`);
     });
