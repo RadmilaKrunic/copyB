@@ -3055,6 +3055,23 @@ describe("JobOverview buildDiagnosticPayload branches (validate)", () => {
     expect(materials.map((m) => m.partNumber)).toEqual(["PN1", "PN3", "PNNEW", "PNNOORDER"]);
   });
 
+  it("sends material rows as new (id null) when the action or job type differs from the saved one", async () => {
+    vi.mocked(mapValuesToAPI).mockReturnValueOnce({
+      diagnostic: {
+        status: "SUBMITTED",
+        materials: [{ id: "M-1", order: 1, partNumber: "PN-1" }],
+      },
+    });
+    renderWithMessages();
+
+    fireEvent.click(screen.getByRole("button", { name: "Validate" }));
+
+    await waitFor(() => expect(validateAndSaveMutateMock).toHaveBeenCalledTimes(1));
+    const materials = getValidatePayload().materials as AnyRecord[];
+    expect(materials).toHaveLength(1);
+    expect(materials[0].id).toBeNull();
+  });
+
   it("validates directly when called without helpers and skips without form values", async () => {
     renderWithMessages();
 
