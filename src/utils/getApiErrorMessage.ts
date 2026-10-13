@@ -8,13 +8,19 @@ interface ApiErrorBody {
 type ApiErrorParam = string | string[] | Record<string, unknown>;
 
 function parseParamValue(value: ApiErrorParam): string {
+  // Separate null check: under the non-strict root tsconfig, `typeof x === "object" && x !== null`
+  // does not narrow the object type out of the fall-through
+  if (value === null) return "";
   // Arrays first: they are objects too, so the object branch would swallow them
   if (Array.isArray(value)) {
     return value.join(", ");
   }
-  if (typeof value === "object" && value !== null) {
+  if (typeof value === "object") {
     const [key, entry] = Object.entries(value)[0] ?? [];
-    return key === undefined ? "" : `${key}:${String(entry)}`;
+    if (key === undefined) return "";
+    // Nested objects/arrays as JSON, so they never render as "[object Object]"
+    const text = typeof entry === "string" ? entry : JSON.stringify(entry);
+    return `${key}:${text}`;
   }
   // Try valid JSON first (e.g. '["06010000","06010001"]')
   try {
