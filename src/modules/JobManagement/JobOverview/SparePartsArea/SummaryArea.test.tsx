@@ -212,6 +212,52 @@ describe("SummaryArea", () => {
     expect(totalAmountField).toMatchObject({ isDisabled: true });
   });
 
+  it("keeps the material suggested net price disabled for NET_PRICE even with edit permissions", () => {
+    vi.mocked(useDiagnosticsContext).mockReturnValue({
+      hasPricesPopulated: true,
+      setSummaryTypeOptions: vi.fn(),
+      discountBase: "NET_PRICE",
+      isValidating: false,
+      jobStatus: "WAITING_FOR_APPROVAL",
+    } as never);
+
+    const netArea = {
+      name: "diagnosticsSummary",
+      fields: [
+        { name: "summaryType", type: "radiogroup", subtype: "diagnosticSummaryType", position: 1 },
+        {
+          name: "summarySuggestedNetMaterial",
+          type: "price",
+          subtype: "diagnosticSummarySuggestedNetMaterial",
+          isDisabled: true,
+          position: 2,
+        },
+        {
+          name: "summaryDiscountNetMaterial",
+          type: "price",
+          subtype: "diagnosticSummaryDiscountNetMaterial",
+          isDisabled: true,
+          position: 3,
+        },
+      ],
+    };
+
+    renderSummary(
+      { summarySuggestedNetMaterial: 10, summaryDiscountNetMaterial: 0 },
+      { area: netArea },
+    );
+
+    const suggestedNetField = renderedFields.find(
+      (field) => field.name === "summarySuggestedNetMaterial",
+    );
+    const discountNetField = renderedFields.find(
+      (field) => field.name === "summaryDiscountNetMaterial",
+    );
+
+    expect(suggestedNetField).toMatchObject({ isDisabled: true });
+    expect(discountNetField).toMatchObject({ isDisabled: false });
+  });
+
   it("falls back to totalSummary when the selected job type has no rows left", () => {
     vi.mocked(useDiagnosticsContext).mockReturnValue({
       hasPricesPopulated: true,
