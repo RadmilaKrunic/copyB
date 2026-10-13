@@ -328,6 +328,7 @@ export const getSummaryDetailedRowValues = (
   return mapAreaFields(areaFields, {
     ...mapSummaryPriceSubtypes(total),
     summaryDetailedJobType: item.jobType,
+    diagnosticSummarySuggestedNetMaterial: materialRelated.suggestedNetPrice,
     diagnosticSummaryDiscountNetMaterial: materialRelated.discount,
     diagnosticSummaryNetAmountMaterial: materialRelated.netAmount,
     diagnosticSummaryTaxAmountMaterial: materialRelated.taxAmount,

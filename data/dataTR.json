@@ -15805,7 +15805,7 @@
                   "name": "summarySuggestedNetMaterial",
                   "label": "sparePartsSuggestedNetPrice",
                   "type": "price",
-                  "subtype": "diagnosticSummaryDiscountNetMaterial",
+                  "subtype": "diagnosticSummarySuggestedNetMaterial",
                   "pattern": "",
                   "patternText": "",
                   "maxLength": 0,
