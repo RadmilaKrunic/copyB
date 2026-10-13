@@ -2096,8 +2096,9 @@ export default function JobOverview() {
         onToolDelivered,
         onCreateCostEstimate,
         // Two named params keep arity 2 so invokeFieldAction passes (name, value).
-        onRecalculatePrices: (fieldName: unknown, value: unknown) =>
-          onRecalculatePrices(String(fieldName), value),
+        onRecalculatePrices: (fieldName: unknown, value: unknown) => {
+          if (typeof fieldName === "string") onRecalculatePrices(fieldName, value);
+        },
       },
       radioSourceCallbacks: {
         getRadioButtonsForSummaryType: () => summaryTypeOptions,
