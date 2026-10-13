@@ -1633,6 +1633,17 @@ export default function JobOverview() {
       }
 
       const payload = buildDiagnosticPayload(formValues, currentAllFields);
+      if (
+        currentActionType !== jobFullData?.diagnostic?.actionType ||
+        currentJobType !== jobFullData?.diagnostic?.jobType
+      ) {
+        payload.materials = (payload.materials as Record<string, unknown>[]).map(
+          (m: Record<string, unknown>) => {
+            m.id = null;
+            return m;
+          },
+        );
+      }
       payload.changes = recalculatedPricesChanges;
       if (helpers) {
         await handleActionWithValidation("validate", formValues, helpers, () =>
@@ -1648,9 +1659,12 @@ export default function JobOverview() {
       buildDiagnosticPayload,
       handleActionWithValidation,
       recalculatedPricesChanges,
+      jobFullData?.diagnostic?.actionType,
+      jobFullData?.diagnostic?.jobType,
+      currentActionType,
+      currentJobType,
     ],
   );
-
   const onHold = useCallback(() => {
     if (!jobId) return;
     preToggleHoldStateRef.current = jobFullData?.job?.isOnHold ?? false;
