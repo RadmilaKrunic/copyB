@@ -3,7 +3,7 @@ import Field from "components/generics/Field/GenericField.types";
 import {
   buildJobOverviewWarrantyCheckPayload,
   updateJobOverviewWarrantyTabs,
-  getRecalculationRowErrors,
+  getRecalculationPayloadErrors,
   isRecalculationValueEmpty,
 } from "./JobOverview.utils";
 
@@ -50,34 +50,30 @@ describe("JobOverview utils", () => {
   });
 });
 
-describe("getRecalculationRowErrors", () => {
-  const rowField = (name: string, nameStartsWith?: string) =>
-    ({ name, type: "text", fieldMapping: { nameStartsWith } }) as Field;
+describe("getRecalculationPayloadErrors", () => {
+  const field = (name: string, parentMap: string[]) =>
+    ({ name, type: "text", fieldMapping: { parentMap } }) as Field;
   const fields = [
-    rowField("row0_partNumber", "materials[0]"),
-    rowField("row0_quantity", "materials[0]"),
-    rowField("row1_quantity", "materials[1]"),
-    rowField("technicianNote"),
+    field("row0_partNumber", ["diagnostic", "materials#"]),
+    field("row1_quantity", ["diagnostic", "materials#"]),
+    field("technicianNote", ["diagnostic"]),
+    field("customerEmail", ["order", "customer"]),
   ];
 
-  it("keeps only errors of the triggering field's row", () => {
+  it("keeps errors of every field in the diagnostic payload, not only the edited row", () => {
     const errors = {
-      row0_quantity: "Quantity is required",
       row1_quantity: "Quantity is required",
       technicianNote: "Technician note is required",
+      customerEmail: "Email is required",
     };
-    expect(getRecalculationRowErrors(fields, "row0_partNumber", errors)).toEqual({
-      row0_quantity: "Quantity is required",
+    expect(getRecalculationPayloadErrors(fields, errors)).toEqual({
+      row1_quantity: "Quantity is required",
+      technicianNote: "Technician note is required",
     });
   });
 
-  it("returns no errors when the edited row is valid", () => {
-    const errors = { row1_quantity: "Quantity is required", technicianNote: "required" };
-    expect(getRecalculationRowErrors(fields, "row0_quantity", errors)).toEqual({});
-  });
-
-  it("returns no errors for a field outside a spare-part row", () => {
-    expect(getRecalculationRowErrors(fields, "technicianNote", { technicianNote: "x" })).toEqual(
+  it("returns no errors when every payload field is valid", () => {
+    expect(getRecalculationPayloadErrors(fields, { customerEmail: "Email is required" })).toEqual(
       {},
     );
   });

@@ -74,24 +74,24 @@ export const extractDiagnosticFromValidateResponse = (
   return responce;
 };
 
+/** Root of the diagnostic payload in `mapValuesToAPI` output; recalculation sends only this part. */
+const DIAGNOSTIC_PAYLOAD_ROOT = "diagnostic";
+
 /**
- * Keeps only the validation errors of the spare-part row the triggering field belongs to.
- * Rows are identified by `fieldMapping.nameStartsWith`; fields without it are not row fields.
+ * Keeps the validation errors of every field that goes into the recalculate payload
+ * (`attributeMapping` under `diagnostic.`): all spare-part rows plus diagnostic header fields.
  */
-export const getRecalculationRowErrors = (
+export const getRecalculationPayloadErrors = (
   allFields: Field[],
-  fieldName: string,
   formErrors: Record<string, string>,
 ): Record<string, string> => {
-  const rowPrefix = allFields.find((f) => f.name === fieldName)?.fieldMapping?.nameStartsWith;
-  if (!rowPrefix) return {};
-  const rowErrors: Record<string, string> = {};
+  const payloadErrors: Record<string, string> = {};
   allFields.forEach((f) => {
-    if (f.fieldMapping?.nameStartsWith === rowPrefix && formErrors[f.name]) {
-      rowErrors[f.name] = formErrors[f.name];
+    if (f.fieldMapping?.parentMap?.[0] === DIAGNOSTIC_PAYLOAD_ROOT && formErrors[f.name]) {
+      payloadErrors[f.name] = formErrors[f.name];
     }
   });
-  return rowErrors;
+  return payloadErrors;
 };
 
 /** Recalculation skips empty values only; `0` is a valid quantity, price or discount. */

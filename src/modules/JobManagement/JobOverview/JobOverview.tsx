@@ -43,14 +43,14 @@ import {
 import Section from "components/generics/Section/GenericSection.types";
 import { Formik, Form, useFormikContext } from "formik";
 import { useFormValidation } from "components/generics/Form/useFormValidation";
-import { scrollToTop } from "utils/scrollToError";
+import { scrollToFirstError, scrollToTop } from "utils/scrollToError";
 import { getApiErrorMessage } from "utils/getApiErrorMessage";
 import { CreateJobContext } from "../CreateJob/CreateJob.context";
 import {
   buildJobOverviewWarrantyCheckPayload,
   updateJobOverviewWarrantyTabs,
   extractDiagnosticFromValidateResponse,
-  getRecalculationRowErrors,
+  getRecalculationPayloadErrors,
   isRecalculationValueEmpty,
 } from "./JobOverview.utils";
 import {
@@ -1563,14 +1563,14 @@ export default function JobOverview() {
         )?.name ?? "";
       const materialId = formValuesRef.current?.[matrerialIdFieldName];
       if (!materialId) return;
-      // Same rules as validate-and-save, limited to the edited row: an invalid row is not sent.
-      const rowErrors = getRecalculationRowErrors(
+      // Validate-and-save rules on every payload field; an invalid payload is not sent.
+      const payloadErrors = getRecalculationPayloadErrors(
         allFieldsRef.current,
-        fieldName,
         validateByAction("validate", formValuesRef.current),
       );
-      if (Object.keys(rowErrors).length > 0) {
-        showFieldErrorsRef.current?.(rowErrors);
+      if (Object.keys(payloadErrors).length > 0) {
+        showFieldErrorsRef.current?.(payloadErrors);
+        scrollToFirstError(Object.keys(payloadErrors));
         return;
       }
       const payload = buildDiagnosticPayload(formValuesRef.current, allFieldsRef.current);
