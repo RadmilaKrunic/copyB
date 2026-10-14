@@ -19,6 +19,7 @@ vi.mock("api/axios-client/axiosClient", () => ({
 vi.spyOn(console, "error").mockImplementation(() => undefined);
 
 import axiosClient from "api/axios-client/axiosClient";
+import { API_TIMEOUTS } from "api/axios-client/timeouts";
 const mockGet = vi.mocked(axiosClient.get);
 const mockPost = vi.mocked(axiosClient.post);
 
@@ -142,7 +143,9 @@ describe("generateReimbursement", () => {
     mockPost.mockResolvedValueOnce({ data: { dryRun: true, approvedClaimCount: 3 } });
     const result = await generateReimbursement(details);
     expect(result).toEqual({ dryRun: true, approvedClaimCount: 3 });
-    expect(mockPost).toHaveBeenCalledWith("/v1/reimbursements/generate", details);
+    expect(mockPost).toHaveBeenCalledWith("/v1/reimbursements/generate", details, {
+      timeout: API_TIMEOUTS.EXTENDED,
+    });
   });
 
   it("throws on API error", async () => {

@@ -40,7 +40,7 @@ import { API_TIMEOUTS } from "api/axios-client/timeouts";
 const filesAxiosClient = createApiClient({ basePath: "/v1/files", timeout: API_TIMEOUTS.LONG });
 ```
 
-One slow endpoint only -> per-request `{ timeout: API_TIMEOUTS.LONG }` on `axiosClient`. No hardcoded timeout numbers.
+Tiers: `DEFAULT` 30s, `LONG` 2 min (uploads, exports, reports), `EXTENDED` 5 min (long-running server jobs). One slow endpoint only -> per-request `{ timeout: API_TIMEOUTS.LONG }` on `axiosClient`. No hardcoded timeout numbers.
 
 ## action.ts — Raw API Calls
 
