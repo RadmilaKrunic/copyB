@@ -15632,7 +15632,7 @@
                   "permissions": [],
                   "multiSelect": false
                 },
-		{
+                {
                   "name": "summarySuggestedNetMaterial",
                   "label": "sparePartsSuggestedNetPrice",
                   "type": "price",

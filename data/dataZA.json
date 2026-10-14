@@ -15200,7 +15200,7 @@
                   "radioButtons": [],
                   "isSubField": true,
                   "dependFieldCondition": "AND",
-                  "dependentFields": [                    
+                  "dependentFields": [
                     {
                       "fieldName": "summaryType",
                       "fieldValue": "totalSummary"
@@ -15605,7 +15605,7 @@
                   "permissions": [],
                   "multiSelect": false
                 },
-		{
+                {
                   "name": "summarySuggestedNetMaterial",
                   "label": "sparePartsSuggestedNetPrice",
                   "type": "price",
