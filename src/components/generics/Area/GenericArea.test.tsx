@@ -648,6 +648,39 @@ describe("GenericArea", () => {
       expect(onAreaValueChange).not.toHaveBeenCalled();
     });
 
+    it("ignores a value written by code after a press outside the area, without any blur", () => {
+      // Automation (Playwright selectOption) changes a field without focusing it, so no blur follows.
+      vi.useFakeTimers();
+      const onAreaValueChange = vi.fn();
+      renderAssetArea(onAreaValueChange);
+
+      fireEvent.change(screen.getByTestId("field-serialNumber"), { target: { value: "SN1" } });
+      expect(onAreaValueChange).toHaveBeenCalledTimes(1);
+      fireEvent.pointerDown(screen.getByTestId("programmatic-set"));
+      act(() => vi.runOnlyPendingTimers());
+      fireEvent.click(screen.getByTestId("programmatic-set"));
+      vi.useRealTimers();
+
+      expect(onAreaValueChange).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps notifying while the user presses inside the area", () => {
+      vi.useFakeTimers();
+      const onAreaValueChange = vi.fn();
+      renderAssetArea(onAreaValueChange);
+
+      fireEvent.change(screen.getByTestId("field-serialNumber"), { target: { value: "SN1" } });
+      fireEvent.pointerDown(screen.getByTestId("pick-purchaseDate"));
+      act(() => vi.runOnlyPendingTimers());
+      fireEvent.click(screen.getByTestId("pick-purchaseDate"));
+      vi.useRealTimers();
+
+      expect(onAreaValueChange).toHaveBeenLastCalledWith(
+        "asset",
+        expect.objectContaining({ purchaseDate: "2024-05-01T00:00:00.000Z" }),
+      );
+    });
+
     it("does not call onAreaValueChange when the date is set outside the area", async () => {
       const onAreaValueChange = vi.fn();
       renderAssetArea(onAreaValueChange);
