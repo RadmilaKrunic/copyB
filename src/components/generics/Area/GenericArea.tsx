@@ -85,6 +85,33 @@ function GenericArea({
   const prevAreaValuesKeyRef = useRef(areaValuesKey);
   const userInteractionRef = useRef(false);
 
+  const areaFieldsRef = useRef<HTMLDivElement>(null);
+
+  // Deferred so a value committed as focus leaves (typed date) still counts as the user's.
+  const disarmUserInteraction = useCallback(() => {
+    setTimeout(() => {
+      userInteractionRef.current = false;
+    });
+  }, []);
+
+  // A press or focus anywhere outside the area also ends the interaction. Blur alone is not
+  // enough: a <select> changed without focus (Playwright selectOption, scripted input) never
+  // blurs, so the area stayed armed and later API writes (validate, job reload) read as edits.
+  useEffect(() => {
+    const handleOutsideInteraction = (event: Event) => {
+      if (!userInteractionRef.current) return;
+      const target = event.target;
+      if (target instanceof Node && areaFieldsRef.current?.contains(target)) return;
+      disarmUserInteraction();
+    };
+    document.addEventListener("pointerdown", handleOutsideInteraction, true);
+    document.addEventListener("focusin", handleOutsideInteraction, true);
+    return () => {
+      document.removeEventListener("pointerdown", handleOutsideInteraction, true);
+      document.removeEventListener("focusin", handleOutsideInteraction, true);
+    };
+  }, [disarmUserInteraction]);
+
   useEffect(() => {
     if (prevAreaValuesKeyRef.current === areaValuesKey) return;
     prevAreaValuesKeyRef.current = areaValuesKey;
@@ -121,21 +148,19 @@ function GenericArea({
     markUserInteraction();
   };
 
-  // Focus leaving the area disarms it; deferred so a value committed on blur (typed date)
-  // still counts as the user's.
+  // Focus leaving the area disarms it.
   const handleAreaBlur = (event: FocusEvent<HTMLDivElement>) => {
     if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) {
       return;
     }
-    setTimeout(() => {
-      userInteractionRef.current = false;
-    });
+    disarmUserInteraction();
   };
 
   return (
     <div className="generic-area">
       {title && <div className="area-title">{t(title)}</div>}
       <div
+        ref={areaFieldsRef}
         className="area-fields"
         onFocusCapture={handleFieldInteraction}
         onChangeCapture={handleAreaChange}
