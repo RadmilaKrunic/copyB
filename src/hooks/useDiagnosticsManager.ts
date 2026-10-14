@@ -624,6 +624,22 @@ const reindexSparePartsValues = (
   return next;
 };
 
+/**
+ * Re-keys a per-field flag map (keyed by spare-parts field name) in place after a row delete,
+ * so a flag set for the deleted row neither stays on its index nor lands on the row that moves up.
+ */
+const reindexSparePartsFlagsInPlace = (
+  flags: Record<string, boolean> | undefined,
+  deletedIndex: number,
+): void => {
+  if (!flags) return;
+  const next = reindexSparePartsValues(flags, deletedIndex) as Record<string, boolean>;
+  Object.keys(flags).forEach((key) => {
+    delete flags[key];
+  });
+  Object.assign(flags, next);
+};
+
 // ── Hook ───────────────────────────────────────────────────────────────────
 
 interface UseDiagnosticsManagerProps {
@@ -649,6 +665,10 @@ interface UseDiagnosticsManagerProps {
   /** When true, Effect 2 (rule-change rebuild) is skipped so API-loaded materials are preserved. */
   readOnly?: boolean;
   jobStatus?: string;
+  /** Per part-number field "does not belong to tool" flags; re-keyed on row delete. */
+  sparePartNotBelongsToToolRef?: RefObject<Record<string, boolean>>;
+  /** Per autocomplete field validity flags; re-keyed on row delete. */
+  autocompleteValidationRef?: RefObject<Record<string, boolean>>;
 }
 
 export interface UseDiagnosticsManagerReturn {
@@ -711,6 +731,8 @@ export const useDiagnosticsManager = ({
   setArePricesValidated,
   readOnly = false,
   jobStatus = "",
+  sparePartNotBelongsToToolRef,
+  autocompleteValidationRef,
 }: UseDiagnosticsManagerProps): UseDiagnosticsManagerReturn => {
   const queryClient = useQueryClient();
   const { setMessages } = useContext(MessagesContext);
@@ -1603,6 +1625,9 @@ export const useDiagnosticsManager = ({
           delete formValuesRef.current[key];
         }
       });
+      // Row flags are keyed by field name like form values, so shift them the same way.
+      reindexSparePartsFlagsInPlace(sparePartNotBelongsToToolRef?.current, areaIndex);
+      reindexSparePartsFlagsInPlace(autocompleteValidationRef?.current, areaIndex);
       setInitialFormValues(compactedValues);
       setAllFields(compactedFields);
       setTabs(compactedTabs);
@@ -1624,6 +1649,8 @@ export const useDiagnosticsManager = ({
       formValuesRef,
       skipFormResetRef,
       setArePricesValidated,
+      sparePartNotBelongsToToolRef,
+      autocompleteValidationRef,
     ],
   );
 

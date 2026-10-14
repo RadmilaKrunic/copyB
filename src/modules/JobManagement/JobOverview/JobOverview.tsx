@@ -1026,6 +1026,8 @@ export default function JobOverview() {
     arePricesValidated,
     setArePricesValidated,
     jobStatus: currentStatus,
+    sparePartNotBelongsToToolRef,
+    autocompleteValidationRef,
   });
 
   const { assetsAccessories, setAssetsAccessories } = useAccessoriesManager({
