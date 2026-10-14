@@ -1,4 +1,5 @@
 import axiosClient from "api/axios-client/axiosClient";
+import { API_TIMEOUTS } from "api/axios-client/timeouts";
 import { AxiosResponse } from "axios";
 import {
   Reimbursement,
@@ -160,6 +161,7 @@ export const generateReimbursement = async (reimbursementDetails: {
       await axiosClient.post<ReimbursementDryRunInfo>(
         `/v1/reimbursements/generate`,
         reimbursementDetails,
+        { timeout: API_TIMEOUTS.EXTENDED },
       );
     return response.data;
   } catch (error) {
