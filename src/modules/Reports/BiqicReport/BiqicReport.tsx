@@ -6,6 +6,7 @@ import { Button, ActivityIndicator, Notification } from "@bosch/react-frok";
 import { useBreadcrumbs } from "../../../hooks/useBreadcrumbs";
 import DatePicker from "../../../components/ui/DatePicker/DatePicker";
 import axiosClient from "../../../api/axios-client/axiosClient";
+import { API_TIMEOUTS } from "../../../api/axios-client/timeouts";
 import { format } from "date-fns";
 import "./BiqicReport.scss";
 import { MessagesContext } from "../../../contexts/messagescontext";
@@ -84,7 +85,7 @@ function BiqicReport() {
       const response = await axiosClient.post("/v1/biqic/export", null, {
         params: { fromDate, toDate },
         responseType: "blob",
-        timeout: 120000,
+        timeout: API_TIMEOUTS.LONG,
         headers: { Accept: "application/octet-stream" },
       });
 

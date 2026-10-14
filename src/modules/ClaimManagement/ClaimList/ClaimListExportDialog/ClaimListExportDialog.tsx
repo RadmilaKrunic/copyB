@@ -2,6 +2,7 @@ import { Dialog } from "@bosch/react-frok";
 import { Formik, Form } from "formik";
 import GenericField from "../../../../components/generics/Field/GenericField";
 import axiosClient from "../../../../api/axios-client/axiosClient";
+import { API_TIMEOUTS } from "../../../../api/axios-client/timeouts";
 import { useContext } from "react";
 import { MessagesContext } from "../../../../contexts/messagescontext";
 import { useTranslation } from "react-i18next";
@@ -45,7 +46,7 @@ function ClaimListExportDialog({
         { fromDate: fromDate.split("T")[0], toDate: toDate.split("T")[0] },
         {
           responseType: "blob",
-          timeout: 120000,
+          timeout: API_TIMEOUTS.LONG,
           headers: { Accept: "text/csv" },
         },
       );

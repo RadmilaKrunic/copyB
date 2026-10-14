@@ -20,6 +20,7 @@ const initialFormValuesMock = vi.hoisted((): { value: Record<string, unknown> } 
 const discountBaseMock = vi.hoisted((): { value: discountBase } => ({ value: "NET_PRICE" }));
 const triggerValueMock = vi.hoisted((): { value: unknown } => ({ value: 0 }));
 const hasExistingDiagnosticMock = vi.hoisted(() => ({ value: false }));
+const diagnosticLoadingMock = vi.hoisted(() => ({ value: false }));
 
 type CapturedMutationOptions = {
   onSuccess?: (data?: unknown, ...rest: unknown[]) => unknown;
@@ -35,6 +36,8 @@ const resyncMaterialsFromAPIMock = vi.hoisted(() => vi.fn());
 const markAllValidatedMock = vi.hoisted(() => vi.fn());
 const silentDiagnosticMutateAsyncMock = vi.hoisted(() => vi.fn());
 const scrollToTopMock = vi.hoisted(() => vi.fn());
+const scrollToFirstErrorMock = vi.hoisted(() => vi.fn());
+const validateByActionMock = vi.hoisted(() => vi.fn((): Record<string, string> => ({})));
 // Captured props/contexts are intentionally loosely typed: tests poke at internals.
 type AnyRecord = Record<string, any>;
 const jobIdMock = vi.hoisted((): { value: string | undefined } => ({ value: "J-1" }));
@@ -72,7 +75,12 @@ const pendingMock = vi.hoisted(
 type Captured = {
   formCtx?: AnyRecord;
   diagnosticsCtx?: AnyRecord;
-  formik?: { values: Record<string, unknown>; setFieldValue: (f: string, v: unknown) => unknown };
+  formik?: {
+    values: Record<string, unknown>;
+    errors?: Record<string, unknown>;
+    touched?: Record<string, unknown>;
+    setFieldValue: (f: string, v: unknown) => unknown;
+  };
   onActionClick?: (action: string | undefined) => void;
   dependencyCtx?: { actionCallbacks: Record<string, () => unknown> };
   managerArgs?: AnyRecord;
@@ -119,7 +127,7 @@ vi.mock("@/analytics", async () => {
 
 vi.mock("utils/scrollToError", async () => {
   const actual = await vi.importActual<Record<string, unknown>>("utils/scrollToError");
-  return { ...actual, scrollToTop: scrollToTopMock };
+  return { ...actual, scrollToTop: scrollToTopMock, scrollToFirstError: scrollToFirstErrorMock };
 });
 
 vi.mock("@bosch/react-frok", () => ({
@@ -211,7 +219,9 @@ const warrantyMutateMock = vi.hoisted(() => vi.fn());
 const addSpecialMaterialsAllowedMock = vi.hoisted(() => ({ value: false }));
 const warrantyCheckDataMock = vi.hoisted((): { value: unknown } => ({ value: null }));
 const diagnosticDataMock = vi.hoisted(
-  (): { value?: { customerAnswer?: string; actionType?: string } } => ({ value: undefined }),
+  (): { value?: { customerAnswer?: string; actionType?: string; jobType?: string } } => ({
+    value: undefined,
+  }),
 );
 
 const areaChangeTrigger = vi.hoisted(() => ({
@@ -237,8 +247,8 @@ vi.mock("hooks/useAccessoriesManager", () => ({
 vi.mock("hooks/useDiagnosticData", () => ({
   useDiagnosticData: () => ({
     diagnosticData: diagnosticDataMock.value,
-    diagnosticLoading: false,
-    shouldFetchDiagnostic: false,
+    diagnosticLoading: diagnosticLoadingMock.value,
+    shouldFetchDiagnostic: diagnosticLoadingMock.value,
   }),
 }));
 vi.mock("hooks/useFormInitialization", () => ({
@@ -359,7 +369,7 @@ vi.mock("hooks/useDiagnosticsManager", () => ({
 vi.mock("components/generics/Form/useFormValidation", () => ({
   useFormValidation: () => ({
     validate: vi.fn(),
-    validateByAction: vi.fn(() => ({})),
+    validateByAction: validateByActionMock,
     startValidation: vi.fn(),
     stopValidation: vi.fn(),
     setCurrentAction: vi.fn(),
@@ -616,6 +626,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   locationStateMock.value = null;
   diagnosticDataMock.value = undefined;
+  diagnosticLoadingMock.value = false;
   warrantyCheckDataMock.value = null;
   initialFormValuesMock.value = {};
   tabsDataMock.value = [];
@@ -1441,13 +1452,7 @@ describe("JobOverview", () => {
   });
 
   it("exercises diagnosticLoading branch when shouldFetchDiagnostic is true", () => {
-    vi.mock("hooks/useDiagnosticData", () => ({
-      useDiagnosticData: () => ({
-        diagnosticData: undefined,
-        diagnosticLoading: true,
-        shouldFetchDiagnostic: true,
-      }),
-    }));
+    diagnosticLoadingMock.value = true;
 
     tabsDataMock.value = [
       {
@@ -1714,6 +1719,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   locationStateMock.value = null;
   diagnosticDataMock.value = undefined;
+  diagnosticLoadingMock.value = false;
   editingSectionsMock.value = new Set<string>();
   tabsDataMock.value = [
     {
@@ -3072,6 +3078,62 @@ describe("JobOverview buildDiagnosticPayload branches (validate)", () => {
     expect(materials[0].id).toBeNull();
   });
 
+  it("keeps material ids when the action and job type match the saved diagnostic", async () => {
+    initialFormValuesMock.value = { actionType: "REPAIR", jobType: "CHARGEABLE" };
+    diagnosticDataMock.value = { actionType: "REPAIR", jobType: "CHARGEABLE" };
+    vi.mocked(mapValuesToAPI).mockReturnValueOnce({
+      diagnostic: { status: "SUBMITTED", materials: [{ id: "M-1", order: 1, partNumber: "PN-1" }] },
+    });
+    renderWithMessages();
+
+    fireEvent.click(screen.getByRole("button", { name: "Validate" }));
+
+    await waitFor(() => expect(validateAndSaveMutateMock).toHaveBeenCalledTimes(1));
+    expect((getValidatePayload().materials as AnyRecord[])[0].id).toBe("M-1");
+  });
+
+  it("sends material rows as new when only the job type differs from the saved one", async () => {
+    initialFormValuesMock.value = { actionType: "REPAIR", jobType: "WARRANTY" };
+    diagnosticDataMock.value = { actionType: "REPAIR", jobType: "CHARGEABLE" };
+    vi.mocked(mapValuesToAPI).mockReturnValueOnce({
+      diagnostic: { status: "SUBMITTED", materials: [{ id: "M-1", order: 1, partNumber: "PN-1" }] },
+    });
+    renderWithMessages();
+
+    fireEvent.click(screen.getByRole("button", { name: "Validate" }));
+
+    await waitFor(() => expect(validateAndSaveMutateMock).toHaveBeenCalledTimes(1));
+    expect((getValidatePayload().materials as AnyRecord[])[0].id).toBeNull();
+  });
+
+  it("drops archived rows without a part number and omits an empty archived list", async () => {
+    vi.mocked(mapValuesToAPI)
+      .mockReturnValueOnce({
+        diagnostic: {
+          status: "SUBMITTED",
+          archivedMaterials: [
+            { id: "A-1", partNumber: "PN-A" },
+            null,
+            { id: "A-2", partNumber: "" },
+          ],
+        },
+      })
+      .mockReturnValueOnce({
+        diagnostic: { status: "SUBMITTED", archivedMaterials: [{ id: "A-3" }] },
+      });
+    renderWithMessages();
+
+    fireEvent.click(screen.getByRole("button", { name: "Validate" }));
+    await waitFor(() => expect(validateAndSaveMutateMock).toHaveBeenCalledTimes(1));
+    expect(getValidatePayload().archivedMaterials).toEqual([{ id: "A-1", partNumber: "PN-A" }]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Validate" }));
+    await waitFor(() => expect(validateAndSaveMutateMock).toHaveBeenCalledTimes(2));
+    const secondPayload = (validateAndSaveMutateMock.mock.calls[1][0] as { payload: AnyRecord })
+      .payload;
+    expect(secondPayload).not.toHaveProperty("archivedMaterials");
+  });
+
   it("validates directly when called without helpers and skips without form values", async () => {
     renderWithMessages();
 
@@ -3366,5 +3428,378 @@ describe("JobOverview form reset and resync effects", () => {
       prev: Record<string, unknown>,
     ) => Record<string, unknown>;
     expect(updater({})).not.toHaveProperty("faultCodeDropdown");
+  });
+});
+
+describe("JobOverview onRecalculatePrices", () => {
+  const materialRowFields = (): Field[] => [
+    makeField("row0_unitPrice", "diagnosticUnitPrice", {
+      fieldMapping: {
+        originalName: "unitPriceMaterial",
+        nameStartsWith: "row0",
+        parentMap: ["diagnostic", "materials"],
+      },
+    }),
+    makeField("row0_partNumber", "diagnosticPartNumber", {
+      fieldMapping: {
+        originalName: "sparePartNumber",
+        nameStartsWith: "row0",
+        parentMap: ["diagnostic", "materials"],
+      },
+    }),
+    makeField("row0_type", "diagnosticType", {
+      fieldMapping: {
+        originalName: "type",
+        nameStartsWith: "row0",
+        parentMap: ["diagnostic", "materials"],
+      },
+    }),
+    makeField("row0_id", "diagnosticMaterialId", { fieldMapping: { nameStartsWith: "row0" } }),
+    makeField("row0_status", "diagnosticMaterialStatus", {
+      fieldMapping: { nameStartsWith: "row0" },
+    }),
+    makeField("jobNote", "text", { fieldMapping: { parentMap: ["job"] } }),
+  ];
+
+  const mockDiagnosticMaterials = (materials: AnyRecord[]) => {
+    vi.mocked(mapValuesToAPI).mockReturnValueOnce({
+      diagnostic: { status: "SUBMITTED", materials },
+    });
+  };
+
+  const recalculate = (fieldName: unknown, value: unknown) => {
+    act(() => {
+      callbacks().onRecalculatePrices(fieldName, value);
+    });
+  };
+
+  const lastRecalculatePayload = () => lastCallArg(recalculatePricesMutateMock) as AnyRecord;
+
+  beforeEach(() => {
+    mockJob();
+    validateByActionMock.mockImplementation(() => ({}));
+    allFieldsMock.value = materialRowFields();
+    initialFormValuesMock.value = { row0_id: "M-1", row0_status: "REVISED" };
+  });
+
+  it.each([
+    { label: "an empty value", fieldName: "row0_unitPrice", value: "" },
+    { label: "a null value", fieldName: "row0_unitPrice", value: null },
+    { label: "a field name that is not a string", fieldName: 42, value: 5 },
+    { label: "an unknown field", fieldName: "missingField", value: 5 },
+  ])("skips recalculation for $label", ({ fieldName, value }) => {
+    renderWithMessages();
+
+    recalculate(fieldName, value);
+
+    expect(recalculatePricesMutateMock).not.toHaveBeenCalled();
+  });
+
+  it("skips recalculation while fields are not loaded yet", () => {
+    allFieldsMock.value = null as unknown as Field[];
+    renderWithMessages();
+
+    recalculate("row0_unitPrice", 5);
+
+    expect(recalculatePricesMutateMock).not.toHaveBeenCalled();
+  });
+
+  it("skips recalculation for a row without a material id (new row)", () => {
+    initialFormValuesMock.value = { row0_status: "REVISED" };
+    renderWithMessages();
+
+    recalculate("row0_unitPrice", 5);
+
+    expect(recalculatePricesMutateMock).not.toHaveBeenCalled();
+  });
+
+  it("shows diagnostic payload errors on their fields and does not send the request", async () => {
+    validateByActionMock.mockImplementation(() => ({
+      row0_unitPrice: "required",
+      jobNote: "too long",
+    }));
+    renderWithMessages();
+
+    recalculate("row0_unitPrice", 5);
+
+    expect(recalculatePricesMutateMock).not.toHaveBeenCalled();
+    expect(validateByActionMock).toHaveBeenCalledWith(
+      "validate",
+      expect.objectContaining({ row0_id: "M-1" }),
+    );
+    // Errors outside the diagnostic payload do not block recalculation, so only the row field is shown.
+    expect(scrollToFirstErrorMock).toHaveBeenCalledWith(["row0_unitPrice"]);
+    await waitFor(() => expect(captured.formik?.errors).toEqual({ row0_unitPrice: "required" }));
+    expect(captured.formik?.touched).toEqual({ row0_unitPrice: true });
+  });
+
+  it("sends a material price change scoped to chargeable spare-part positions", () => {
+    mockDiagnosticMaterials([{ id: "M-1", order: 1, partNumber: "PN-1", status: "REVISED" }]);
+    const { setMessagesMock } = renderWithMessages();
+    setPricesValidated(true);
+
+    recalculate("row0_unitPrice", 0);
+
+    expect(recalculatePricesMutateMock).toHaveBeenCalledTimes(1);
+    const payload = lastRecalculatePayload();
+    expect(payload.countryCode).toBe("ZA");
+    expect(payload.changes).toEqual([
+      {
+        type: "unitPrice",
+        lineId: "M-1",
+        value: 0,
+        scope: { positions: ["SP", "PN", "AC"], jobTypes: ["CHARGEABLE"] },
+      },
+    ]);
+    // A price change does not reset the row status.
+    expect(payload.materials[0].status).toBe("REVISED");
+    expect(diagnosticsCtx().arePricesValidated).toBe(false);
+    expect(setMessagesMock).not.toHaveBeenCalled();
+  });
+
+  it("resets a revised row to PENDING when its part number changes", () => {
+    mockDiagnosticMaterials([
+      { id: "M-1", order: 1, partNumber: "PN-1", status: "REVISED" },
+      { id: "M-2", order: 2, partNumber: "PN-2", status: "REJECTED" },
+    ]);
+    renderWithMessages();
+
+    recalculate("row0_partNumber", "PN-9");
+
+    const payload = lastRecalculatePayload();
+    expect(payload.changes).toEqual([
+      { type: "partNumber", lineId: "M-1", value: "PN-9", scope: null },
+    ]);
+    expect(payload.materials.map((m: AnyRecord) => m.status)).toEqual(["PENDING", "REJECTED"]);
+  });
+
+  it("keeps the row status on a job type change when the row is not revised or rejected", () => {
+    initialFormValuesMock.value = { row0_id: "M-1", row0_status: "APPROVED" };
+    mockDiagnosticMaterials([{ id: "M-1", order: 1, partNumber: "PN-1", status: "APPROVED" }]);
+    renderWithMessages();
+
+    recalculate("row0_type", "WARRANTY");
+
+    const payload = lastRecalculatePayload();
+    expect(payload.changes).toEqual([
+      { type: "jobType", lineId: "M-1", value: "WARRANTY", scope: null },
+    ]);
+    expect(payload.materials[0].status).toBe("APPROVED");
+  });
+
+  it("accumulates recalculated changes into the next validate-and-save payload", async () => {
+    mockDiagnosticMaterials([{ id: "M-1", order: 1, partNumber: "PN-1" }]);
+    renderWithMessages();
+
+    recalculate("row0_unitPrice", 7);
+    fireEvent.click(screen.getByRole("button", { name: "Validate" }));
+
+    await waitFor(() => expect(validateAndSaveMutateMock).toHaveBeenCalledTimes(1));
+    const { payload } = validateAndSaveMutateMock.mock.calls[0][0] as { payload: AnyRecord };
+    expect(payload.changes).toEqual([expect.objectContaining({ type: "unitPrice", value: 7 })]);
+  });
+});
+
+describe("JobOverview job flow mutation success and error messages", () => {
+  const refetchedKeys = [["job", "J-1"], ["diagnostic", "J-1"], ["jobs"], ["messages", "J-1"]];
+
+  beforeEach(() => {
+    mockJob();
+    initialFormValuesMock.value = { jobType: "REPAIR" };
+    queryCacheMock.value = { job: { job: { jobStatus: "IN_REPAIR" } } };
+  });
+
+  it.each([
+    {
+      key: "startRepair",
+      success: "successStartRepair",
+      error: "errorStartRepair",
+      tracker: "trackRepairStarted",
+      detail: {},
+    },
+    {
+      key: "finishRepair",
+      success: "successFinishRepair",
+      error: "errorFinishRepair",
+      tracker: "trackRepairFinished",
+      detail: {},
+    },
+    {
+      key: "toolDelivered",
+      success: "successToolDelivered",
+      error: "errorToolDelivered",
+      tracker: "trackJobCompleted",
+      detail: { completionType: expect.any(String) },
+    },
+    {
+      key: "startReview",
+      success: "successSubmitForReview",
+      error: "errorSubmitForReview",
+      tracker: "trackJobSubmittedForReview",
+      detail: {},
+    },
+    {
+      key: "repairApproval",
+      success: "successApproveForRepair",
+      error: "errorApproveForRepair",
+      tracker: "trackJobApprovedForRepair",
+      detail: {},
+    },
+  ] as const)(
+    "$key: refetches job data, reports success and tracks $tracker",
+    async ({ key, success, error, tracker, detail }) => {
+      const { setMessagesMock } = renderWithMessages();
+
+      await runOnSuccess(key);
+      await runOnError(key);
+
+      for (const queryKey of refetchedKeys) {
+        expect(queryClientMock.refetchQueries).toHaveBeenCalledWith({ queryKey });
+      }
+      expect(analyticsMock[tracker]).toHaveBeenCalledWith({
+        jobType: "REPAIR",
+        jobStatus: "IN_REPAIR",
+        ...detail,
+      });
+      const messages = collectMessages(setMessagesMock);
+      expect(messages).toContainEqual({ text: success, type: "success", duration: 3000 });
+      expect(messages).toContainEqual({ text: error, type: "error", duration: 3000 });
+    },
+  );
+
+  it("internalApproval: reports success and shows the API error with a longer duration", async () => {
+    const { setMessagesMock } = renderWithMessages();
+
+    await runOnSuccess("internalApproval");
+    await runOnError("internalApproval");
+
+    expect(analyticsMock.trackPreApprovalRequested).toHaveBeenCalled();
+    const messages = collectMessages(setMessagesMock);
+    expect(messages).toContainEqual({
+      text: "successRequestInternalApproval",
+      type: "success",
+      duration: 3000,
+    });
+    expect(messages).toContainEqual(
+      expect.objectContaining({ type: "error", duration: 5000, text: expect.any(String) }),
+    );
+  });
+
+  it("customerAnswer: refetches job data and reports success / error", async () => {
+    const { setMessagesMock } = renderWithMessages();
+
+    await runOnSuccess("customerAnswer", undefined, { jobId: "J-1", answer: "REPAIR" });
+    await runOnError("customerAnswer", new Error("boom"), { jobId: "J-1", answer: "REPAIR" });
+
+    for (const queryKey of refetchedKeys) {
+      expect(queryClientMock.refetchQueries).toHaveBeenCalledWith({ queryKey });
+    }
+    const messages = collectMessages(setMessagesMock);
+    expect(messages).toContainEqual({
+      text: "successSubmitCustomerAnswer",
+      type: "success",
+      duration: 3000,
+    });
+    expect(messages).toContainEqual({
+      text: "errorSubmitCustomerAnswer",
+      type: "error",
+      duration: 3000,
+    });
+  });
+});
+
+describe("JobOverview validate-and-save and recalculate responses", () => {
+  const diagnosticResponse = { diagnostic: { jobId: "J-1", materials: [{ id: "M-1" }] } };
+
+  beforeEach(() => {
+    mockJob();
+    initialFormValuesMock.value = { jobType: "REPAIR" };
+    queryCacheMock.value = { job: { job: { jobStatus: "IN_REPAIR" } } };
+  });
+
+  it("validateAndSave: stores the returned diagnostic, re-syncs the form and reports success", async () => {
+    const { setMessagesMock } = renderWithMessages();
+    vi.mocked(convertAPIDataToFormValues).mockClear();
+
+    await runOnSuccess("validateAndSave", diagnosticResponse);
+
+    expect(queryClientMock.setQueryData).toHaveBeenCalledWith(
+      ["diagnostic", "J-1"],
+      diagnosticResponse.diagnostic,
+    );
+    expect(convertAPIDataToFormValues).toHaveBeenCalledWith(
+      expect.objectContaining({ diagnostic: diagnosticResponse.diagnostic }),
+      expect.any(Array),
+      expect.any(Object),
+    );
+    expect(markAllValidatedMock).toHaveBeenCalled();
+    expect(queryClientMock.refetchQueries).toHaveBeenCalledWith({ queryKey: ["job", "J-1"] });
+    expect(analyticsMock.trackDiagnosticValidated).toHaveBeenCalled();
+    expect(collectMessages(setMessagesMock)).toContainEqual({
+      text: "successValidateAndSave",
+      type: "success",
+      duration: 3000,
+    });
+  });
+
+  it("validateAndSave: lists unavailable price keys and skips the success flow", async () => {
+    const { setMessagesMock } = renderWithMessages();
+
+    await runOnSuccess("validateAndSave", {
+      ...diagnosticResponse,
+      errorMessages: [{ key: "PN-1" }, { key: "2004" }, { key: "PN-1" }, { key: "PN-2" }],
+    });
+
+    expect(queryClientMock.setQueryData).toHaveBeenCalled();
+    expect(markAllValidatedMock).not.toHaveBeenCalled();
+    expect(scrollToTopMock).toHaveBeenCalled();
+    expect(collectMessages(setMessagesMock)).toContainEqual({
+      text: "priceNotAvailable: PN-1, PN-2",
+      type: "error",
+      duration: 5000,
+    });
+  });
+
+  it("recalculate: stores the returned diagnostic and re-syncs the form", async () => {
+    renderWithMessages();
+
+    await runOnSuccess("recalculate", diagnosticResponse);
+
+    expect(queryClientMock.setQueryData).toHaveBeenCalledWith(
+      ["diagnostic", "J-1"],
+      diagnosticResponse.diagnostic,
+    );
+    expect(analyticsMock.trackPricesRecalculated).toHaveBeenCalled();
+  });
+
+  it.each([
+    { errorMessages: [{ key: "PN-1" }, { key: "2004" }], text: "priceNotAvailable: PN-1" },
+    { errorMessages: [{ key: "2004" }], text: "orderSimulationFailed" },
+  ])("recalculate: reports '$text' for price errors", async ({ errorMessages, text }) => {
+    const { setMessagesMock } = renderWithMessages();
+
+    await runOnSuccess("recalculate", { errorMessages });
+
+    expect(queryClientMock.setQueryData).not.toHaveBeenCalled();
+    expect(analyticsMock.trackPricesRecalculated).not.toHaveBeenCalled();
+    expect(scrollToTopMock).toHaveBeenCalled();
+    expect(collectMessages(setMessagesMock)).toContainEqual({
+      text,
+      type: "error",
+      duration: 5000,
+    });
+  });
+
+  it("recalculate: shows the API error, invalidates prices and scrolls up on failure", async () => {
+    const { setMessagesMock } = renderWithMessages();
+    setPricesValidated(true);
+
+    await runOnError("recalculate");
+
+    expect(diagnosticsCtx().arePricesValidated).toBe(false);
+    expect(scrollToTopMock).toHaveBeenCalled();
+    expect(collectMessages(setMessagesMock)).toContainEqual(
+      expect.objectContaining({ type: "error", duration: 8000, text: expect.any(String) }),
+    );
   });
 });
