@@ -2313,6 +2313,43 @@ describe("useDiagnosticsManager effects", () => {
       expect(result.current.enableValidate()).toBe(true);
     });
 
+    it("re-keys the not-belongs-to-tool and autocomplete flags so the deleted row's flag does not move to the next row", () => {
+      const { props } = threeRowSetup();
+      const sparePartNotBelongsToToolRef = {
+        current: {
+          [`${SPARE}#0_sparePartNumber`]: true,
+          [`${SPARE}#1_sparePartNumber`]: false,
+        } as Record<string, boolean>,
+      };
+      const autocompleteValidationRef = {
+        current: {
+          [`${SPARE}#0_sparePartNumber`]: false,
+          [`${SPARE}#1_sparePartNumber`]: true,
+          otherField: true,
+        } as Record<string, boolean>,
+      };
+      const managerProps = { ...props, sparePartNotBelongsToToolRef, autocompleteValidationRef };
+      const { result } = renderManager(managerProps);
+      act(() => {
+        result.current.setMaterials([
+          makeItem({ partNumber: "x0" }),
+          makeItem({ partNumber: "x1" }),
+        ]);
+      });
+
+      act(() => {
+        result.current.onDeleteRow(`${SPARE}#0`);
+      });
+
+      expect(sparePartNotBelongsToToolRef.current).toEqual({
+        [`${SPARE}#0_sparePartNumber`]: false,
+      });
+      expect(autocompleteValidationRef.current).toEqual({
+        [`${SPARE}#0_sparePartNumber`]: true,
+        otherField: true,
+      });
+    });
+
     it("does not archive the row when the job is in a permanent-delete status", async () => {
       const { props } = createHookProps({ jobStatus: "IN_DIAGNOSTICS", arePricesValidated: true });
       const { result } = renderManager(props);
