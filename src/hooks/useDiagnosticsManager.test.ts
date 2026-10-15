@@ -2364,6 +2364,49 @@ describe("useDiagnosticsManager effects", () => {
       expect(result.current.enableValidate()).toBe(false);
     });
 
+    it("bumps deletedRowsVersion once after an archived row is rebuilt", () => {
+      const { props } = threeRowSetup();
+      const { result } = renderManager(props);
+      act(() => {
+        result.current.setMaterials([
+          makeItem({ partNumber: "x0" }),
+          makeItem({ partNumber: "x1" }),
+        ]);
+      });
+      expect(result.current.deletedRowsVersion).toBe(0);
+
+      act(() => {
+        result.current.onDeleteRow(`${SPARE}#0`);
+      });
+
+      expect(result.current.deletedRowsVersion).toBe(1);
+    });
+
+    it("bumps deletedRowsVersion on a permanent delete", () => {
+      const { props } = createHookProps({ jobStatus: "IN_DIAGNOSTICS" });
+      const { result } = renderManager(props);
+      act(() => {
+        result.current.setMaterials([makeItem({ partNumber: "ROW" })]);
+      });
+
+      act(() => {
+        result.current.onDeleteRow(`${SPARE}#0`);
+      });
+
+      expect(result.current.deletedRowsVersion).toBe(1);
+    });
+
+    it("keeps deletedRowsVersion when nothing was deleted", () => {
+      const { props } = createHookProps();
+      const { result } = renderManager(props);
+
+      act(() => {
+        result.current.onDeleteRow("diagnosticData_diagnosticsSpareParts#9");
+      });
+
+      expect(result.current.deletedRowsVersion).toBe(0);
+    });
+
     it("ignores unknown area names", async () => {
       const { props, mocks } = createHookProps();
       const { result } = renderManager(props);
