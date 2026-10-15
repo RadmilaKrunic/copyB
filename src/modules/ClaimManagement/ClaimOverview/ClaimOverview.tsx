@@ -376,7 +376,9 @@ export default function ClaimOverview() {
       const updatedMaterials = sparePartsAreas.map((area, idx) => {
         const get = makeFieldGetter(area.fields, formValues);
 
-        const original = claimData.materials?.[idx];
+        // Rows and areas share the same order; pairing by `claimData.materials[idx]` breaks
+        // after a delete (the next row would take the deleted row's original).
+        const original = materials[idx]?.sourceMaterial;
 
         return {
           ...original,
@@ -435,7 +437,7 @@ export default function ClaimOverview() {
       };
       return payload;
     },
-    [tabs, archivedMaterials],
+    [tabs, materials, archivedMaterials],
   );
   const onCancelNewNote = useCallback(
     (

@@ -62,6 +62,8 @@ const sortMaterialsByOrder = (items: MaterialItem[]): MaterialItem[] =>
   [...normalizeMaterialOrders(items)].sort((a, b) => getOrderValue(a, 0) - getOrderValue(b, 0));
 
 const materialItemToMaterial = (item: MaterialItem): Material => ({
+  // Keep the API fields this row came from (the explicit fields below still win).
+  ...item.sourceMaterial,
   position: item.position,
   partNumber: item.partNumber,
   jobType: item.type,
@@ -188,6 +190,7 @@ export const claimMaterialToMaterialItem = (m: Material): MaterialItem => {
     isValidated: m.isValidated,
     order: Number(m.order) || 0,
     reimbursementPaymentMethod: m.reimbursementPaymentMethod,
+    sourceMaterial: m,
   };
 };
 

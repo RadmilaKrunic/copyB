@@ -428,6 +428,56 @@ describe("useClaimMaterialsManager", () => {
     expect(result.current.archivedMaterials[0].reimbursementPaymentMethod).toBe("BANK_TRANSFER");
   });
 
+  it("keeps each row's source material through delete, archive and restore", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(["user"], { countryCode: "ZA", permissions: [] });
+    const source = { ...loadedClaimMaterials[0], id: "M-1" };
+    const archivedArea = {
+      ...claimsTab.areas[0],
+      name: "claims_claimArchivedSpareParts#0",
+      fields: [{ name: "claims_claimArchivedSpareParts#0_position", label: "p", type: "dropdown" }],
+    };
+    // Stable references: a new array per render would re-run the load effects forever.
+    const claimMaterials = [source];
+    const tabs: Section[] = [{ ...claimsTab, areas: [...claimsTab.areas, archivedArea] }];
+
+    const { result } = renderHook(
+      () =>
+        useClaimMaterialsManager({
+          claimId: "C1",
+          claimMaterials: claimMaterials as never,
+          currentActionType: "REPAIR",
+          currentJobType: "WARRANTY",
+          tabs,
+          setTabs: vi.fn(),
+          allFields,
+          setAllFields: vi.fn(),
+          setInitialFormValues: vi.fn(),
+          skipFormResetRef: { current: false },
+          formValuesRef: { current: {} },
+          arePricesValidated: false,
+          setArePricesValidated: vi.fn(),
+          readOnly: false,
+        }),
+      { wrapper: makeWrapper(queryClient) },
+    );
+
+    await waitFor(() => expect(result.current.materials).toHaveLength(1));
+    expect(result.current.materials[0].sourceMaterial).toBe(source);
+
+    act(() => {
+      result.current.onDeleteRow("claims_claimSpareParts#0");
+    });
+    expect(result.current.archivedMaterials[0]).toEqual(expect.objectContaining({ id: "M-1" }));
+
+    act(() => {
+      result.current.onRestoreRow("claims_claimArchivedSpareParts#0");
+    });
+    expect(result.current.materials.at(-1)?.sourceMaterial).toEqual(
+      expect.objectContaining({ id: "M-1" }),
+    );
+  });
+
   it("bumps rowsChangedVersion once per deleted or restored row", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     queryClient.setQueryData(["user"], { countryCode: "ZA", permissions: [] });

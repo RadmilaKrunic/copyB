@@ -21,6 +21,7 @@ import type { TFunction } from "i18next";
 import { useBareSalesRelation } from "api/services/bareSalesRelation/hooks";
 import { PERMISSIONS } from "utils/Permissions";
 import type { HeaderUserData } from "api/services/header/action";
+import type { Material } from "modules/ClaimManagement/ClaimOverview/Claims.types";
 import { MessagesContext } from "../contexts/messagescontext";
 import { scrollToTop } from "../utils/scrollToError";
 import {
@@ -56,6 +57,11 @@ export interface MaterialItem {
   notBelongsToTool?: boolean;
   isPriceSetManually?: boolean;
   reimbursementPaymentMethod?: string | null;
+  /**
+   * Claims only: the API material this row was loaded from. Rows keep it through delete,
+   * archive and restore, so the claim payload pairs each row with its own original.
+   */
+  sourceMaterial?: Material;
 }
 
 const ZERO_SUMMARY_PRICE: SummaryPrice = {

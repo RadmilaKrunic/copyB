@@ -1031,6 +1031,7 @@ describe("ClaimOverview validate action", () => {
       a1_diagnosticNetAmount: "50",
     };
     h.mgr = makeManager({
+      materials: [{ sourceMaterial: makeClaim().materials[0] }, {}],
       archivedMaterials: [{ partNumber: "ARCH-1" }, { partNumber: "" }],
     });
   };
@@ -1082,6 +1083,21 @@ describe("ClaimOverview validate action", () => {
     // The claim only had a plain summary, so the detailed total is derived from it.
     expect(arg.payload.claimPriceSummary).toEqual({ netAmount: 150 });
     expect(arg.payload.claimPriceSummaryDetailed).toEqual({ total: { netAmount: 150 } });
+  });
+
+  it("pairs each row with its own source material, not the claim material at the same index", async () => {
+    setValues();
+    // After a delete, row 0 is the claim's second material: it must not take materials[0].
+    const second = { position: "PN", partNumber: "SECOND", status: "REVISED", approvedBy: "u2" };
+    setClaim(makeClaim({ materials: [{ status: "APPROVED", approvedBy: "u1" }, second] }));
+    h.mgr = makeManager({ materials: [{ sourceMaterial: second }] });
+    renderClaim();
+
+    await validateSuccessfully();
+
+    const { payload } = h.updatePrices.mock.calls[0][0];
+    const row = payload.materials.find((m: any) => m.partNumber === "PN-A");
+    expect(row).toEqual(expect.objectContaining({ status: "REVISED", approvedBy: "u2" }));
   });
 
   it("derives the plain claim summary from the detailed total when only that exists", async () => {
