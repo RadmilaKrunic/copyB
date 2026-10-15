@@ -15,7 +15,7 @@ import { getCostEstimationPdf } from "api/services/jobs/action";
 const locationStateMock = vi.hoisted((): { value: { from?: string } | null } => ({ value: null }));
 const tabsDataMock = vi.hoisted((): { value: unknown[] } => ({ value: [] }));
 const editingSectionsMock = vi.hoisted(() => ({ value: new Set<string>() }));
-const allFieldsMock = vi.hoisted((): { value: Field[] } => ({ value: [] }));
+const allFieldsMock = vi.hoisted((): { value: Field[] | null } => ({ value: [] }));
 const initialFormValuesMock = vi.hoisted((): { value: Record<string, unknown> } => ({ value: {} }));
 const discountBaseMock = vi.hoisted((): { value: discountBase } => ({ value: "NET_PRICE" }));
 const triggerValueMock = vi.hoisted((): { value: unknown } => ({ value: 0 }));
@@ -3496,7 +3496,7 @@ describe("JobOverview onRecalculatePrices", () => {
   });
 
   it("skips recalculation while fields are not loaded yet", () => {
-    allFieldsMock.value = null as unknown as Field[];
+    allFieldsMock.value = null;
     renderWithMessages();
 
     recalculate("row0_unitPrice", 5);
