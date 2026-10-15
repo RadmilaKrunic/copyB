@@ -21,6 +21,7 @@ import type { TFunction } from "i18next";
 import { useBareSalesRelation } from "api/services/bareSalesRelation/hooks";
 import { PERMISSIONS } from "utils/Permissions";
 import type { HeaderUserData } from "api/services/header/action";
+import type { Material } from "modules/ClaimManagement/ClaimOverview/Claims.types";
 import { MessagesContext } from "../contexts/messagescontext";
 import { scrollToTop } from "../utils/scrollToError";
 import {
@@ -56,6 +57,11 @@ export interface MaterialItem {
   notBelongsToTool?: boolean;
   isPriceSetManually?: boolean;
   reimbursementPaymentMethod?: string | null;
+  /**
+   * Claims only: the API material this row was loaded from. Rows keep it through delete,
+   * archive and restore, so the claim payload pairs each row with its own original.
+   */
+  sourceMaterial?: Material;
 }
 
 const ZERO_SUMMARY_PRICE: SummaryPrice = {
@@ -702,10 +708,10 @@ export interface UseDiagnosticsManagerReturn {
   setRevisedRejectedRowPending: (areaName: string) => void;
   canArchiveOnDelete: boolean;
   /**
-   * Bumped once per deleted spare-parts row, in the commit where rows, fields and
+   * Bumped once per deleted or restored spare-parts row, in the commit where rows, fields and
    * archived rows have settled. Consumers react to it to recalculate prices.
    */
-  deletedRowsVersion: number;
+  rowsChangedVersion: number;
 }
 
 export interface ImportedMaterial {
@@ -845,9 +851,9 @@ export const useDiagnosticsManager = ({
   jobStatusRef.current = jobStatus;
   /** Counts rows archived by user deletion since the last validate call. */
   const pendingArchivedDeletionsRef = useRef(0);
-  /** Set by onDeleteRow when the deleted row is archived; Effect 3b bumps deletedRowsVersion. */
-  const notifyDeleteAfterArchiveRef = useRef(false);
-  const [deletedRowsVersion, setDeletedRowsVersion] = useState(0);
+  /** Set by onDeleteRow (row archived) and onRestoreRow; Effect 3b bumps rowsChangedVersion. */
+  const notifyAfterArchiveRebuildRef = useRef(false);
+  const [rowsChangedVersion, setRowsChangedVersion] = useState(0);
   const shouldMarkValidatedRef = useRef(false);
   const prevRuleKeyRef = useRef("");
   const prAutofillAppliedRef = useRef(false);
@@ -1253,22 +1259,23 @@ export const useDiagnosticsManager = ({
   }, [materials, setAllFields, setTabs, setInitialFormValues, formValuesRef, skipFormResetRef]);
   // ── Effect 3b: archivedMaterials[] → areas + allFields + initialFormValues ───
   useEffect(() => {
-    // A delete that archived a row reports itself only once the archived row is rebuilt,
-    // so the deletedRowsVersion consumer sees the archived row in fields and values.
-    const shouldNotifyDelete = notifyDeleteAfterArchiveRef.current;
-    notifyDeleteAfterArchiveRef.current = false;
-    const notifyDelete = () => {
-      if (shouldNotifyDelete) setDeletedRowsVersion((v) => v + 1);
+    // An archiving delete or a restore reports itself only once the archived rows are rebuilt
+    // (Effect 3 rebuilds the active rows in the same flush), so the rowsChangedVersion
+    // consumer sees the settled rows in fields and values.
+    const shouldNotify = notifyAfterArchiveRebuildRef.current;
+    notifyAfterArchiveRebuildRef.current = false;
+    const notifyRowsChanged = () => {
+      if (shouldNotify) setRowsChangedVersion((v) => v + 1);
     };
     if (archivedMaterials.length === 0) {
-      notifyDelete();
+      notifyRowsChanged();
       return;
     }
 
     const currentTabs = tabsRef.current;
     const diagnosticTab = currentTabs.find((t) => t.name === "diagnosticData");
     if (!diagnosticTab) {
-      notifyDelete();
+      notifyRowsChanged();
       return;
     }
 
@@ -1282,7 +1289,7 @@ export const useDiagnosticsManager = ({
     }
     const templateArea = archivedAreas[0] ?? archivedTemplateRef.current;
     if (!templateArea) {
-      notifyDelete();
+      notifyRowsChanged();
       return;
     }
 
@@ -1353,7 +1360,7 @@ export const useDiagnosticsManager = ({
 
     setInitialFormValues((prev) => ({ ...prev, ...rowValues }));
     archivedForceRebuildRef.current = false;
-    notifyDelete();
+    notifyRowsChanged();
   }, [
     archivedMaterials,
     setAllFields,
@@ -1608,7 +1615,7 @@ export const useDiagnosticsManager = ({
         if (deletedMaterial) {
           archivedForceRebuildRef.current = true;
           pendingArchivedDeletionsRef.current += 1;
-          notifyDeleteAfterArchiveRef.current = true;
+          notifyAfterArchiveRebuildRef.current = true;
           isArchived = true;
           setArchivedMaterials((prev) => [...prev, deletedMaterial]);
         }
@@ -1670,7 +1677,7 @@ export const useDiagnosticsManager = ({
       });
       setArePricesValidated(false);
       // Permanent delete: rows and fields settle in this batch, so report it now.
-      if (!isArchived) setDeletedRowsVersion((v) => v + 1);
+      if (!isArchived) setRowsChangedVersion((v) => v + 1);
     },
     [
       setInitialFormValues,
@@ -1781,6 +1788,7 @@ export const useDiagnosticsManager = ({
 
       setArchivedMaterials((prev) => prev.filter((_, i) => i !== areaIndex));
       pendingArchivedDeletionsRef.current = Math.max(0, pendingArchivedDeletionsRef.current - 1);
+      notifyAfterArchiveRebuildRef.current = true;
 
       forceRebuildRef.current = true;
       setMaterials((prev) => {
@@ -1901,6 +1909,6 @@ export const useDiagnosticsManager = ({
     enableValidate,
     setRevisedRejectedRowPending,
     canArchiveOnDelete: !STATUSES_WITH_PERMANENT_DELETE.includes(jobStatus),
-    deletedRowsVersion,
+    rowsChangedVersion,
   };
 };

@@ -40,6 +40,7 @@ const h = vi.hoisted(() => ({
   setEditingSections: vi.fn(),
   editingSections: new Set<string>(),
   handleActionWithValidation: vi.fn(),
+  validateByAction: vi.fn(),
   areAllActionsDisabled: vi.fn(),
   setSectionDisabledState: vi.fn(),
   convertAPIDataToFormValues: vi.fn(),
@@ -202,7 +203,7 @@ vi.mock("hooks/useClaimMaterialsManager", () => ({
 vi.mock("components/generics/Form/useFormValidation", () => ({
   useFormValidation: () => ({
     validate: vi.fn(),
-    validateByAction: vi.fn(),
+    validateByAction: (...args: unknown[]) => h.validateByAction(...args),
     startValidation: vi.fn(),
     stopValidation: vi.fn(),
     setCurrentAction: vi.fn(),
@@ -455,6 +456,7 @@ const makeManager = (overrides: Record<string, any> = {}) => ({
   getExistingPartNumbers: vi.fn(() => new Set<string>()),
   forceRebuildRef: { current: false },
   hasSyncedRef: { current: false },
+  rowsChangedVersion: 0,
   ...overrides,
 });
 
@@ -516,6 +518,7 @@ beforeEach(() => {
     async (_a: string, _b: unknown, _c: unknown, onValid: () => unknown) => onValid(),
   );
   h.updatePrices.mockResolvedValue(undefined);
+  h.validateByAction.mockReturnValue({});
   h.updatePricesOptions = undefined;
   h.refetchQueries.mockResolvedValue(undefined);
   h.uiConfig = { isLoading: false, isError: false };
@@ -863,6 +866,56 @@ describe("ClaimOverview claim note modal", () => {
   });
 });
 
+describe("ClaimOverview re-pricing after a row delete or restore", () => {
+  const renderWithRowsChangedVersion = () => {
+    const view = () => (
+      <MessagesContext.Provider value={{ messages: [], setMessages: h.setMessages }}>
+        <ClaimOverview />
+      </MessagesContext.Provider>
+    );
+    const utils = render(view());
+    const setVersion = (version: number) => {
+      h.mgr = { ...h.mgr, rowsChangedVersion: version };
+      utils.rerender(view());
+    };
+    return { setVersion };
+  };
+
+  it("calls the claim prices PUT once per rowsChangedVersion bump", () => {
+    h.formInit.initialFormValues = { claims_claimSpareParts_0_x: 1 };
+    const { setVersion } = renderWithRowsChangedVersion();
+    expect(h.updatePrices).not.toHaveBeenCalled();
+
+    setVersion(1);
+
+    expect(h.updatePrices).toHaveBeenCalledTimes(1);
+    expect(h.updatePrices).toHaveBeenCalledWith({
+      claimId: expect.any(String),
+      payload: expect.objectContaining({ materials: expect.any(Array) }),
+    });
+    expect(h.validateByAction).toHaveBeenCalledWith("onValidate", {
+      claims_claimSpareParts_0_x: 1,
+    });
+    expect(h.handleActionWithValidation).not.toHaveBeenCalled();
+
+    setVersion(1);
+    expect(h.updatePrices).toHaveBeenCalledTimes(1);
+
+    setVersion(2);
+    expect(h.updatePrices).toHaveBeenCalledTimes(2);
+  });
+
+  it("skips the PUT without showing errors when the form is invalid", () => {
+    h.validateByAction.mockReturnValue({ claims_claimSpareParts_0_x: "required" });
+    const { setVersion } = renderWithRowsChangedVersion();
+
+    setVersion(1);
+
+    expect(h.updatePrices).not.toHaveBeenCalled();
+    expect(h.handleActionWithValidation).not.toHaveBeenCalled();
+  });
+});
+
 describe("ClaimOverview generic action dispatch", () => {
   it("ignores unmapped actions and actions without a name", () => {
     renderClaim();
@@ -978,6 +1031,7 @@ describe("ClaimOverview validate action", () => {
       a1_diagnosticNetAmount: "50",
     };
     h.mgr = makeManager({
+      materials: [{ sourceMaterial: makeClaim().materials[0] }, {}],
       archivedMaterials: [{ partNumber: "ARCH-1" }, { partNumber: "" }],
     });
   };
@@ -1029,6 +1083,21 @@ describe("ClaimOverview validate action", () => {
     // The claim only had a plain summary, so the detailed total is derived from it.
     expect(arg.payload.claimPriceSummary).toEqual({ netAmount: 150 });
     expect(arg.payload.claimPriceSummaryDetailed).toEqual({ total: { netAmount: 150 } });
+  });
+
+  it("pairs each row with its own source material, not the claim material at the same index", async () => {
+    setValues();
+    // After a delete, row 0 is the claim's second material: it must not take materials[0].
+    const second = { position: "PN", partNumber: "SECOND", status: "REVISED", approvedBy: "u2" };
+    setClaim(makeClaim({ materials: [{ status: "APPROVED", approvedBy: "u1" }, second] }));
+    h.mgr = makeManager({ materials: [{ sourceMaterial: second }] });
+    renderClaim();
+
+    await validateSuccessfully();
+
+    const { payload } = h.updatePrices.mock.calls[0][0];
+    const row = payload.materials.find((m: any) => m.partNumber === "PN-A");
+    expect(row).toEqual(expect.objectContaining({ status: "REVISED", approvedBy: "u2" }));
   });
 
   it("derives the plain claim summary from the detailed total when only that exists", async () => {
