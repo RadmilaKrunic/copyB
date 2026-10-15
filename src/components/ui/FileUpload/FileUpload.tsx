@@ -3,7 +3,7 @@ import "./FileUpload.scss";
 import { useTranslation } from "react-i18next";
 import { Icon, Button, Dialog, Notification } from "@bosch/react-frok";
 import FilePreview from "./FilePreview/FilePreview";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import {
   deleteFileFromServer,
   uploadFileToServer,
@@ -41,9 +41,9 @@ export default function FileUpload({
   existingFiles = [],
   onDeleteStart,
   onDeleteEnd,
+  updateEntityAttachments,
 }: Readonly<FileUploadProps>) {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
-  const queryClient = useQueryClient();
   const analytics = useAnalytics();
   const [files, setFiles] = useState<Attachments[]>(initialFiles);
   const [isDragging, setIsDragging] = useState(false);
@@ -75,9 +75,9 @@ export default function FileUpload({
           };
         }) ?? [];
       const merged = [...files, ...attachments];
-      void queryClient.invalidateQueries({ queryKey: ["attachments"] });
       onFilesSelected?.(merged);
       setFiles(merged);
+      updateEntityAttachments?.(merged);
     }
 
     setShowUploadModal(false);
@@ -346,7 +346,7 @@ export default function FileUpload({
           </label>
         </div>
 
-        {files.length > 0 && (
+        {!updateEntityAttachments && files.length > 0 && (
           <div className="file-list-container">
             {files.map((file) => (
               <DocumentFile
@@ -362,16 +362,18 @@ export default function FileUpload({
                 onDeleteEnd={onDeleteEnd}
               />
             ))}
-            <Button
-              mode="tertiary"
-              onClick={() => {
-                removeFilesMutation.mutate(files);
-              }}
-              icon={{ iconName: "delete", title: "delete" }}
-              label={files.length > 1 ? t("removeAll") : t("remove")}
-              className="action-buttons"
-              disabled={removeFilesMutation.isPending || isDisabled}
-            />
+            {(files.length > 1 || maxFilesAllowed === 1) && (
+              <Button
+                mode="tertiary"
+                onClick={() => {
+                  removeFilesMutation.mutate(files);
+                }}
+                icon={{ iconName: "delete", title: "delete" }}
+                label={files.length > 1 ? t("removeAll") : t("remove")}
+                className="action-buttons"
+                disabled={removeFilesMutation.isPending || isDisabled}
+              />
+            )}
           </div>
         )}
       </div>

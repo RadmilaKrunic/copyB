@@ -527,6 +527,9 @@ function renderUploadField(ctx: FieldRenderCtx): ReactElement {
         allowedFormats={field?.allowedFormats || []}
         maxFilesAllowed={field?.maxFilesAllowed}
         maxFileSizeInMb={field?.maxFileSizeInMb}
+        updateEntityAttachments={
+          field?.updateEntityAttachments as ((attachments: Attachments[]) => void) | undefined
+        }
       />
       <FieldError name={name} />
     </span>

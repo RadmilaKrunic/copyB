@@ -13,6 +13,7 @@ export interface FileUploadProps {
   existingFiles?: { name: string; type?: string }[];
   onDeleteStart?: () => void;
   onDeleteEnd?: () => void;
+  updateEntityAttachments?: (attachments: Attachments[]) => void;
 }
 
 export interface FileProps {

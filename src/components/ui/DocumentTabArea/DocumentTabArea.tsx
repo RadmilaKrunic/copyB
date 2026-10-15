@@ -1,12 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query";
 import Area from "components/generics/Area/GenericArea.types";
-import GenericAction from "components/generics/Action/GenericAction";
 import { GenericFormContext } from "components/generics/Form/GenericForm.context";
 import GenericField from "components/generics/Field/GenericField";
 import DocumentFile from "components/ui/DocumentFile/DocumentFile";
-import { Attachments } from "components/ui/FileUpload/FileUpload.types";
 import { Attachment } from "modules/JobManagement/JobList/JobList.types";
-import { useCallback, useContext } from "react";
+import { useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import { useFormikContext } from "formik";
@@ -94,25 +92,13 @@ export default function DocumentTabArea({
     ? { ...saveAction.dependency.showAction, nonEmpty: undefined, method: undefined }
     : undefined;
   const isUploadVisible = checkActionCondition(uploadVisibilityCondition, ctx);
+  const isSaveDocumentsEnabled = saveAction
+    ? checkActionCondition(saveAction.dependency?.enableAction, ctx)
+    : true;
   const isDeleteAllowed = entityType === "claim" ? false : !isOnHold && isUploadVisible;
 
   const attachments = data?.job?.asset?.attachments || [];
 
-  const handleActionClick = useCallback(
-    (actionName: string | undefined) => {
-      if (actionName !== "onSaveDocuments") return;
-      if (!entityId) return;
-      const newFiles = uploadField ? ((values[uploadField.name] as Attachments[]) ?? []) : [];
-      if (!newFiles.length) return;
-      const attachments = newFiles.map((f) => ({
-        name: f.name,
-        type: f.type,
-        attachmentId: f.attachmentId,
-      }));
-      saveDocumentsMutation.mutate({ jobId: entityId, attachments });
-    },
-    [entityId, uploadField, values, saveDocumentsMutation],
-  );
   const handleDeleteSuccess = (updatedAttachments: Attachment[]) => {
     if (updatedAttachments !== undefined) {
       queryClient.setQueryData<WithJobAssetAttachments>(queryKey, (oldData) => {
@@ -129,6 +115,11 @@ export default function DocumentTabArea({
         };
       });
     }
+  };
+
+  const updateEntityAttachments = (attachments: Attachment[]) => {
+    if (!entityId || !isSaveDocumentsEnabled) return;
+    saveDocumentsMutation.mutate({ jobId: entityId, attachments });
   };
 
   return (
@@ -158,14 +149,12 @@ export default function DocumentTabArea({
       </div>
       {uploadField && isUploadVisible && (
         <GenericField
-          field={{ ...uploadField, isDisabled: isOnHold, existingFiles: attachments }}
-        />
-      )}
-      {areaActions.length > 0 && (
-        <GenericAction
-          actions={areaActions}
-          onActionClick={handleActionClick}
-          currentStatus={currentStatus}
+          field={{
+            ...uploadField,
+            isDisabled: isOnHold,
+            existingFiles: attachments,
+            updateEntityAttachments,
+          }}
         />
       )}
     </>
