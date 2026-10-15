@@ -35,6 +35,7 @@ function JobList() {
   const QUICK_FILTERS: QuickFilter[] = [
     { key: "readyForDiagnostic", label: "readyForDiagnostic", selected: false },
     { key: "unassigned", label: "unassigned", selected: false },
+    { key: "waitingForApproval", label: "statusWaitingForApprovalMessage", selected: false },
   ];
 
   const navigate = useNavigate();

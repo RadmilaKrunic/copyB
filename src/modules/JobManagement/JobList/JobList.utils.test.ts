@@ -134,6 +134,19 @@ describe("filterJobs", () => {
       expect(result[0].jobId).toBe("j1");
     });
 
+    it("filters by waitingForApproval quick filter", () => {
+      const jobs = [
+        makeJob({ jobId: "j1", jobStatus: "WAITING_FOR_APPROVAL" }),
+        makeJob({ jobId: "j2", jobStatus: "IN_DIAGNOSTICS" }),
+      ];
+      const quickFilters: QuickFilter[] = [
+        { key: "waitingForApproval", label: "Waiting for Approval", selected: true },
+      ];
+      const result = filterJobs(jobs, quickFilters, "", noAdvancedFilters);
+      expect(result).toHaveLength(1);
+      expect(result[0].jobId).toBe("j1");
+    });
+
     it("filters by unassigned quick filter", () => {
       const jobs = [
         makeJob({ jobId: "j1", assigneeName: null }),
