@@ -57,6 +57,7 @@ const setMaterialsMock = vi.hoisted(() => vi.fn());
 const managerEnableValidateMock = vi.hoisted(() => vi.fn(() => false));
 const getExistingPartNumbersMock = vi.hoisted(() => vi.fn(() => new Set<string>(["PN-X"])));
 const materialsMock = vi.hoisted((): { value: Array<Record<string, unknown>> } => ({ value: [] }));
+const deletedRowsVersionMock = vi.hoisted(() => ({ value: 0 }));
 const allowedPositionsMock = vi.hoisted(
   (): { value: Array<{ position: string; maxCount: number }> } => ({ value: [] }),
 );
@@ -343,6 +344,7 @@ vi.mock("hooks/useDiagnosticsManager", () => ({
       hasExistingDiagnostic: hasExistingDiagnosticMock.value,
       canArchiveOnDelete: false,
       automaticRows: [],
+      deletedRowsVersion: deletedRowsVersionMock.value,
       resyncMaterialsFromAPI: resyncMaterialsFromAPIMock,
     };
   },
@@ -647,6 +649,7 @@ beforeEach(() => {
   permissionMock.value = true;
   uiConfigEnabledMock.value = true;
   materialsMock.value = [];
+  deletedRowsVersionMock.value = 0;
   allowedPositionsMock.value = [];
   pendingMock.chargeable = { pendingTypeFields: [], hasChargeablePending: false };
   pendingMock.bosch = { pendingTypeFields: [], hasBoschInternalPending: false };
@@ -3555,6 +3558,47 @@ describe("JobOverview onRecalculatePrices", () => {
     expect(payload.materials[0].status).toBe("REVISED");
     expect(diagnosticsCtx().arePricesValidated).toBe(false);
     expect(setMessagesMock).not.toHaveBeenCalled();
+  });
+
+  it("recalculates with an empty change list after a spare-parts row is deleted", () => {
+    mockDiagnosticMaterials([{ id: "M-2", order: 1, partNumber: "PN2" }]);
+    const { rerenderView } = renderWithMessages();
+    expect(recalculatePricesMutateMock).not.toHaveBeenCalled();
+
+    deletedRowsVersionMock.value = 1;
+    rerenderView();
+
+    expect(recalculatePricesMutateMock).toHaveBeenCalledTimes(1);
+    const payload = lastRecalculatePayload();
+    expect(payload.changes).toEqual([]);
+    expect(payload.countryCode).toBe("ZA");
+    expect(payload.materials).toEqual([{ id: "M-2", order: 1, partNumber: "PN2" }]);
+
+    // Same version on a later render: no second request.
+    rerenderView();
+    expect(recalculatePricesMutateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends an empty materials list when the last row was deleted", () => {
+    vi.mocked(mapValuesToAPI).mockReturnValueOnce({ diagnostic: { status: "SUBMITTED" } });
+    const { rerenderView } = renderWithMessages();
+
+    deletedRowsVersionMock.value = 1;
+    rerenderView();
+
+    expect(lastRecalculatePayload().materials).toEqual([]);
+    expect(lastRecalculatePayload().changes).toEqual([]);
+  });
+
+  it("skips the after-delete recalculation without showing errors when the payload is invalid", () => {
+    validateByActionMock.mockImplementation(() => ({ row0_unitPrice: "required" }));
+    const { rerenderView } = renderWithMessages();
+
+    deletedRowsVersionMock.value = 1;
+    rerenderView();
+
+    expect(recalculatePricesMutateMock).not.toHaveBeenCalled();
+    expect(scrollToFirstErrorMock).not.toHaveBeenCalled();
   });
 
   it("resets a revised row to PENDING when its part number changes", () => {
