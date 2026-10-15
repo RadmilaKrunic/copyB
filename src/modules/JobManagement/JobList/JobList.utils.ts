@@ -54,6 +54,8 @@ export function filterJobs(
             return job.jobStatus === "READY_FOR_DIAGNOSTIC";
           case "unassigned":
             return !job.assigneeName || job.assigneeName === "un-assigned";
+          case "waitingForApproval":
+            return job.jobStatus === "WAITING_FOR_APPROVAL";
           default:
             return false;
         }
