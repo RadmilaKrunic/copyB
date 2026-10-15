@@ -629,7 +629,7 @@ const reindexSparePartsValues = (
  * so a flag set for the deleted row neither stays on its index nor lands on the row that moves up.
  */
 const reindexSparePartsFlagsInPlace = (
-  flags: Record<string, boolean> | undefined,
+  flags: Record<string, boolean> | null | undefined,
   deletedIndex: number,
 ): void => {
   if (!flags) return;
