@@ -258,6 +258,7 @@ export default function ClaimOverview() {
     getExistingPartNumbers,
     forceRebuildRef: claimForceRebuildRef,
     hasSyncedRef: claimHasSyncedRef,
+    rowsChangedVersion,
   } = useClaimMaterialsManager({
     claimId,
     claimMaterials: tabsReady ? claimData?.materials : undefined,
@@ -528,6 +529,40 @@ export default function ClaimOverview() {
       validateClaimPricesMutation,
     ],
   );
+
+  // Deleting a claim spare-parts row or restoring one from archived re-prices the claim
+  // through the claim prices PUT, on the settled rows (rowsChangedVersion bumps once they
+  // settle). An invalid form is skipped without showing errors; Validate reports them.
+  const onUpdateClaimPricesAfterRowsChange = useCallback(
+    (formValues: Record<string, unknown>) => {
+      if (!claimId || !allFields || !claimData) return;
+      if (validateClaimPricesMutation.isPending) return;
+      if (Object.keys(validateByAction("onValidate", formValues)).length > 0) return;
+      const payload = buildClaimPayload(formValues, claimFullData || {});
+      claimForceRebuildRef.current = true;
+      skipFormResetRef.current = true;
+      claimHasSyncedRef.current = false;
+      validateClaimPricesMutation.mutate({ claimId, payload });
+    },
+    [
+      claimId,
+      allFields,
+      claimData,
+      buildClaimPayload,
+      claimFullData,
+      claimForceRebuildRef,
+      claimHasSyncedRef,
+      validateByAction,
+      validateClaimPricesMutation,
+    ],
+  );
+
+  const handledRowsChangedVersionRef = useRef(0);
+  useEffect(() => {
+    if (rowsChangedVersion === handledRowsChangedVersionRef.current) return;
+    handledRowsChangedVersionRef.current = rowsChangedVersion;
+    onUpdateClaimPricesAfterRowsChange(initialFormValues);
+  }, [rowsChangedVersion, initialFormValues, onUpdateClaimPricesAfterRowsChange]);
 
   const onRequestApproval = useCallback(
     async (

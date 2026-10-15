@@ -428,6 +428,60 @@ describe("useClaimMaterialsManager", () => {
     expect(result.current.archivedMaterials[0].reimbursementPaymentMethod).toBe("BANK_TRANSFER");
   });
 
+  it("bumps rowsChangedVersion once per deleted or restored row", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(["user"], { countryCode: "ZA", permissions: [] });
+    const archivedArea = {
+      ...claimsTab.areas[0],
+      name: "claims_claimArchivedSpareParts#0",
+      fields: [{ name: "claims_claimArchivedSpareParts#0_position", label: "p", type: "dropdown" }],
+    };
+    const tabsWithArchived: Section[] = [
+      { ...claimsTab, areas: [...claimsTab.areas, archivedArea] },
+    ];
+
+    const { result } = renderHook(
+      () =>
+        useClaimMaterialsManager({
+          claimId: "C1",
+          claimMaterials: loadedClaimMaterials as never,
+          claimArchivedMaterials: loadedClaimMaterials as never,
+          currentActionType: "REPAIR",
+          currentJobType: "WARRANTY",
+          tabs: tabsWithArchived,
+          setTabs: vi.fn(),
+          allFields,
+          setAllFields: vi.fn(),
+          setInitialFormValues: vi.fn(),
+          skipFormResetRef: { current: false },
+          formValuesRef: { current: {} },
+          arePricesValidated: false,
+          setArePricesValidated: vi.fn(),
+          readOnly: false,
+        }),
+      { wrapper: makeWrapper(queryClient) },
+    );
+
+    await waitFor(() => expect(result.current.materials).toHaveLength(1));
+    await waitFor(() => expect(result.current.archivedMaterials).toHaveLength(1));
+    expect(result.current.rowsChangedVersion).toBe(0);
+
+    act(() => {
+      result.current.onDeleteRow("claims_claimSpareParts#0");
+    });
+    expect(result.current.rowsChangedVersion).toBe(1);
+
+    act(() => {
+      result.current.onRestoreRow("claims_claimArchivedSpareParts#0");
+    });
+    expect(result.current.rowsChangedVersion).toBe(2);
+
+    act(() => {
+      result.current.onRestoreRow("claims_claimArchivedSpareParts#9");
+    });
+    expect(result.current.rowsChangedVersion).toBe(2);
+  });
+
   it("applies default values when claim material price fields are missing", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     queryClient.setQueryData(["user"], { countryCode: "ZA", permissions: [] });

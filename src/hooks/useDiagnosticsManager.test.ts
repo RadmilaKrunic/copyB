@@ -2364,7 +2364,7 @@ describe("useDiagnosticsManager effects", () => {
       expect(result.current.enableValidate()).toBe(false);
     });
 
-    it("bumps deletedRowsVersion once after an archived row is rebuilt", () => {
+    it("bumps rowsChangedVersion once after an archived row is rebuilt", () => {
       const { props } = threeRowSetup();
       const { result } = renderManager(props);
       act(() => {
@@ -2373,16 +2373,16 @@ describe("useDiagnosticsManager effects", () => {
           makeItem({ partNumber: "x1" }),
         ]);
       });
-      expect(result.current.deletedRowsVersion).toBe(0);
+      expect(result.current.rowsChangedVersion).toBe(0);
 
       act(() => {
         result.current.onDeleteRow(`${SPARE}#0`);
       });
 
-      expect(result.current.deletedRowsVersion).toBe(1);
+      expect(result.current.rowsChangedVersion).toBe(1);
     });
 
-    it("bumps deletedRowsVersion on a permanent delete", () => {
+    it("bumps rowsChangedVersion on a permanent delete", () => {
       const { props } = createHookProps({ jobStatus: "IN_DIAGNOSTICS" });
       const { result } = renderManager(props);
       act(() => {
@@ -2393,10 +2393,10 @@ describe("useDiagnosticsManager effects", () => {
         result.current.onDeleteRow(`${SPARE}#0`);
       });
 
-      expect(result.current.deletedRowsVersion).toBe(1);
+      expect(result.current.rowsChangedVersion).toBe(1);
     });
 
-    it("keeps deletedRowsVersion when nothing was deleted", () => {
+    it("keeps rowsChangedVersion when nothing was deleted", () => {
       const { props } = createHookProps();
       const { result } = renderManager(props);
 
@@ -2404,7 +2404,7 @@ describe("useDiagnosticsManager effects", () => {
         result.current.onDeleteRow("diagnosticData_diagnosticsSpareParts#9");
       });
 
-      expect(result.current.deletedRowsVersion).toBe(0);
+      expect(result.current.rowsChangedVersion).toBe(0);
     });
 
     it("ignores unknown area names", async () => {
@@ -2571,6 +2571,40 @@ describe("useDiagnosticsManager effects", () => {
       });
 
       expect(mocks.setArePricesValidated).not.toHaveBeenCalled();
+    });
+
+    it("bumps rowsChangedVersion once after a row is restored", async () => {
+      const { props, mocks } = archivedProps();
+      const { result } = renderManager(props);
+      await waitFor(() => {
+        expect(mocks.setInitialFormValues).toHaveBeenCalled();
+      });
+      expect(result.current.rowsChangedVersion).toBe(0);
+
+      act(() => {
+        result.current.onRestoreRow(`${ARCHIVED}#0`);
+      });
+
+      expect(result.current.rowsChangedVersion).toBe(1);
+    });
+
+    it("keeps rowsChangedVersion when the restore is blocked", async () => {
+      const { props, mocks } = archivedProps({
+        allowedPositions: [makeAllowedPosition("SP", "USER", 1, 1)],
+      });
+      const { result } = renderManager(props, vi.fn());
+      await waitFor(() => {
+        expect(mocks.setInitialFormValues).toHaveBeenCalled();
+      });
+      act(() => {
+        result.current.setMaterials([makeItem({ position: "SP", partNumber: "FULL" })]);
+      });
+
+      act(() => {
+        result.current.onRestoreRow(`${ARCHIVED}#0`);
+      });
+
+      expect(result.current.rowsChangedVersion).toBe(0);
     });
 
     it("removes the archived area and fields when a row is restored", async () => {

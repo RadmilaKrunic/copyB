@@ -145,6 +145,11 @@ export interface UseClaimMaterialsManagerReturn {
   forceRebuildRef: RefObject<boolean>;
   hasSyncedRef: RefObject<boolean>;
   claimMaterialToMaterialItem: (m: Material) => MaterialItem;
+  /**
+   * Bumped once per deleted or restored claim spare-parts row, in the commit where the
+   * active rows have settled. Consumers react to it to re-price the claim.
+   */
+  rowsChangedVersion: number;
 }
 
 const POSITION_PERMISSIONS: Record<string, string> = {
@@ -259,6 +264,9 @@ export const useClaimMaterialsManager = ({
   discountBaseValueRef.current = discountBaseValue;
   const forceRebuildRef = useRef(false);
   const archivedForceRebuildRef = useRef(false);
+  /** Set by onRestoreRow; Effect 2 bumps rowsChangedVersion once the restored row is built. */
+  const notifyAfterRowsRebuildRef = useRef(false);
+  const [rowsChangedVersion, setRowsChangedVersion] = useState(0);
   // Tracks the last claimMaterials reference we synced into `materials` state.
   // Prevents Effect 1 from double-running when Effect 2 causes a re-render
   // (same claimMaterials reference → skip) while still allowing re-runs when
@@ -307,7 +315,17 @@ export const useClaimMaterialsManager = ({
 
   // ── Effect 2: materials[] → areas + allFields + initialFormValues ──────
   useEffect(() => {
-    if (materials.length === 0) return;
+    // A restore reports itself only once its row is rebuilt, so the rowsChangedVersion
+    // consumer sees the restored row in tabs, fields and values.
+    const shouldNotify = notifyAfterRowsRebuildRef.current;
+    notifyAfterRowsRebuildRef.current = false;
+    const notifyRowsChanged = () => {
+      if (shouldNotify) setRowsChangedVersion((v) => v + 1);
+    };
+    if (materials.length === 0) {
+      notifyRowsChanged();
+      return;
+    }
 
     // Use a fresh snapshot from the refs to avoid stale closures racing
     // with useDiagnosticsManager which shares the same setTabs / setAllFields.
@@ -315,7 +333,10 @@ export const useClaimMaterialsManager = ({
     const currentFields = allFieldsRef.current ?? [];
 
     const claimsTab = currentTabs.find((t) => t.name === "claims");
-    if (!claimsTab) return;
+    if (!claimsTab) {
+      notifyRowsChanged();
+      return;
+    }
 
     const sparePartsAreas = claimsTab.areas.filter(
       (a) =>
@@ -323,7 +344,10 @@ export const useClaimMaterialsManager = ({
         a.name.includes("claimSpareParts") &&
         !a.name.includes("claimArchivedSpareParts"),
     );
-    if (sparePartsAreas.length === 0) return;
+    if (sparePartsAreas.length === 0) {
+      notifyRowsChanged();
+      return;
+    }
 
     const templateArea = sparePartsAreas[0];
     const currentCount = sparePartsAreas.length;
@@ -413,6 +437,7 @@ export const useClaimMaterialsManager = ({
       });
     }
     forceRebuildRef.current = false;
+    notifyRowsChanged();
   }, [materials, setAllFields, setTabs, setInitialFormValues, formValuesRef, skipFormResetRef]);
 
   const populateNeeded = (
@@ -626,6 +651,8 @@ export const useClaimMaterialsManager = ({
       setTabs(currentTabs);
       setMaterials((prev) => normalizeMaterialOrders(prev.filter((_, i) => i !== areaIndex)));
       setArePricesValidated(false);
+      // Tabs, fields and values settle in this batch, so report the delete now.
+      setRowsChangedVersion((v) => v + 1);
     },
     [
       setInitialFormValues,
@@ -722,6 +749,7 @@ export const useClaimMaterialsManager = ({
 
       const restoredItem = claimMaterialToMaterialItem(materialToRestore);
       forceRebuildRef.current = true;
+      notifyAfterRowsRebuildRef.current = true;
       setMaterials((prev) => [...prev, restoredItem]);
       archivedForceRebuildRef.current = true;
       setArchivedMaterials((prev) => prev.filter((_, i) => i !== areaIndex));
@@ -766,5 +794,6 @@ export const useClaimMaterialsManager = ({
     forceRebuildRef,
     hasSyncedRef,
     claimMaterialToMaterialItem,
+    rowsChangedVersion,
   };
 };

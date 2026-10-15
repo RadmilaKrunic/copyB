@@ -1012,7 +1012,7 @@ export default function JobOverview() {
     canArchiveOnDelete,
     discountBase,
     automaticRows,
-    deletedRowsVersion,
+    rowsChangedVersion,
   } = useDiagnosticsManager({
     diagnosticData: tabs.length > 0 ? diagnosticData : undefined,
     currentActionType,
@@ -1624,10 +1624,10 @@ export default function JobOverview() {
     ],
   );
 
-  // Deleting a spare-parts row recalculates prices for the remaining rows with an empty
-  // `changes` list. It runs on the post-delete rows (deletedRowsVersion bumps once they settle).
+  // Deleting a spare-parts row or restoring one from archived recalculates prices with an empty
+  // `changes` list. It runs on the settled rows (rowsChangedVersion bumps once they settle).
   // An invalid payload is skipped without showing errors; validate reports them.
-  const onRecalculatePricesAfterRowDelete = useCallback(
+  const onRecalculatePricesAfterRowsChange = useCallback(
     (formValues: Record<string, unknown>) => {
       const currentAllFields = allFieldsRef.current;
       if (recalculatePricesMutation.isPending || !currentAllFields) return;
@@ -1650,12 +1650,12 @@ export default function JobOverview() {
     ],
   );
 
-  const handledDeletedRowsVersionRef = useRef(0);
+  const handledRowsChangedVersionRef = useRef(0);
   useEffect(() => {
-    if (deletedRowsVersion === handledDeletedRowsVersionRef.current) return;
-    handledDeletedRowsVersionRef.current = deletedRowsVersion;
-    onRecalculatePricesAfterRowDelete(initialFormValues);
-  }, [deletedRowsVersion, initialFormValues, onRecalculatePricesAfterRowDelete]);
+    if (rowsChangedVersion === handledRowsChangedVersionRef.current) return;
+    handledRowsChangedVersionRef.current = rowsChangedVersion;
+    onRecalculatePricesAfterRowsChange(initialFormValues);
+  }, [rowsChangedVersion, initialFormValues, onRecalculatePricesAfterRowsChange]);
 
   const onValidate = useCallback(
     async (formValues?: Record<string, unknown>, helpers?: ActionHelpers) => {

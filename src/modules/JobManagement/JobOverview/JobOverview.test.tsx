@@ -57,7 +57,7 @@ const setMaterialsMock = vi.hoisted(() => vi.fn());
 const managerEnableValidateMock = vi.hoisted(() => vi.fn(() => false));
 const getExistingPartNumbersMock = vi.hoisted(() => vi.fn(() => new Set<string>(["PN-X"])));
 const materialsMock = vi.hoisted((): { value: Array<Record<string, unknown>> } => ({ value: [] }));
-const deletedRowsVersionMock = vi.hoisted(() => ({ value: 0 }));
+const rowsChangedVersionMock = vi.hoisted(() => ({ value: 0 }));
 const allowedPositionsMock = vi.hoisted(
   (): { value: Array<{ position: string; maxCount: number }> } => ({ value: [] }),
 );
@@ -344,7 +344,7 @@ vi.mock("hooks/useDiagnosticsManager", () => ({
       hasExistingDiagnostic: hasExistingDiagnosticMock.value,
       canArchiveOnDelete: false,
       automaticRows: [],
-      deletedRowsVersion: deletedRowsVersionMock.value,
+      rowsChangedVersion: rowsChangedVersionMock.value,
       resyncMaterialsFromAPI: resyncMaterialsFromAPIMock,
     };
   },
@@ -649,7 +649,7 @@ beforeEach(() => {
   permissionMock.value = true;
   uiConfigEnabledMock.value = true;
   materialsMock.value = [];
-  deletedRowsVersionMock.value = 0;
+  rowsChangedVersionMock.value = 0;
   allowedPositionsMock.value = [];
   pendingMock.chargeable = { pendingTypeFields: [], hasChargeablePending: false };
   pendingMock.bosch = { pendingTypeFields: [], hasBoschInternalPending: false };
@@ -3565,7 +3565,7 @@ describe("JobOverview onRecalculatePrices", () => {
     const { rerenderView } = renderWithMessages();
     expect(recalculatePricesMutateMock).not.toHaveBeenCalled();
 
-    deletedRowsVersionMock.value = 1;
+    rowsChangedVersionMock.value = 1;
     rerenderView();
 
     expect(recalculatePricesMutateMock).toHaveBeenCalledTimes(1);
@@ -3583,7 +3583,7 @@ describe("JobOverview onRecalculatePrices", () => {
     vi.mocked(mapValuesToAPI).mockReturnValueOnce({ diagnostic: { status: "SUBMITTED" } });
     const { rerenderView } = renderWithMessages();
 
-    deletedRowsVersionMock.value = 1;
+    rowsChangedVersionMock.value = 1;
     rerenderView();
 
     expect(lastRecalculatePayload().materials).toEqual([]);
@@ -3594,7 +3594,7 @@ describe("JobOverview onRecalculatePrices", () => {
     validateByActionMock.mockImplementation(() => ({ row0_unitPrice: "required" }));
     const { rerenderView } = renderWithMessages();
 
-    deletedRowsVersionMock.value = 1;
+    rowsChangedVersionMock.value = 1;
     rerenderView();
 
     expect(recalculatePricesMutateMock).not.toHaveBeenCalled();
