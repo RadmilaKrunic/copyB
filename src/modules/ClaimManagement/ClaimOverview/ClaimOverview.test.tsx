@@ -11,55 +11,59 @@ import { MessagesContext } from "contexts/messagescontext";
 // Shared, mutable test state. Everything the mocked collaborators return is
 // driven from here so individual tests can shape the claim, tabs and manager.
 // ---------------------------------------------------------------------------
-const h = vi.hoisted(() => ({
-  userCountry: "PL",
-  claimInCache: { jobId: "J-1" } as Record<string, unknown> | undefined,
-  mutationOptions: undefined as
-    | { onSuccess?: () => void; onError?: (error: unknown) => void }
-    | undefined,
-  postMessageMutate: vi.fn(),
-  updatePrices: vi.fn(),
-  updatePricesOptions: undefined as any,
-  refetchQueries: vi.fn(),
-  uiConfig: { isLoading: false, isError: false },
-  uiConfigCountry: undefined as string | undefined,
-  requestApproval: vi.fn(),
-  invalidateQueries: vi.fn(),
-  trackNoteAdded: vi.fn(),
-  trackActionFailed: vi.fn(),
-  trackClaimPricesUpdated: vi.fn(),
-  trackClaimApprovalRequested: vi.fn(),
-  scrollToTop: vi.fn(),
-  setMessages: vi.fn(),
-  useClaimById: vi.fn(),
-  useClaimMaterialsManager: vi.fn(),
-  useDiagnosticsManager: vi.fn(),
-  setInitialFormValues: vi.fn(),
-  setAllFields: vi.fn(),
-  setTabs: vi.fn(),
-  setEditingSections: vi.fn(),
-  editingSections: new Set<string>(),
-  handleActionWithValidation: vi.fn(),
-  validateByAction: vi.fn(),
-  areAllActionsDisabled: vi.fn(),
-  setSectionDisabledState: vi.fn(),
-  convertAPIDataToFormValues: vi.fn(),
-  claimDecisionPermissions: { canChangeClaimDecision: true },
-  formInit: {
-    initialFormValues: {} as Record<string, unknown>,
-    allFields: [] as any[],
-    tabs: [] as any[],
-  },
-  mgr: {} as Record<string, any>,
-  captured: {
-    generic: undefined as any,
-    claim: undefined as any,
-    diag: undefined as any,
-    sections: [] as any[],
-    onTabSelect: undefined as undefined | ((e: unknown, data: { value: string }) => void),
-    tabsSelectedValue: undefined as string | undefined,
-  },
-}));
+const h = vi.hoisted(() => {
+  // Declares a property's wider type without a type assertion.
+  const typed = <T,>(value: T): T => value;
+  return {
+    userCountry: "PL",
+    claimInCache: typed<Record<string, unknown> | undefined>({ jobId: "J-1" }),
+    mutationOptions: typed<
+      { onSuccess?: () => void; onError?: (error: unknown) => void } | undefined
+    >(undefined),
+    postMessageMutate: vi.fn(),
+    updatePrices: vi.fn(),
+    updatePricesOptions: undefined as any,
+    refetchQueries: vi.fn(),
+    uiConfig: { isLoading: false, isError: false },
+    uiConfigCountry: typed<string | undefined>(undefined),
+    requestApproval: vi.fn(),
+    invalidateQueries: vi.fn(),
+    trackNoteAdded: vi.fn(),
+    trackActionFailed: vi.fn(),
+    trackClaimPricesUpdated: vi.fn(),
+    trackClaimApprovalRequested: vi.fn(),
+    scrollToTop: vi.fn(),
+    setMessages: vi.fn(),
+    useClaimById: vi.fn(),
+    useClaimMaterialsManager: vi.fn(),
+    useDiagnosticsManager: vi.fn(),
+    setInitialFormValues: vi.fn(),
+    setAllFields: vi.fn(),
+    setTabs: vi.fn(),
+    setEditingSections: vi.fn(),
+    editingSections: new Set<string>(),
+    handleActionWithValidation: vi.fn(),
+    validateByAction: vi.fn(),
+    areAllActionsDisabled: vi.fn(),
+    setSectionDisabledState: vi.fn(),
+    convertAPIDataToFormValues: vi.fn(),
+    claimDecisionPermissions: { canChangeClaimDecision: true },
+    formInit: {
+      initialFormValues: typed<Record<string, unknown>>({}),
+      allFields: [] as any[],
+      tabs: [] as any[],
+    },
+    mgr: {} as Record<string, any>,
+    captured: {
+      generic: undefined as any,
+      claim: undefined as any,
+      diag: undefined as any,
+      sections: [] as any[],
+      onTabSelect: typed<((e: unknown, data: { value: string }) => void) | undefined>(undefined),
+      tabsSelectedValue: typed<string | undefined>(undefined),
+    },
+  };
+});
 
 vi.mock("@/analytics", () => ({
   useAnalytics: () => ({
@@ -96,7 +100,7 @@ vi.mock("@bosch/react-frok", () => ({
     return <div data-testid="tab-navigation">{children}</div>;
   },
   Tab: ({ children, value }: { children: React.ReactNode; value: string }) => (
-    <a data-testid={`tab-${value}`}>{children}</a>
+    <span data-testid={`tab-${value}`}>{children}</span>
   ),
 }));
 
@@ -497,7 +501,7 @@ const lastSection = () => h.captured.sections.at(-1);
 
 beforeEach(() => {
   vi.clearAllMocks();
-  window.location.hash = "";
+  globalThis.location.hash = "";
   h.userCountry = "PL";
   h.claimInCache = { jobId: "J-1" };
   h.mutationOptions = undefined;
@@ -540,7 +544,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  window.location.hash = "";
+  globalThis.location.hash = "";
 });
 
 // ---------------------------------------------------------------------------
@@ -676,7 +680,7 @@ describe("ClaimOverview tabs", () => {
   });
 
   it("selects the tab from the URL hash when it is visible", () => {
-    window.location.hash = "#notes";
+    globalThis.location.hash = "#notes";
 
     renderClaim();
 
@@ -684,7 +688,7 @@ describe("ClaimOverview tabs", () => {
   });
 
   it("falls back to the first tab when the hash matches no visible tab", () => {
-    window.location.hash = "#doesNotExist";
+    globalThis.location.hash = "#doesNotExist";
 
     renderClaim();
 

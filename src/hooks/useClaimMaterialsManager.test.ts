@@ -582,7 +582,7 @@ describe("useClaimMaterialsManager", () => {
     expect(item.taxAmount).toBe(0);
   });
   describe("row values use the shared diagnostics row builder", () => {
-    const netField = {
+    const netField: Field = {
       name: "claims_claimSpareParts#0_netAmount",
       label: "net",
       type: "price",
@@ -592,7 +592,7 @@ describe("useClaimMaterialsManager", () => {
       ...claimsTab,
       areas: [{ ...claimsTab.areas[0], fields: [...claimsTab.areas[0].fields, netField] }],
     } as unknown as Section;
-    const priceFields = [...allFields, netField] as unknown as Field[];
+    const priceFields: Field[] = [...allFields, netField];
 
     const renderWithFormValues = async (formValues: Record<string, unknown>) => {
       const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
