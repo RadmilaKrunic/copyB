@@ -581,34 +581,41 @@ export const useClaimMaterialsManager = ({
       );
       const autoPosition = availablePositions.length === 1 ? availablePositions[0].position : "";
 
-      // New rows added via "add row" default to WARRANTY regardless of the
-      // claim's overall jobType (per PTBASS product requirement).
-      const newItem = buildEmptyClaimMaterial(autoPosition, "WARRANTY");
+      // New rows added via "add row" take the claim's (diagnostic) jobType.
+      const newItem = buildEmptyClaimMaterial(autoPosition, currentJobType || "WARRANTY");
+
+      // materials[i] belongs to the i-th active area; its "#N" can differ from i
+      // once a row has been deleted, so read form values by the area's own prefix.
+      const rowPrefixes = (tabsRef.current.find((t) => t.name === "claims")?.areas ?? [])
+        .filter(
+          (a) =>
+            a.isMultiple &&
+            a.name.includes("claimSpareParts") &&
+            !a.name.includes("claimArchivedSpareParts"),
+        )
+        .map((a) => /^.*?#\d+_/.exec(a.fields[0]?.name ?? "")?.[0] ?? "");
 
       setMaterials((prev) => {
         // Sync current form values back into existing rows before appending
         prev.forEach((m, i) => {
-          m.partNumber =
-            (formValues[`claims_claimSpareParts#${i}_sparePartNumber`] as string) ?? m.partNumber;
-          m.position = (formValues[`claims_claimSpareParts#${i}_position`] as string) ?? m.position;
-          m.quantity = Number(formValues[`claims_claimSpareParts#${i}_quantity`]) || m.quantity;
-          m.unitPrice = Number(formValues[`claims_claimSpareParts#${i}_unitPrice`]) || m.unitPrice;
-          m.description =
-            (formValues[`claims_claimSpareParts#${i}_description`] as string) ?? m.description;
-          m.type = (formValues[`claims_claimSpareParts#${i}_type`] as string) ?? m.type;
-          m.netAmount = Number(formValues[`claims_claimSpareParts#${i}_netAmount`]) || m.netAmount;
-          m.grossAmount =
-            Number(formValues[`claims_claimSpareParts#${i}_grossAmount`]) || m.grossAmount;
-          m.totalAmount =
-            Number(formValues[`claims_claimSpareParts#${i}_totalAmount`]) || m.totalAmount;
-          m.discount = Number(formValues[`claims_claimSpareParts#${i}_discount`]) || m.discount;
-          m.tax = Number(formValues[`claims_claimSpareParts#${i}_tax`]) || m.tax;
+          const p = rowPrefixes[i] || `claims_claimSpareParts#${i}_`;
+          m.partNumber = (formValues[`${p}sparePartNumber`] as string) ?? m.partNumber;
+          m.position = (formValues[`${p}position`] as string) ?? m.position;
+          m.quantity = Number(formValues[`${p}quantity`]) || m.quantity;
+          m.unitPrice = Number(formValues[`${p}unitPrice`]) || m.unitPrice;
+          m.description = (formValues[`${p}description`] as string) ?? m.description;
+          m.type = (formValues[`${p}type`] as string) ?? m.type;
+          m.netAmount = Number(formValues[`${p}netAmount`]) || m.netAmount;
+          m.grossAmount = Number(formValues[`${p}grossAmount`]) || m.grossAmount;
+          m.totalAmount = Number(formValues[`${p}totalAmount`]) || m.totalAmount;
+          m.discount = Number(formValues[`${p}discount`]) || m.discount;
+          m.tax = Number(formValues[`${p}tax`]) || m.tax;
         });
         return normalizeMaterialOrders([...prev, newItem]);
       });
       setArePricesValidated(false);
     },
-    [readOnly, allowedPositions, setArePricesValidated],
+    [readOnly, allowedPositions, currentJobType, setArePricesValidated],
   );
 
   // ── onDeleteRow ────────────────────────────────────────────────────────
