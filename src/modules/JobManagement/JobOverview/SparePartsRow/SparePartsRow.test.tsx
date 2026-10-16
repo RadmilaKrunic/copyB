@@ -332,6 +332,7 @@ type RowProps = {
   isDisabled?: boolean;
   userPermissions?: string[];
   fields?: Field[];
+  formContextOverrides?: Partial<GenericFormContextType>;
 };
 
 const renderRow = (
@@ -342,7 +343,6 @@ const renderRow = (
   warrantyPanelInfo: WarrantyPanelInfo = ELIGIBLE_WARRANTY_PANEL_INFO,
   rowProps: RowProps = {},
   contextOverrides: Partial<DiagnosticsContextValue> = {},
-  formContextOverrides: Partial<GenericFormContextType> = {},
 ) => {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   queryClient.setQueryData(["user"], { permissions: rowProps.userPermissions ?? ["ALL"] });
@@ -392,7 +392,7 @@ const renderRow = (
           actionCallbacks: {},
           sparePartNotBelongsToTool: { current: sparePartNotBelongsToTool },
           warrantyPanelInfo,
-          ...formContextOverrides,
+          ...rowProps.formContextOverrides,
         }}
       >
         <DiagnosticsContext.Provider value={diagnosticsContextValue}>
@@ -2064,7 +2064,7 @@ describe("SparePartsRow current row behavior", () => {
         { fields: reordered },
       );
 
-      const order = screen.getAllByTestId(/^field-/).map((el) => el.getAttribute("data-testid"));
+      const order = screen.getAllByTestId(/^field-/).map((el) => el.dataset.testid);
       expect(order[0]).toBe("field-row0_tax");
       expect(order.indexOf("field-row0_netAmount")).toBeLessThan(
         order.indexOf("field-row0_unitPrice"),
@@ -2086,9 +2086,9 @@ describe("SparePartsRow current row behavior", () => {
         "GROSS_PRICE",
         {},
         ELIGIBLE_WARRANTY_PANEL_INFO,
-        deleteProps([PERMISSIONS.DIAGNOSTICS.CAN_INSERT_AND_DELETE_SPARE_PARTS_ITEMS]),
-        {},
-        { isRepairAnswerLocked: true },
+        deleteProps([PERMISSIONS.DIAGNOSTICS.CAN_INSERT_AND_DELETE_SPARE_PARTS_ITEMS], {
+          formContextOverrides: { isRepairAnswerLocked: true },
+        }),
       );
 
       expect(screen.queryByTestId("icon-delete")).not.toBeInTheDocument();
