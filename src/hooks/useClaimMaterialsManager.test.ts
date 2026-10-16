@@ -588,10 +588,10 @@ describe("useClaimMaterialsManager", () => {
       type: "price",
       subtype: "diagnosticNetAmount",
     };
-    const priceTab = {
+    const priceTab: Section = {
       ...claimsTab,
       areas: [{ ...claimsTab.areas[0], fields: [...claimsTab.areas[0].fields, netField] }],
-    } as unknown as Section;
+    };
     const priceFields: Field[] = [...allFields, netField];
 
     const renderWithFormValues = async (formValues: Record<string, unknown>) => {
