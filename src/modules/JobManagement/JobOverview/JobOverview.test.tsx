@@ -3437,7 +3437,7 @@ describe("JobOverview onRecalculatePrices", () => {
   const materialRowFields = (): Field[] => [
     makeField("row0_unitPrice", "diagnosticUnitPrice", {
       fieldMapping: {
-        originalName: "unitPriceMaterial",
+        originalName: "unitPrice",
         nameStartsWith: "row0",
         parentMap: ["diagnostic", "materials"],
       },
@@ -3459,6 +3459,18 @@ describe("JobOverview onRecalculatePrices", () => {
     makeField("row0_id", "diagnosticMaterialId", { fieldMapping: { nameStartsWith: "row0" } }),
     makeField("row0_status", "diagnosticMaterialStatus", {
       fieldMapping: { nameStartsWith: "row0" },
+    }),
+    makeField("summaryDiscountMaterial", "diagnosticSummaryDiscountMaterial", {
+      fieldMapping: { originalName: "summaryDiscountMaterial" },
+    }),
+    makeField("summarySubtotalMaterial", "diagnosticSummarySubtotalMaterial", {
+      fieldMapping: { originalName: "summarySubtotalMaterial" },
+    }),
+    makeField("summaryTotalAmountMaterial", "diagnosticSummaryTotalAmountMaterial", {
+      fieldMapping: { originalName: "summaryTotalAmountMaterial" },
+    }),
+    makeField("summaryDiscountNetMaterial", "diagnosticSummaryDiscountNetMaterial", {
+      fieldMapping: { originalName: "summaryDiscountNetMaterial" },
     }),
     makeField("jobNote", "text", { fieldMapping: { parentMap: ["job"] } }),
   ];
@@ -3535,7 +3547,7 @@ describe("JobOverview onRecalculatePrices", () => {
     expect(captured.formik?.touched).toEqual({ row0_unitPrice: true });
   });
 
-  it("sends a material price change scoped to chargeable spare-part positions", () => {
+  it("sends a row price change for its line without a scope", () => {
     mockDiagnosticMaterials([{ id: "M-1", order: 1, partNumber: "PN-1", status: "REVISED" }]);
     const { setMessagesMock } = renderWithMessages();
     setPricesValidated(true);
@@ -3545,19 +3557,38 @@ describe("JobOverview onRecalculatePrices", () => {
     expect(recalculatePricesMutateMock).toHaveBeenCalledTimes(1);
     const payload = lastRecalculatePayload();
     expect(payload.countryCode).toBe("ZA");
-    expect(payload.changes).toEqual([
-      {
-        type: "unitPrice",
-        lineId: "M-1",
-        value: 0,
-        scope: { positions: ["SP", "PN", "AC"], jobTypes: ["CHARGEABLE"] },
-      },
-    ]);
+    expect(payload.changes).toEqual([{ type: "unitPrice", lineId: "M-1", value: 0, scope: null }]);
     // A price change does not reset the row status.
     expect(payload.materials[0].status).toBe("REVISED");
     expect(diagnosticsCtx().arePricesValidated).toBe(false);
     expect(setMessagesMock).not.toHaveBeenCalled();
   });
+
+  it.each([
+    { fieldName: "summaryDiscountMaterial", type: "summaryDiscount" },
+    { fieldName: "summaryDiscountNetMaterial", type: "summaryDiscount" },
+    { fieldName: "summarySubtotalMaterial", type: "summaryNetAmount" },
+    { fieldName: "summaryTotalAmountMaterial", type: "summaryTotalAmount" },
+  ])(
+    "sends a $fieldName change as $type scoped to chargeable spare-part positions",
+    ({ fieldName, type }) => {
+      mockDiagnosticMaterials([{ id: "M-1", order: 1, partNumber: "PN-1" }]);
+      renderWithMessages();
+
+      recalculate(fieldName, 10);
+
+      expect(recalculatePricesMutateMock).toHaveBeenCalledTimes(1);
+      // Summary fields belong to no row, so the change has no line id.
+      expect(lastRecalculatePayload().changes).toEqual([
+        {
+          type,
+          lineId: "",
+          value: 10,
+          scope: { positions: ["SP", "PN", "AC"], jobTypes: ["CHARGEABLE"] },
+        },
+      ]);
+    },
+  );
 
   it("recalculates with an empty change list after a spare-parts row is deleted", () => {
     mockDiagnosticMaterials([{ id: "M-2", order: 1, partNumber: "PN2" }]);
@@ -3600,7 +3631,8 @@ describe("JobOverview onRecalculatePrices", () => {
     expect(scrollToFirstErrorMock).not.toHaveBeenCalled();
   });
 
-  it("resets a revised row to PENDING when its part number changes", () => {
+  // The backend owns the REVISED/REJECTED -> PENDING reset, so the payload keeps the row statuses.
+  it("keeps a revised row status when its part number changes", () => {
     mockDiagnosticMaterials([
       { id: "M-1", order: 1, partNumber: "PN-1", status: "REVISED" },
       { id: "M-2", order: 2, partNumber: "PN-2", status: "REJECTED" },
@@ -3613,7 +3645,7 @@ describe("JobOverview onRecalculatePrices", () => {
     expect(payload.changes).toEqual([
       { type: "partNumber", lineId: "M-1", value: "PN-9", scope: null },
     ]);
-    expect(payload.materials.map((m: AnyRecord) => m.status)).toEqual(["PENDING", "REJECTED"]);
+    expect(payload.materials.map((m: AnyRecord) => m.status)).toEqual(["REVISED", "REJECTED"]);
   });
 
   it("keeps the row status on a job type change when the row is not revised or rejected", () => {
