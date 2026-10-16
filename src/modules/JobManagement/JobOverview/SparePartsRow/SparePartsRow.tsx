@@ -44,7 +44,6 @@ const EXCHANGE_ACTION_TYPES = new Set([
 ]);
 const SPARE_PARTS_EXCHANGE_ACTION_TYPES = new Set(["SPARE_PARTS_EXCHANGE"]);
 const TYPE_OPTIONS_DISABLED_FOR_INVALID_SPARE_PART = new Set(["WARRANTY", "SERVICE_OFFERING"]);
-const RESETTABLE_ROW_STATUSES = new Set(["REVISED", "REJECTED"]);
 const POSITION_PERMISSIONS = {
   LA: {
     canView: PERMISSIONS.DIAGNOSTICS.CAN_VIEW_LABOUR_ITEMS,
@@ -142,7 +141,6 @@ function SparePartsRow({
   const {
     arePricesValidated,
     allowedPositions,
-    setRevisedRejectedRowPending,
     canArchiveOnDelete,
     jobStatus,
     discountBase,
@@ -251,9 +249,6 @@ function SparePartsRow({
     return field;
   };
 
-  const areaNamePrefix = fields[0]?.fieldMapping?.nameStartsWith ?? "";
-  const areaName = areaNamePrefix ? areaNamePrefix.slice(0, -1) : "";
-
   const isWarrantyIneligible = Boolean(
     warrantyPanelInfo?.isIneligible || !warrantyPanelInfo?.hasPurchaseDate,
   );
@@ -361,22 +356,7 @@ function SparePartsRow({
     return null;
   };
   return (
-    <div
-      className="spare-parts-row-wrapper"
-      onChange={(e: React.FormEvent<HTMLDivElement>) => {
-        const target = e.target as HTMLElement & { name?: string };
-        if (
-          target?.name === typeField?.name ||
-          target?.name === partNumberFieldName ||
-          target?.name === positionField?.name
-        )
-          return;
-        const rowStatus = statusField ? values[statusField.name] : undefined;
-        if (typeof rowStatus === "string" && RESETTABLE_ROW_STATUSES.has(rowStatus)) {
-          setRevisedRejectedRowPending(areaName);
-        }
-      }}
-    >
+    <div className="spare-parts-row-wrapper">
       <div className={`spare-parts-row ${hasPriceViewPermission ? "admin" : ""}`}>
         {checkboxField && (
           <GenericField

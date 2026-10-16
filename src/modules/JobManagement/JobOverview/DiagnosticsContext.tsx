@@ -49,8 +49,6 @@ export interface DiagnosticsContextValue {
   /** Radio-button options for the summary type selector; computed inside SummaryArea */
   summaryTypeOptions: { label: string; value: string }[];
   setSummaryTypeOptions: Dispatch<SetStateAction<{ label: string; value: string }[]>>;
-  /** Reset a row status from REVISED to PENDING after user edits */
-  setRevisedRejectedRowPending: (areaName: string) => void;
   /** Whether the archived spare parts section is expanded */
   isArchivedExpanded: boolean;
   setIsArchivedExpanded: Dispatch<SetStateAction<boolean>>;
@@ -95,7 +93,6 @@ const defaultDiagnosticsContextValue: DiagnosticsContextValue = {
   markRowDirty: noop,
   summaryTypeOptions: DEFAULT_SUMMARY_TYPE_OPTIONS,
   setSummaryTypeOptions: noop,
-  setRevisedRejectedRowPending: noop,
   isArchivedExpanded: false,
   setIsArchivedExpanded: noop,
   canArchiveOnDelete: false,

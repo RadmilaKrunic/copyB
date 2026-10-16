@@ -338,7 +338,6 @@ vi.mock("hooks/useDiagnosticsManager", () => ({
       onAddMaterials: onAddMaterialsMock,
       getExistingPartNumbers: getExistingPartNumbersMock,
       enableValidate: managerEnableValidateMock,
-      setRevisedRejectedRowPending: vi.fn(),
       apiMaterialsLoaded: false,
       apiMaterialsEmpty: true,
       hasExistingDiagnostic: hasExistingDiagnosticMock.value,

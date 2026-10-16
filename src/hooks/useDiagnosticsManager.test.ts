@@ -1067,27 +1067,6 @@ describe("useDiagnosticsManager hook behavior", () => {
     expect(mocks.setArePricesValidated).toHaveBeenCalledWith(false);
   });
 
-  it("resets rejected row status to pending after item edit", async () => {
-    const { props } = createHookProps();
-    const { result } = renderHook(() => useDiagnosticsManager(props));
-
-    act(() => {
-      result.current.setMaterials([
-        makeItem({ partNumber: "A", status: "REJECTED" }),
-        makeItem({ partNumber: "B", status: "APPROVED" }),
-      ]);
-    });
-
-    act(() => {
-      result.current.setRevisedRejectedRowPending("diagnosticData_diagnosticsSpareParts#0");
-    });
-
-    await waitFor(() => {
-      expect(result.current.materials[0].status).toBe("PENDING");
-    });
-    expect(result.current.materials[1].status).toBe("APPROVED");
-  });
-
   it("enableValidate reflects arePricesValidated and pending archived deletions", () => {
     const { props } = createHookProps({ arePricesValidated: true });
     const { result } = renderHook(() => useDiagnosticsManager(props));
@@ -2661,63 +2640,6 @@ describe("useDiagnosticsManager effects", () => {
       const { result } = renderManager(props);
 
       expect(result.current.getExistingPartNumbers({ anything: "x" })).toEqual(new Set());
-    });
-
-    it("setRevisedRejectedRowPending ignores unknown areas and non-resettable statuses", () => {
-      const { props } = createHookProps();
-      const { result } = renderManager(props);
-      act(() => {
-        result.current.setMaterials([makeItem({ status: "APPROVED" })]);
-      });
-
-      act(() => {
-        result.current.setRevisedRejectedRowPending("unknown-area");
-        result.current.setRevisedRejectedRowPending(`${SPARE}#0`);
-      });
-
-      expect(result.current.materials[0].status).toBe("APPROVED");
-    });
-
-    it("setRevisedRejectedRowPending resets REVISED rows", () => {
-      const { props } = createHookProps();
-      const { result } = renderManager(props);
-      act(() => {
-        result.current.setMaterials([makeItem({ status: "REVISED" })]);
-      });
-
-      act(() => {
-        result.current.setRevisedRejectedRowPending(`${SPARE}#0`);
-      });
-
-      expect(result.current.materials[0].status).toBe("PENDING");
-    });
-
-    it("setRevisedRejectedRowPending ignores rows without a status", () => {
-      const { props } = createHookProps();
-      const { result } = renderManager(props);
-      act(() => {
-        result.current.setMaterials([makeItem({ status: undefined })]);
-      });
-
-      act(() => {
-        result.current.setRevisedRejectedRowPending(`${SPARE}#0`);
-      });
-
-      expect(result.current.materials[0].status).toBeUndefined();
-    });
-
-    it("setRevisedRejectedRowPending ignores calls when the diagnostic tab is missing", () => {
-      const { props } = createHookProps({ tabs: [] });
-      const { result } = renderManager(props);
-      act(() => {
-        result.current.setMaterials([makeItem({ status: "REJECTED" })]);
-      });
-
-      act(() => {
-        result.current.setRevisedRejectedRowPending(`${SPARE}#0`);
-      });
-
-      expect(result.current.materials[0].status).toBe("REJECTED");
     });
   });
 });

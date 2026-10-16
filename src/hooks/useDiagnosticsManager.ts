@@ -551,7 +551,6 @@ function removeArchivedArea(tab: Section, areaName: string): Section {
 }
 
 const SPARE_PARTS_PREFIX = "diagnosticData_diagnosticsSpareParts#";
-const RESETTABLE_MATERIAL_STATUSES = new Set(["REVISED", "REJECTED"]);
 
 /**
  * Copies the server status onto materials matched by materialId.
@@ -705,7 +704,6 @@ export interface UseDiagnosticsManagerReturn {
   markRowDirty: (areaIndex: number) => void;
   enableValidate: () => boolean;
   // resyncMaterialsFromAPI: (markValidated?: boolean) => void;
-  setRevisedRejectedRowPending: (areaName: string) => void;
   canArchiveOnDelete: boolean;
   /**
    * Bumped once per deleted or restored spare-parts row, in the commit where rows, fields and
@@ -1840,29 +1838,6 @@ export const useDiagnosticsManager = ({
     return !arePricesValidated;
   }, [arePricesValidated]);
 
-  /** Returns the positional index of an area inside the sparePartsAreas array. */
-  const getAreaPositionalIndex = useCallback((areaName: string): number => {
-    const diagnosticTab = tabsRef.current.find((t) => t.name === "diagnosticData");
-    if (!diagnosticTab) return -1;
-    const sparePartsAreas = diagnosticTab.areas.filter(
-      (a) => a.isMultiple && a.name.includes("diagnosticsSpareParts"),
-    );
-    return sparePartsAreas.findIndex((a) => a.name === areaName);
-  }, []);
-
-  const setRevisedRejectedRowPending = useCallback(
-    (areaName: string) => {
-      const positionalIndex = getAreaPositionalIndex(areaName);
-      if (positionalIndex === -1) return;
-      setMaterials((prev) => {
-        const item = prev[positionalIndex];
-        if (!item?.status || !RESETTABLE_MATERIAL_STATUSES.has(item.status)) return prev;
-        return prev.map((m, i) => (i === positionalIndex ? { ...m, status: "PENDING" } : m));
-      });
-    },
-    [getAreaPositionalIndex],
-  );
-
   const getExistingPartNumbers = useCallback((formValues: Record<string, unknown>): Set<string> => {
     const fields = allFieldsRef.current;
     if (!fields?.length) return new Set();
@@ -1907,7 +1882,6 @@ export const useDiagnosticsManager = ({
     markAllValidated,
     markRowDirty,
     enableValidate,
-    setRevisedRejectedRowPending,
     canArchiveOnDelete: !STATUSES_WITH_PERMANENT_DELETE.includes(jobStatus),
     rowsChangedVersion,
   };

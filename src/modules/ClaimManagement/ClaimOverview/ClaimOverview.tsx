@@ -890,7 +890,6 @@ export default function ClaimOverview() {
       markRowDirty: () => {},
       summaryTypeOptions: [{ value: "totalSummary", label: "totalSummary" }],
       setSummaryTypeOptions: () => {},
-      setRevisedRejectedRowPending: () => {},
       isArchivedExpanded: false,
       setIsArchivedExpanded: () => {},
       canArchiveOnDelete: false,

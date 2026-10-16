@@ -461,7 +461,6 @@ in `enableValidate` at line 1536).
     markRowDirty,
     allowedPositions,
     isResyncingRef,
-    setRevisedRejectedRowPending,
     canArchiveOnDelete,
     resyncMaterialsFromAPI,
     jobStatus,

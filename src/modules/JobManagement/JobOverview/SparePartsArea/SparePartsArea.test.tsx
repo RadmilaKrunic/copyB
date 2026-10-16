@@ -79,7 +79,6 @@ const createDiagnosticsContextValue = (
   markRowDirty: vi.fn(),
   summaryTypeOptions: [{ value: "totalSummary", label: "totalSummary" }],
   setSummaryTypeOptions: vi.fn(),
-  setRevisedRejectedRowPending: vi.fn(),
   isArchivedExpanded: false,
   setIsArchivedExpanded: vi.fn(),
   canArchiveOnDelete: false,

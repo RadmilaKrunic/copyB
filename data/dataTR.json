@@ -15811,7 +15811,7 @@
                   "maxLength": 0,
                   "minLength": 0,
                   "minValue": 0,
-                  "maxValue": 100,
+                  "maxValue": 0,
                   "isDisabled": true,
                   "isHidden": false,
                   "isRequired": false,

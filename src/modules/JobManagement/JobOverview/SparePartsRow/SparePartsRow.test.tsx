@@ -371,7 +371,6 @@ const renderRow = (
     markRowDirty: vi.fn(),
     summaryTypeOptions: [{ label: "chargeable", value: "chargeable" }],
     setSummaryTypeOptions: vi.fn(),
-    setRevisedRejectedRowPending: vi.fn(),
     isArchivedExpanded: false,
     setIsArchivedExpanded: vi.fn(),
     canArchiveOnDelete: false,
