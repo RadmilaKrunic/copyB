@@ -234,9 +234,25 @@ describe("formValidation", () => {
           "Incompatible part/material. Service offering not applicable",
         manufacturedDateMustBeBeforePurchaseDate:
           "Manufacture date must be before or in same month as purchase date",
+        jobCreationDateTooFarInPast: "Job Creation Date cannot be more than 15 days in the past.",
       };
       return translations[key] || key;
     };
+
+    const isoDaysAgo = (days: number): string => {
+      const now = new Date();
+      const d = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - days),
+      );
+      return d.toISOString();
+    };
+
+    const jobCreationDateField = () =>
+      createMockField({
+        name: "assets#0_jobCreationDate",
+        type: "datepicker",
+        fieldMapping: { originalName: "jobCreationDate" },
+      });
 
     it("adds error for empty mandatory field", () => {
       const fields = [
@@ -259,6 +275,43 @@ describe("formValidation", () => {
       });
 
       expect(errors.email).toBe("Email is required");
+    });
+
+    it("rejects a job creation date more than 15 days in the past", () => {
+      const fields = [jobCreationDateField()];
+      const errors: ValidationErrors = {};
+      const values = { "assets#0_jobCreationDate": isoDaysAgo(16) };
+
+      validateByAction({ errors, mandatoryFields: [], values, fields, t: mockT });
+
+      expect(errors["assets#0_jobCreationDate"]).toBe(
+        "Job Creation Date cannot be more than 15 days in the past.",
+      );
+    });
+
+    it("accepts a job creation date exactly 15 days in the past and today", () => {
+      const fields = [jobCreationDateField()];
+
+      for (const days of [0, 15]) {
+        const errors: ValidationErrors = {};
+        const values = { "assets#0_jobCreationDate": isoDaysAgo(days) };
+
+        validateByAction({ errors, mandatoryFields: [], values, fields, t: mockT });
+
+        expect(errors["assets#0_jobCreationDate"]).toBeUndefined();
+      }
+    });
+
+    it("clears the past-limit error once a valid date is selected", () => {
+      const fields = [jobCreationDateField()];
+      const errors: ValidationErrors = {
+        "assets#0_jobCreationDate": "Job Creation Date cannot be more than 15 days in the past.",
+      };
+      const values = { "assets#0_jobCreationDate": isoDaysAgo(1) };
+
+      validateByAction({ errors, mandatoryFields: [], values, fields, t: mockT });
+
+      expect(errors["assets#0_jobCreationDate"]).toBeUndefined();
     });
 
     it("adds error for empty mandatory multi-select field", () => {

@@ -9,6 +9,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import RadioGroup from "components/ui/RadioGroup/RadioGroup";
 import { isFieldVisible } from "../utils";
 import DatePicker from "components/ui/DatePicker/DatePicker";
+import { getEarliestJobCreationDay } from "../../../utils/dateFormatter";
 import NumberInputFiled from "components/ui/NumberInputField/NumberInputFiled";
 import FileUpload from "components/ui/FileUpload/FileUpload";
 import { Attachments } from "components/ui/FileUpload/FileUpload.types";
@@ -383,12 +384,16 @@ function renderCheckboxField(ctx: FieldRenderCtx): ReactElement {
 function renderDatepickerField(ctx: FieldRenderCtx): ReactElement {
   const { field, fullWidth, className, restProps, displayLabel, effectiveIsDisabled } = ctx;
   const { name, calendar } = field;
+  const effectiveCalendar =
+    calendar && field.fieldMapping?.originalName === "jobCreationDate"
+      ? { ...calendar, minDate: getEarliestJobCreationDay() }
+      : calendar;
   return (
     <span className={`${fullWidth} ${className || ""}`} {...restProps}>
       <DatePicker
         name={name}
         label={displayLabel}
-        calendar={calendar}
+        calendar={effectiveCalendar}
         disabled={effectiveIsDisabled}
       />
       <FieldError name={name} />

@@ -49,3 +49,28 @@ export function formatTime(value: string | Date): string {
 
   return format(date, DEFAULT_TIME_FORMAT);
 }
+
+export const JOB_CREATION_MAX_PAST_DAYS = 15;
+
+export function getEarliestJobCreationDate(now: Date = new Date()): Date {
+  return new Date(
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() - JOB_CREATION_MAX_PAST_DAYS,
+    ),
+  );
+}
+
+export function getEarliestJobCreationDay(now: Date = new Date()): string {
+  return getEarliestJobCreationDate(now).toISOString().slice(0, 10);
+}
+
+export function isBeforeEarliestJobCreationDate(value: unknown, now: Date = new Date()): boolean {
+  if (typeof value !== "string" || value.trim() === "") return false;
+
+  const selected = new Date(value);
+  if (Number.isNaN(selected.getTime())) return false;
+
+  return selected.getTime() < getEarliestJobCreationDate(now).getTime();
+}

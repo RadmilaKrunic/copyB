@@ -5,6 +5,7 @@ import Field from "../Field/GenericField.types";
 import { isFieldVisible } from "../utils";
 import GenericForm, { ActionMandatoryFields } from "./GenericForm.types";
 import { getSparePartCompatibilityMessage } from "../../ui/AutoComplete/AutoComplete.helper";
+import { isBeforeEarliestJobCreationDate } from "../../../utils/dateFormatter";
 
 export type ValidationErrors = Record<string, string>;
 
@@ -453,6 +454,33 @@ function validateManufacturedBeforePurchaseDate({
   }
 }
 
+const JOB_CREATION_DATE_PAST_LIMIT_ERROR_KEY = "jobCreationDateTooFarInPast";
+
+function validateJobCreationDateWindow({
+  field,
+  errors,
+  fieldName,
+  values,
+  t,
+}: {
+  field: Field;
+  errors: Record<string, string>;
+  fieldName: string;
+  values: Record<string, unknown>;
+  t: (key: string) => string;
+}): void {
+  if (field.fieldMapping?.originalName !== "jobCreationDate") return;
+
+  if (isBeforeEarliestJobCreationDate(values[fieldName])) {
+    errors[fieldName] = t(JOB_CREATION_DATE_PAST_LIMIT_ERROR_KEY);
+    return;
+  }
+
+  if (errors[fieldName] === t(JOB_CREATION_DATE_PAST_LIMIT_ERROR_KEY)) {
+    delete errors[fieldName];
+  }
+}
+
 function validateSparePartCompatibility({
   field,
   errors,
@@ -587,6 +615,13 @@ function validateSingleField({
   validatePattern(field, errors, fieldName, value, hasValue, t);
   validateLengthAndRange(field, errors, fieldName, value, hasValue, t);
   validateManufacturedBeforePurchaseDate({
+    field,
+    errors,
+    fieldName,
+    values,
+    t,
+  });
+  validateJobCreationDateWindow({
     field,
     errors,
     fieldName,
