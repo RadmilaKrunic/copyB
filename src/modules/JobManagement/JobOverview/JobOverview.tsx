@@ -77,7 +77,7 @@ import {
   getWarrantyUnavailableMessage,
 } from "../warranty.utils";
 import { usePostWarrantyCheck } from "api/services/orders/hooks";
-import { WarrantyCheckRequest, WarrantyCheckResponse } from "api/services/orders/orders.types";
+import { WarrantyCheckResponse } from "api/services/orders/orders.types";
 import {
   useJobById,
   usePatchJobById,
@@ -250,47 +250,33 @@ export default function JobOverview() {
   const warrantyCheckMutation = usePostWarrantyCheck();
   const lastWarrantyPayloadKeyRef = useRef<string>("");
 
+  // jobData is refetched after validate, cost estimate, start diagnostics, repair etc.
+  // Only call warranty-check when the asset payload (incl. purchase date) is new, not on every refetch.
   useEffect(() => {
     const asset = jobData?.job?.asset;
-    const countryCode = jobData?.order?.countryCode;
-    if (
-      asset?.warrantyInformation != null ||
-      !asset?.brand ||
-      !asset.bareToolNumber ||
-      !asset.serialNumber ||
-      !asset.purchaseDate ||
-      !countryCode
-    )
-      return;
-    const payload: WarrantyCheckRequest = {
-      brand: asset.brand,
-      country: countryCode,
-      bareToolNumber: asset.bareToolNumber,
-      serialNumber: asset.serialNumber,
-      purchaseDate: asset.purchaseDate,
-    };
-    warrantyCheckMutation.mutate(payload);
-    // warrantyCheckMutation.mutate is stable — intentionally excluded from deps
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobData]);
-
-  useEffect(() => {
-    if (!jobData?.job?.asset?.purchaseDate) {
+    if (!asset?.purchaseDate) {
       lastWarrantyPayloadKeyRef.current = "";
       return;
     }
 
     const payload = buildJobOverviewWarrantyCheckPayload(
       {
-        brand: jobData.job.asset.brand,
-        baretoolNumber: jobData.job.asset.bareToolNumber,
-        serialNumber: jobData.job.asset.serialNumber,
-        purchaseDate: jobData.job.asset.purchaseDate,
+        brand: asset.brand,
+        baretoolNumber: asset.bareToolNumber,
+        serialNumber: asset.serialNumber,
+        purchaseDate: asset.purchaseDate,
       },
-      jobData.order?.countryCode,
+      jobData?.order?.countryCode,
     );
+    const payloadKey = payload ? JSON.stringify(payload) : "";
+    if (lastWarrantyPayloadKeyRef.current === payloadKey) return;
 
-    lastWarrantyPayloadKeyRef.current = payload ? JSON.stringify(payload) : "";
+    lastWarrantyPayloadKeyRef.current = payloadKey;
+    if (!payload || asset.warrantyInformation != null) return;
+
+    warrantyCheckMutation.mutate(payload);
+    // warrantyCheckMutation.mutate is stable — intentionally excluded from deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobData]);
 
   const warrantyPanelInfo: WarrantyPanelInfo = useMemo(() => {

@@ -1014,6 +1014,46 @@ describe("JobOverview", () => {
     });
   });
 
+  it("does not re-trigger warranty check when job data is refetched with the same asset", () => {
+    const buildJobData = (purchaseDate: string) => ({
+      data: {
+        order: { countryCode: "ZA" },
+        job: {
+          jobStatus: "IN_DIAGNOSTICS",
+          isOnHold: false,
+          asset: {
+            brand: "BOSCH",
+            bareToolNumber: "BT-100",
+            serialNumber: "SN-100",
+            purchaseDate,
+            warrantyInformation: null,
+          },
+        },
+      },
+      isLoading: false,
+      error: null,
+    });
+    useJobByIdMock.mockReturnValue(buildJobData("2024-05-10"));
+
+    const { rerender } = render(<JobOverview />);
+    expect(warrantyMutateMock).toHaveBeenCalledTimes(1);
+
+    // Validate / cost estimate / start diagnostics refetch the job -> new object, same asset
+    useJobByIdMock.mockReturnValue(buildJobData("2024-05-10"));
+    rerender(<JobOverview />);
+    useJobByIdMock.mockReturnValue(buildJobData("2024-05-10"));
+    rerender(<JobOverview />);
+    expect(warrantyMutateMock).toHaveBeenCalledTimes(1);
+
+    // Purchase date changed -> check again
+    useJobByIdMock.mockReturnValue(buildJobData("2024-06-01"));
+    rerender(<JobOverview />);
+    expect(warrantyMutateMock).toHaveBeenCalledTimes(2);
+    expect(warrantyMutateMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ purchaseDate: "2024-06-01" }),
+    );
+  });
+
   it("does not trigger warranty check when warranty information already exists", () => {
     useJobByIdMock.mockReturnValue({
       data: {
