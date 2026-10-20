@@ -9,6 +9,7 @@ import {
   SparePartsCollapsedSection,
 } from "modules/JobManagement/JobOverview/SparePartsRow/SparePartsRow.components";
 import { PERMISSIONS } from "utils/Permissions";
+import { getQuantityEditPermission } from "modules/JobManagement/JobOverview/SparePartsRow/positionPermissions";
 import { useClaimContext } from "../ClaimContext";
 import { GenericFormContext } from "components/generics/Form/GenericForm.context";
 import { getClaimRowMaterialIndex } from "./ClaimSparePartsRow.utils";
@@ -60,6 +61,14 @@ function ClaimSparePartsRow({
   const isAutomaticRow = (automaticRows ?? []).includes(positionValue);
   const isNewRow = materials[areaIndex]?.isNew === true;
 
+  // Quantity follows the job diagnostics rules: position-specific units permission,
+  // and never on an approved row.
+  const quantityPermission = getQuantityEditPermission(positionValue);
+  const hasQuantityPermission = useHasPermission(quantityPermission ? [quantityPermission] : []);
+  const statusField = fields.find((f) => f.subtype === "diagnosticMaterialStatus");
+  const isApprovedRow = statusField ? values[statusField.name] === "APPROVED" : false;
+  const canEditQuantity = hasQuantityPermission && !isApprovedRow;
+
   const partNumberField = fields.find((f) => f.subtype === "diagnosticPartNumber");
   const partNumberValue = partNumberField ? ((values[partNumberField.name] as string) ?? "") : "";
   const isSparePartTypeRestricted =
@@ -73,6 +82,8 @@ function ClaimSparePartsRow({
     // The spare-part "type" dropdown stays editable for every row while the
     // claim is in edit mode, regardless of whether the row is newly added.
     if (field.subtype === "diagnosticType") return { ...field, isDisabled: false };
+
+    if (field.subtype === "diagnosticQuantity") return { ...field, isDisabled: !canEditQuantity };
 
     if (isNewRow) {
       if (field.type === "price") return { ...field, isDisabled: true };
