@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
@@ -14,6 +14,10 @@ import { useClientManagementCustomers } from "api/services/clientManagement/hook
 import { ClientManagementCustomer } from "api/services/clientManagement/clientManagement.types";
 import { HeaderUserData } from "api/services/header/action";
 import GenericForm from "components/generics/Form/GenericForm.types";
+import { useDeleteCustomer } from "api/services/customers/hooks";
+import { useHasPermission } from "hooks/useHasPermission";
+import { PERMISSIONS } from "utils/Permissions";
+import DeleteClientDialog from "../ClientOverview/DeleteClientDialog/DeleteClientDialog";
 import { getClientColumns } from "./ClientsListColumns.config";
 import { resolveCustomerTypeFilter } from "./ClientsList.utils";
 import { useListTracking } from "@/analytics";
@@ -55,6 +59,16 @@ function ClientsList() {
     page: Number(sessionStorage.getItem("clientList-currentPage")) || 1,
     pageSize: Number(sessionStorage.getItem("clientList-pageSize")) || 10,
   });
+
+  const canAnonymizeClient = useHasPermission([PERMISSIONS.CLIENT.CAN_ANONYMIZE_CLIENT]);
+  const canDeleteClient =
+    canAnonymizeClient &&
+    !!user?.roles?.some((role) =>
+      ["ASC_MANAGER", "ASC_MANAGER_WITHOUT_CLAIM", "ASC_RECEPTIONIST"].includes(role),
+    );
+  const [clientToDelete, setClientToDelete] = useState<ClientManagementCustomer | null>(null);
+  const deleteCustomer = useDeleteCustomer();
+  const deletionPendingRef = useRef(false);
 
   const { handleToggleFilter, applyAdvancedFilters, resetAdvancedFilters } = useListFilterHandlers(
     setQuickFilters,
@@ -106,6 +120,39 @@ function ClientsList() {
 
   const isPaginationVisible = (data?.page?.totalElements || 0) > pagination.pageSize;
 
+  const handleRowClick = (client: ClientManagementCustomer) => {
+    const navigateResult = navigate(`/client-overview/${client.customerId}`);
+    if (navigateResult instanceof Promise) {
+      navigateResult.catch(() => undefined);
+    }
+  };
+
+  const onDeleteClient = (client: ClientManagementCustomer) => {
+    if (!canDeleteClient || deletionPendingRef.current) return;
+    deleteCustomer.reset();
+    setClientToDelete(client);
+  };
+
+  const closeDeleteDialog = () => {
+    if (!deletionPendingRef.current) setClientToDelete(null);
+  };
+
+  const confirmDeleteClient = () => {
+    if (!clientToDelete || !canDeleteClient || deletionPendingRef.current) return;
+    deletionPendingRef.current = true;
+    deleteCustomer.mutate(clientToDelete.customerId, {
+      onSuccess: () => {
+        setClientToDelete(null);
+        queryClient
+          .invalidateQueries({ queryKey: ["clientManagementCustomers"] })
+          .catch(() => undefined);
+      },
+      onSettled: () => {
+        deletionPendingRef.current = false;
+      },
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="loading-container">
@@ -129,13 +176,6 @@ function ClientsList() {
         searchValue={searchValue}
         onSearchChange={setSearchValue}
         onSearchReset={() => setSearchValue("")}
-        actionButton={{
-          icon: "add",
-          label: t("addClient"),
-          onClick: () => {
-            navigate(`/add-client`);
-          },
-        }}
         type="client"
       />
       <Table<ClientManagementCustomer>
@@ -143,9 +183,7 @@ function ClientsList() {
         columns={CLIENT_COLUMNS}
         visibleColumns={visibleColumns}
         getRowKey={(row) => row.customerId}
-        onRowClick={(client) => {
-          navigate(`/client-overview/${client.customerId}`);
-        }}
+        onRowClick={handleRowClick}
         renderRowActions={(client) => (
           <ScrollablePopover
             data-testid={`client-actions-popover-${client.customerId}`}
@@ -164,17 +202,37 @@ function ClientsList() {
               type="button"
               className="client-action-button"
               data-testid={`client-action-view-${client.customerId}`}
-              onClick={() => {
-                navigate(`/client-overview/${client.customerId}`);
-              }}
+              onClick={() => handleRowClick(client)}
             >
               <Icon iconName="right" aria-hidden="true" />
               <span>{t("viewDetails")}</span>
             </button>
+            {canDeleteClient && (
+              <button
+                type="button"
+                className="client-action-button"
+                data-testid={`client-action-delete-${client.customerId}`}
+                onClick={() => {
+                  onDeleteClient(client);
+                }}
+              >
+                <Icon iconName="right" aria-hidden="true" />
+                <span>{t("delete")}</span>
+              </button>
+            )}
           </ScrollablePopover>
         )}
         emptyListMessage="noClientsFound"
       />
+      {clientToDelete && (
+        <DeleteClientDialog
+          isOpen={!!clientToDelete}
+          isPending={deleteCustomer.isPending}
+          isError={deleteCustomer.isError}
+          onCancel={closeDeleteDialog}
+          onConfirm={confirmDeleteClient}
+        />
+      )}
       {isPaginationVisible && (
         <Pagination
           page={pagination.page}

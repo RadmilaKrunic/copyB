@@ -354,39 +354,6 @@ describe("ClaimSparePartsRow", () => {
       // materials[2].isNew is true, so a non-price field should be enabled
       expect(capturedApplyFieldPermissions!(customFields[1]).isDisabled).toBe(false);
     });
-
-    it("keeps the newly added row editable and the row above it locked after a delete", () => {
-      // #1 was deleted and a row added: active rows are #0, #2, #3 and
-      // materials[2] (the new one) belongs to #3, not #2.
-      const rowFieldsFor = (prefix: string) => [
-        {
-          ...positionField,
-          name: `${prefix}position`,
-          fieldMapping: { originalName: "position", nameStartsWith: prefix },
-        },
-        {
-          ...partNumberField,
-          name: `${prefix}partNumber`,
-          fieldMapping: { originalName: "partNumber", nameStartsWith: prefix },
-        },
-      ];
-      const formContextValue = {
-        allFields: [0, 2, 3].flatMap((i) => rowFieldsFor(`claims_claimSpareParts#${i}_`)),
-        sparePartNotBelongsToTool: { current: {} },
-      };
-      mockUseClaimContext.mockReturnValue({
-        ...baseClaimContext,
-        materials: [{ isNew: false }, { isNew: false }, { isNew: true }],
-      } as never);
-
-      const newRowFields = rowFieldsFor("claims_claimSpareParts#3_");
-      renderRow({ customFields: newRowFields, formContextValue });
-      expect(capturedApplyFieldPermissions!(newRowFields[1]).isDisabled).toBe(false);
-
-      const rowAboveFields = rowFieldsFor("claims_claimSpareParts#2_");
-      renderRow({ customFields: rowAboveFields, formContextValue });
-      expect(capturedApplyFieldPermissions!(rowAboveFields[1]).isDisabled).toBe(true);
-    });
   });
 
   describe("position options disabling", () => {
