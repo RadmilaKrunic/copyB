@@ -2,7 +2,7 @@ import Section from "components/generics/Section/GenericSection.types";
 import Field, { WarrantyInfoPayload } from "components/generics/Field/GenericField.types";
 import { WarrantyCheckRequest, WarrantyCheckResponse } from "api/services/orders/orders.types";
 import { type ValidateAndSaveResponse } from "api/services/jobs/action";
-import { JobDiagnostic } from "../JobList/JobList.types";
+import { JobDiagnostic, JobOverviewItem } from "../JobList/JobList.types";
 import {
   buildWarrantyCheckPayloadFromFieldNames,
   updateWarrantyFields,
@@ -72,6 +72,44 @@ export const extractDiagnosticFromValidateResponse = (
   if (!hasTopLevelDiagnosticData || !jobId) return undefined;
   const responce = { ...(data as any), jobId } as JobDiagnostic;
   return responce;
+};
+
+const MATERIAL_PRICE_KEYS = [
+  "unitPrice",
+  "suggestedNetPrice",
+  "netAmount",
+  "tax",
+  "taxAmount",
+  "grossAmount",
+  "discount",
+  "discountAmount",
+  "totalAmount",
+] as const;
+
+/**
+ * The form mapper keeps the old value when the API sends null. For a material's id and prices
+ * null is the server's answer (new line after a part number change, price not available), so it
+ * becomes "" here. Otherwise the row keeps the previous part's id and prices, shows them, and
+ * validate-and-save sends that stale line id again.
+ */
+export const clearNullMaterialValues = (job: JobOverviewItem): JobOverviewItem => {
+  const materials = job.diagnostic?.materials;
+  if (!job.diagnostic || !Array.isArray(materials)) return job;
+
+  const clearedMaterials = materials.map((material) => {
+    if (!material) return material;
+    const price = (material.price ?? {}) as Record<string, unknown>;
+    const clearedPrice: Record<string, unknown> = { ...price };
+    MATERIAL_PRICE_KEYS.forEach((key) => {
+      clearedPrice[key] = price[key] ?? "";
+    });
+    return { ...material, id: material.id ?? "", price: clearedPrice };
+  });
+
+  return {
+    ...job,
+    diagnostic: { ...job.diagnostic, materials: clearedMaterials } as JobDiagnostic,
+  };
 };
 
 /** Root of the diagnostic payload in `mapValuesToAPI` output; recalculation sends only this part. */

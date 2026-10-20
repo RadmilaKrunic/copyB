@@ -1,7 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import Field from "components/generics/Field/GenericField.types";
+import { convertAPIDataToFormValues, mapFieldToFieldMapping } from "components/generics/utils";
+import { JobOverviewItem } from "../JobList/JobList.types";
 import {
   buildJobOverviewWarrantyCheckPayload,
+  clearNullMaterialValues,
   updateJobOverviewWarrantyTabs,
   getRecalculationPayloadErrors,
   isRecalculationValueEmpty,
@@ -89,5 +92,69 @@ describe("isRecalculationValueEmpty", () => {
     expect(isRecalculationValueEmpty(null)).toBe(true);
     expect(isRecalculationValueEmpty(undefined)).toBe(true);
     expect(isRecalculationValueEmpty("")).toBe(true);
+  });
+});
+
+describe("clearNullMaterialValues", () => {
+  const rowField = (name: string, attributeMapping: string): Field =>
+    mapFieldToFieldMapping({
+      name: `diagnosticData_diagnosticsSpareParts#0_${name}`,
+      type: "text",
+      attributeMapping,
+    } as Field);
+
+  const fields = [
+    rowField("materialId", "diagnostic.materials#.id"),
+    rowField("totalAmount", "diagnostic.materials#.price.totalAmount"),
+    rowField("sparePartNumber", "diagnostic.materials#.partNumber"),
+  ];
+
+  const staleForm = {
+    "diagnosticData_diagnosticsSpareParts#0_materialId": "old-line-id",
+    "diagnosticData_diagnosticsSpareParts#0_totalAmount": 120,
+    "diagnosticData_diagnosticsSpareParts#0_sparePartNumber": "1600A001HY",
+  };
+
+  const jobWith = (material: Record<string, unknown>) =>
+    ({ diagnostic: { materials: [material] } }) as unknown as JobOverviewItem;
+
+  it("clears the row id and prices the server returns as null", () => {
+    const job = jobWith({ id: null, partNumber: "1600A001HY", price: null });
+
+    const values = convertAPIDataToFormValues(clearNullMaterialValues(job), fields, staleForm);
+
+    expect(values["diagnosticData_diagnosticsSpareParts#0_materialId"]).toBe("");
+    expect(values["diagnosticData_diagnosticsSpareParts#0_totalAmount"]).toBe("");
+    expect(values["diagnosticData_diagnosticsSpareParts#0_sparePartNumber"]).toBe("1600A001HY");
+  });
+
+  it("keeps the old value without the cleanup (mapper treats null as missing)", () => {
+    const job = jobWith({ id: null, partNumber: "1600A001HY", price: null });
+
+    const values = convertAPIDataToFormValues(job, fields, staleForm);
+
+    expect(values["diagnosticData_diagnosticsSpareParts#0_materialId"]).toBe("old-line-id");
+  });
+
+  it("clears single null prices and keeps the ones the server sent", () => {
+    const job = jobWith({
+      id: "line-1",
+      price: { totalAmount: null, unitPrice: 10, taxTypes: [] },
+    });
+
+    const cleared = clearNullMaterialValues(job).diagnostic?.materials?.[0];
+
+    expect(cleared?.id).toBe("line-1");
+    expect(cleared?.price).toMatchObject({
+      totalAmount: "",
+      unitPrice: 10,
+      netAmount: "",
+      taxTypes: [],
+    });
+  });
+
+  it("returns the job unchanged when it has no diagnostic materials", () => {
+    const job = { diagnostic: {} } as unknown as JobOverviewItem;
+    expect(clearNullMaterialValues(job)).toBe(job);
   });
 });
