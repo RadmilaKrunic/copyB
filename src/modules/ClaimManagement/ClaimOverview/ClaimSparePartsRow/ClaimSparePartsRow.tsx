@@ -11,6 +11,7 @@ import {
 import { PERMISSIONS } from "utils/Permissions";
 import { useClaimContext } from "../ClaimContext";
 import { GenericFormContext } from "components/generics/Form/GenericForm.context";
+import { getClaimRowMaterialIndex } from "./ClaimSparePartsRow.utils";
 import "modules/JobManagement/JobOverview/SparePartsRow/SparePartsRow.scss";
 
 const TYPE_OPTIONS_DISABLED_FOR_INVALID_SPARE_PART = new Set(["WARRANTY", "SERVICE_OFFERING"]);
@@ -49,10 +50,10 @@ function ClaimSparePartsRow({
   );
 
   const areaNamePrefix = fields[0]?.fieldMapping?.nameStartsWith ?? "";
-  const areaIndex = (() => {
-    const match = /#(\d+)_/.exec(areaNamePrefix);
-    return match ? Number.parseInt(match[1], 10) : 0;
-  })();
+  const areaIndex = useMemo(
+    () => getClaimRowMaterialIndex(areaNamePrefix, allFormFields ?? []),
+    [areaNamePrefix, allFormFields],
+  );
 
   const positionField = fields.find((f) => f.subtype === "diagnosticPosition");
   const positionValue = positionField ? ((values[positionField.name] as string) ?? "") : "";

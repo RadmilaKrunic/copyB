@@ -221,6 +221,126 @@ describe("useClaimMaterialsManager", () => {
     expect(setArePricesValidated).not.toHaveBeenCalled();
   });
 
+  it("onAddRow gives the new row the claim's jobType", () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(["user"], { countryCode: "ZA", permissions: [] });
+    queryClient.setQueryData(["countryConfiguration", "ZA"], {
+      diagnosticsConfiguration: {
+        rules: [
+          {
+            actionType: "REPAIR",
+            jobType: "GOODWILL",
+            rule: { allowedPositions: [{ position: "SP", maxCount: 5 }] },
+          },
+        ],
+      },
+    });
+
+    const { result } = renderHook(
+      () =>
+        useClaimMaterialsManager({
+          claimId: "C1",
+          claimMaterials: undefined,
+          currentActionType: "REPAIR",
+          currentJobType: "GOODWILL",
+          tabs: [claimsTab],
+          setTabs: vi.fn(),
+          allFields,
+          setAllFields: vi.fn(),
+          setInitialFormValues: vi.fn(),
+          skipFormResetRef: { current: false },
+          formValuesRef: { current: {} },
+          arePricesValidated: false,
+          setArePricesValidated: vi.fn(),
+          readOnly: false,
+        }),
+      { wrapper: makeWrapper(queryClient) },
+    );
+
+    act(() => {
+      result.current.onAddRow({});
+    });
+
+    expect(result.current.materials).toHaveLength(1);
+    expect(result.current.materials[0].type).toBe("GOODWILL");
+    expect(result.current.materials[0].isNew).toBe(true);
+  });
+
+  it("onAddRow syncs existing rows by their area name after a row was deleted", () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(["user"], { countryCode: "ZA", permissions: [] });
+    queryClient.setQueryData(["countryConfiguration", "ZA"], {
+      diagnosticsConfiguration: {
+        rules: [
+          {
+            actionType: "REPAIR",
+            jobType: "WARRANTY",
+            rule: { allowedPositions: [{ position: "SP", maxCount: 5 }] },
+          },
+        ],
+      },
+    });
+
+    // Row #1 was deleted: the active rows are #0 and #2.
+    const areaFor = (index: number) => ({
+      name: `claims_claimSpareParts#${index}`,
+      label: "",
+      isMultiple: true,
+      index,
+      fields: [
+        { name: `claims_claimSpareParts#${index}_position`, label: "p", type: "dropdown" },
+        {
+          name: `claims_claimSpareParts#${index}_sparePartNumber`,
+          label: "pn",
+          type: "text",
+          subtype: "diagnosticPartNumber",
+        },
+      ],
+    });
+    const tabWithGap = { ...claimsTab, areas: [areaFor(0), areaFor(2)] } as unknown as Section;
+
+    const { result } = renderHook(
+      () =>
+        useClaimMaterialsManager({
+          claimId: "C1",
+          claimMaterials: undefined,
+          currentActionType: "REPAIR",
+          currentJobType: "WARRANTY",
+          tabs: [tabWithGap],
+          setTabs: vi.fn(),
+          allFields,
+          setAllFields: vi.fn(),
+          setInitialFormValues: vi.fn(),
+          skipFormResetRef: { current: false },
+          formValuesRef: { current: {} },
+          arePricesValidated: false,
+          setArePricesValidated: vi.fn(),
+          readOnly: false,
+        }),
+      { wrapper: makeWrapper(queryClient) },
+    );
+
+    act(() => {
+      result.current.onAddMaterials([
+        { partNumber: "P-0", quantity: 1 },
+        { partNumber: "P-2", quantity: 1 },
+      ] as never);
+    });
+
+    act(() => {
+      result.current.onAddRow({
+        "claims_claimSpareParts#0_sparePartNumber": "P-0-EDITED",
+        "claims_claimSpareParts#2_sparePartNumber": "P-2-EDITED",
+      });
+    });
+
+    expect(result.current.materials.map((m) => m.partNumber)).toEqual([
+      "P-0-EDITED",
+      "P-2-EDITED",
+      "",
+    ]);
+  });
+
   it("onAddMaterials appends only non-duplicate materials", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     queryClient.setQueryData(["user"], { countryCode: "ZA", permissions: [] });
