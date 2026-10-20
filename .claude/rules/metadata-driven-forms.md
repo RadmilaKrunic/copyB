@@ -227,6 +227,10 @@ interface GenericFormContextType {
 
 Field actions: `field.onValueChange` / `field.onBlur` name a key in `actionCallbacks`; `GenericField` runs it through `invokeFieldAction` (arity <= 1 `onValueChange` handlers get `(value)`, others `(name, value)`). Diagnostics order rules (position rules first, spare part commit sequence) live in `.github/skills/bass-diagnostics/SKILL.md`.
 
+`onAreaValueChange` (`GenericArea`) fires for user edits only, after Formik holds the new value. Any change / click / keydown inside the area arms it; blur, or a capture-phase `pointerdown` / `focusin` outside the area, disarms it (deferred). Values written by code while disarmed (API prices, reloads) are ignored. Do not rely on blur alone: Playwright `selectOption` never focuses a select (PR #25, #43). Consumers dedupe side effects by payload, e.g. JobOverview runs the asset warranty check only when the asset payload key changes, not on every job refetch (PR #54).
+
+API -> form: `mapValuesFromAPI` treats API `null` as missing and keeps the old form value. Where null must clear a value (diagnostic material id / prices), normalize before syncing (`clearNullMaterialValues`). `syncMaterialsWithForm(..., { syncServerOwnedFields: true })` also copies id, status and prices (incl. 0) from the form; diagnostics opts in, claims do not.
+
 Consumed via:
 
 ```typescript

@@ -36,7 +36,7 @@ src/components/generics/Field/GenericField.utils.ts  applyPositionRules, handleF
 - `POSITION_PERMISSIONS[LA|FR|PN|SP|AC...]`: `canView`, `canDelete`, `canEditUnits`, `canEditUnitPrice`, `canEditDiscount`, `canEditTotal` (`PERMISSIONS.DIAGNOSTICS.*`).
 - `STATUSES_BLOCKING_DELETION`: IN_REPAIR, REPAIR_DONE, DELIVERED, COMPLETED, READY_FOR_REPAIR, CUSTOMER_APPROVAL_PENDING.
 - `STATUSES_DISABLING_ROW`: RETURN_UNASSEMBLY, RETURN_ASSEMBLY, CUSTOMER_APPROVAL_PENDING, MULTIPLE_APPROVAL_PENDING.
-- `RESETTABLE_ROW_STATUSES`: REVISED, REJECTED -> back to PENDING on edit (`setRevisedRejectedRowPending`).
+- Row status is server-owned: no client Revised/Rejected -> Pending reset (removed in #24 and 4adc876). `APPROVED` rows are fully disabled; only `PENDING` rows enable the row checkbox and the commercial-goodwill approval flyout.
 - WARRANTY / SERVICE_OFFERING type options disabled for a spare part that does not belong to the tool.
 - Prices visible only with `CAN_VIEW_PRICES` (`DP_V`); rows collapse after validation.
 - `isValidating` (recalc or validate pending) locks all inputs.

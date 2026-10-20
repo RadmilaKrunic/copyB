@@ -31,6 +31,7 @@ description: "UIConfiguration lifecycle, field metadata, fieldMapping, API mappi
 ## Rules
 
 - Build `fieldMapping` before using fields; compare by `fieldMapping.originalName`, row siblings by `fieldMapping.nameStartsWith`.
-- API <-> form: `convertAPIDataToFormValues` / `mapValuesToAPI` only.
+- API <-> form: `convertAPIDataToFormValues` / `mapValuesToAPI` only. `mapValuesFromAPI` keeps the old form value on API `null`; normalize first where null must clear (`clearNullMaterialValues`).
+- `onAreaValueChange` fires only for user edits (interaction inside the area arms it; blur or outside pointerdown/focusin disarms). Code writes are ignored.
 - Custom areas: `Area/CustomAreasMapper.tsx` (`getCustomArea`) matches by `area.name.includes(...)`, first match wins, so specific names go first: accessory, claimDocumentList, documentList, claimNotesList, notesList, claimArchivedSpareParts, claimSpareParts, diagnosticsSpareParts, claimDiagnosticsSummary, diagnosticsSummary, archivedSpareParts, AscReimbursementArea. Unknown name -> default `GenericArea`.
 - Actions: `GenericAction` metadata `{ onAction, mode, dependency: { showAction, enableAction }, mandatoryFields }`; enable callbacks (`enableValidate`, `arePricesValidated`, ...) also come from `actionCallbacks`.
