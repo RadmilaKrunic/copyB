@@ -68,7 +68,8 @@ Spare part number (`subtype: diagnosticPartNumber`, autocomplete):
 
 - Materials effect restores Formik snapshot except keys in `MANAGED_ROW_KEY_PREFIXES` (`diagnosticData_diagnosticsSpareParts`, `claims_claimSpareParts`, `claims_claimArchivedSpareParts`). Add new repeated-row prefixes there, else claim/diag row 0 resets to template zeros (PR #9).
 - Part number change (`resolvePartNumberChangeAction`): first render or resync -> `sync`; formatting-only -> `none`; user change -> `reset` (null row price + materialId).
-- `mapValuesFromAPI` keeps the old form value when the API sends null. `syncData` runs `clearNullMaterialValues` first, so a null material `id` / `price.*` (part change, price not available) clears the row instead of keeping the previous part's id and prices.
+- `mapValuesFromAPI` keeps the old form value when the API sends null. `syncData` runs `clearNullMaterialValues` first: null material `id` -> "", null `price.*` -> 0, null `priceSummaryDetailed` -> zero total.
+- Failed validation (`errorMessages`): `arePricesValidated = false`; saved rows with only 0 prices stay collapsed; summary hidden while the latest diagnostic has `priceSummaryDetailed: null` (`hasPriceSummary`). Shown again after a successful validation.
 - `materials[]` syncs from the API once; add/delete/restore merge the form back with `syncMaterialsWithForm(..., { syncServerOwnedFields: true })` (id, status, prices incl. 0). Without it row 0 is rebuilt with the first validated part's prices.
 - Delete: `IN_DIAGNOSTICS` -> permanent; other statuses -> archive (`canArchiveOnDelete`), restorable via `onRestoreRow`.
 - Row order: `order` field, then `LA, PN, SP, AC, FR, PC`.

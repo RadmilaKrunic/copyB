@@ -3850,7 +3850,7 @@ describe("JobOverview validate-and-save and recalculate responses", () => {
           materials: [
             expect.objectContaining({
               id: "M-1",
-              price: expect.objectContaining({ totalAmount: "" }),
+              price: expect.objectContaining({ totalAmount: 0 }),
             }),
           ],
         }),
@@ -3870,6 +3870,7 @@ describe("JobOverview validate-and-save and recalculate responses", () => {
 
   it("validateAndSave: lists unavailable price keys and skips the success flow", async () => {
     const { setMessagesMock } = renderWithMessages();
+    setPricesValidated(true);
 
     await runOnSuccess("validateAndSave", {
       ...diagnosticResponse,
@@ -3878,12 +3879,27 @@ describe("JobOverview validate-and-save and recalculate responses", () => {
 
     expect(queryClientMock.setQueryData).toHaveBeenCalled();
     expect(markAllValidatedMock).not.toHaveBeenCalled();
+    // Rows go back to their unvalidated, collapsed state.
+    await waitFor(() => expect(diagnosticsCtx().arePricesValidated).toBe(false));
     expect(scrollToTopMock).toHaveBeenCalled();
     expect(collectMessages(setMessagesMock)).toContainEqual({
       text: "priceNotAvailable: PN-1, PN-2",
       type: "error",
       duration: 5000,
     });
+  });
+
+  it.each([
+    [{ total: { totalAmount: 10 }, byJobType: [] }, true],
+    [null, false],
+  ])("hides the summary when priceSummaryDetailed is %o", (priceSummaryDetailed, expected) => {
+    materialsMock.value = [{ unitPrice: 10, netAmount: 10, grossAmount: 12, totalAmount: 12 }];
+    diagnosticDataMock.value = {
+      priceSummaryDetailed,
+    } as unknown as typeof diagnosticDataMock.value;
+    renderWithMessages();
+
+    expect(diagnosticsCtx().hasPricesPopulated).toBe(expected);
   });
 
   it("recalculate: stores the returned diagnostic and re-syncs the form", async () => {

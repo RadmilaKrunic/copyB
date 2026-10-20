@@ -5,6 +5,7 @@ import { JobOverviewItem } from "../JobList/JobList.types";
 import {
   buildJobOverviewWarrantyCheckPayload,
   clearNullMaterialValues,
+  hasPriceSummary,
   updateJobOverviewWarrantyTabs,
   getRecalculationPayloadErrors,
   isRecalculationValueEmpty,
@@ -124,7 +125,7 @@ describe("clearNullMaterialValues", () => {
     const values = convertAPIDataToFormValues(clearNullMaterialValues(job), fields, staleForm);
 
     expect(values["diagnosticData_diagnosticsSpareParts#0_materialId"]).toBe("");
-    expect(values["diagnosticData_diagnosticsSpareParts#0_totalAmount"]).toBe("");
+    expect(values["diagnosticData_diagnosticsSpareParts#0_totalAmount"]).toBe(0);
     expect(values["diagnosticData_diagnosticsSpareParts#0_sparePartNumber"]).toBe("1600A001HY");
   });
 
@@ -146,15 +147,38 @@ describe("clearNullMaterialValues", () => {
 
     expect(cleared?.id).toBe("line-1");
     expect(cleared?.price).toMatchObject({
-      totalAmount: "",
+      totalAmount: 0,
       unitPrice: 10,
-      netAmount: "",
+      netAmount: 0,
       taxTypes: [],
     });
+  });
+
+  it("zeroes the summary total when priceSummaryDetailed is null", () => {
+    const job = {
+      diagnostic: { materials: [], priceSummaryDetailed: null },
+    } as unknown as JobOverviewItem;
+
+    const summary = clearNullMaterialValues(job).diagnostic?.priceSummaryDetailed;
+
+    expect(summary?.total).toMatchObject({ totalAmount: 0, netAmount: 0, discount: 0 });
+    expect(summary?.byJobType).toEqual([]);
   });
 
   it("returns the job unchanged when it has no diagnostic materials", () => {
     const job = { diagnostic: {} } as unknown as JobOverviewItem;
     expect(clearNullMaterialValues(job)).toBe(job);
+  });
+});
+
+describe("hasPriceSummary", () => {
+  it("is false only when the server returned priceSummaryDetailed null", () => {
+    const withSummary = (priceSummaryDetailed: unknown) =>
+      ({ priceSummaryDetailed }) as unknown as JobOverviewItem["diagnostic"];
+
+    expect(hasPriceSummary(withSummary(null))).toBe(false);
+    expect(hasPriceSummary(withSummary({ total: {}, byJobType: [] }))).toBe(true);
+    expect(hasPriceSummary(withSummary(undefined))).toBe(true);
+    expect(hasPriceSummary(undefined)).toBe(true);
   });
 });
