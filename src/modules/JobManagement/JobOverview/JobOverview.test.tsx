@@ -3842,8 +3842,19 @@ describe("JobOverview validate-and-save and recalculate responses", () => {
       ["diagnostic", "J-1"],
       diagnosticResponse.diagnostic,
     );
+    // Null ids/prices are cleared before the form sync, so the row cannot keep stale values.
     expect(convertAPIDataToFormValues).toHaveBeenCalledWith(
-      expect.objectContaining({ diagnostic: diagnosticResponse.diagnostic }),
+      expect.objectContaining({
+        diagnostic: expect.objectContaining({
+          jobId: "J-1",
+          materials: [
+            expect.objectContaining({
+              id: "M-1",
+              price: expect.objectContaining({ totalAmount: "" }),
+            }),
+          ],
+        }),
+      }),
       expect.any(Array),
       expect.any(Object),
     );

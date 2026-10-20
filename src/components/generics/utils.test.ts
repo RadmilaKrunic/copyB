@@ -1,4 +1,5 @@
 import {
+  syncMaterialsWithForm,
   updatePositionDropdownOptions,
   updatePositionDropdownOptionsWithLimits,
   setDisabledAutomaticRow,
@@ -1446,5 +1447,87 @@ describe("getFieldsBySectionAndAreaName", () => {
       makeSection([makeArea([makeField({ name: "f1" })], { name: "areaA" })], { name: "sec1" }),
     ];
     expect(getFieldsBySectionAndAreaName(sections, "sec1", "wrongArea")).toHaveLength(0);
+  });
+});
+
+describe("syncMaterialsWithForm", () => {
+  const prefix = "diagnosticData_diagnosticsSpareParts#";
+  // materials[] keeps what the first API sync loaded: the first validated part.
+  const firstValidatedPart = {
+    position: "SP",
+    partNumber: "1600A00001",
+    description: "First part",
+    type: "CHARGEABLE",
+    quantity: 1,
+    unitPrice: 50,
+    netAmount: 50,
+    tax: 20,
+    taxAmount: 10,
+    grossAmount: 60,
+    discount: 5,
+    discountAmount: 3,
+    totalAmount: 57,
+    suggestedNetPrice: 50,
+    status: "PENDING",
+    materialId: "old-line-id",
+  };
+  // The form holds the latest server response: new part, no line id, no price yet.
+  const formAfterFailedValidation = {
+    [`${prefix}0_sparePartNumber`]: "1600A001HY",
+    [`${prefix}0_materialId`]: "",
+    [`${prefix}0_unitPrice`]: "",
+    [`${prefix}0_netAmount`]: 0,
+    [`${prefix}0_taxAmount`]: 0,
+    [`${prefix}0_grossAmount`]: 0,
+    [`${prefix}0_discount`]: 0,
+    [`${prefix}0_totalAmount`]: "",
+    [`${prefix}0_suggestedNetPrice`]: 0,
+  };
+
+  it("takes id and prices from the form, including 0 and empty, when server fields are synced", () => {
+    const [row] = syncMaterialsWithForm([firstValidatedPart], formAfterFailedValidation, prefix, {
+      syncServerOwnedFields: true,
+    });
+
+    expect(row).toMatchObject({
+      partNumber: "1600A001HY",
+      materialId: undefined,
+      unitPrice: 0,
+      netAmount: 0,
+      taxAmount: 0,
+      grossAmount: 0,
+      discount: 0,
+      totalAmount: 0,
+      suggestedNetPrice: 0,
+      // not in the form: keeps the item value
+      discountAmount: 3,
+      status: "PENDING",
+    });
+  });
+
+  it("keeps the old fallback behaviour without the option (claims)", () => {
+    const [row] = syncMaterialsWithForm([firstValidatedPart], formAfterFailedValidation, prefix);
+
+    expect(row.materialId).toBe("old-line-id");
+    expect(row.totalAmount).toBe(57);
+  });
+
+  it("uses form values for a synced row id and prices", () => {
+    const [row] = syncMaterialsWithForm(
+      [firstValidatedPart],
+      {
+        [`${prefix}0_materialId`]: "new-line-id",
+        [`${prefix}0_status`]: "VALIDATED",
+        [`${prefix}0_totalAmount`]: "80.5",
+      },
+      prefix,
+      { syncServerOwnedFields: true },
+    );
+
+    expect(row).toMatchObject({
+      materialId: "new-line-id",
+      status: "VALIDATED",
+      totalAmount: 80.5,
+    });
   });
 });
