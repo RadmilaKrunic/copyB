@@ -138,6 +138,26 @@ export const clearNullMaterialValues = (job: JobOverviewItem): JobOverviewItem =
 export const hasPriceSummary = (diagnostic?: JobDiagnostic): boolean =>
   (diagnostic as { priceSummaryDetailed?: unknown } | undefined)?.priceSummaryDetailed !== null;
 
+const hasNonZeroPrice = (price: unknown): boolean => {
+  if (!price || typeof price !== "object") return false;
+  const p = price as Record<string, unknown>;
+  return ["unitPrice", "netAmount", "grossAmount", "totalAmount"].some(
+    (key) => Number(p[key]) !== 0 && Number.isFinite(Number(p[key])),
+  );
+};
+
+/**
+ * True when the latest server response has a material with a price. Read from the response,
+ * not from the manager's materials[]: that list syncs from the API only once, so after a failed
+ * first validation (null prices) it would keep zeros and hide the summary for good.
+ * Undefined when the response has no materials (caller falls back to its own rows).
+ */
+export const hasServerMaterialPrices = (diagnostic?: JobDiagnostic): boolean | undefined => {
+  const materials = diagnostic?.materials;
+  if (!Array.isArray(materials) || materials.length === 0) return undefined;
+  return materials.some((m) => hasNonZeroPrice(m?.price));
+};
+
 /** Root of the diagnostic payload in `mapValuesToAPI` output; recalculation sends only this part. */
 const DIAGNOSTIC_PAYLOAD_ROOT = "diagnostic";
 

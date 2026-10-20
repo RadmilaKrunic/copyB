@@ -51,6 +51,7 @@ import {
   updateJobOverviewWarrantyTabs,
   clearNullMaterialValues,
   hasPriceSummary,
+  hasServerMaterialPrices,
   extractDiagnosticFromValidateResponse,
   getRecalculationPayloadErrors,
   isRecalculationValueEmpty,
@@ -1912,10 +1913,12 @@ export default function JobOverview() {
   const hasPricesPopulated = useMemo(
     () =>
       isPriceSummaryAvailable &&
-      materials.some(
-        (m) => m.unitPrice !== 0 || m.netAmount !== 0 || m.grossAmount !== 0 || m.totalAmount !== 0,
-      ),
-    [materials, isPriceSummaryAvailable],
+      (hasServerMaterialPrices(diagnosticData) ??
+        materials.some(
+          (m) =>
+            m.unitPrice !== 0 || m.netAmount !== 0 || m.grossAmount !== 0 || m.totalAmount !== 0,
+        )),
+    [materials, isPriceSummaryAvailable, diagnosticData],
   );
 
   const showStartRepair = useCallback(() => {
