@@ -551,6 +551,8 @@ function removeArchivedArea(tab: Section, areaName: string): Section {
 }
 
 const SPARE_PARTS_PREFIX = "diagnosticData_diagnosticsSpareParts#";
+/** Diagnostics rows are named #0..n-1 in row order, so form prices and ids map back by index. */
+const SYNC_SERVER_OWNED = { syncServerOwnedFields: true };
 
 /**
  * Copies the server status onto materials matched by materialId.
@@ -1578,7 +1580,12 @@ export const useDiagnosticsManager = ({
         ...buildEmptyMaterial(nextPosition, "", qty, tRef.current),
       };
       setMaterials((prev) => {
-        const syncedMaterials = syncMaterialsWithForm(prev, formValues, SPARE_PARTS_PREFIX);
+        const syncedMaterials = syncMaterialsWithForm(
+          prev,
+          formValues,
+          SPARE_PARTS_PREFIX,
+          SYNC_SERVER_OWNED,
+        );
         return normalizeMaterialOrders([...syncedMaterials, newItem]);
       });
       setArePricesValidated(false);
@@ -1608,6 +1615,7 @@ export const useDiagnosticsManager = ({
           materialsRef.current,
           formValuesRef.current,
           SPARE_PARTS_PREFIX,
+          SYNC_SERVER_OWNED,
         );
         const deletedMaterial = syncedMaterials[areaIndex];
         if (deletedMaterial) {
@@ -1670,6 +1678,7 @@ export const useDiagnosticsManager = ({
           updatedMaterials,
           compactedValues,
           SPARE_PARTS_PREFIX,
+          SYNC_SERVER_OWNED,
         );
         return normalizeMaterialOrders(syncedMaterials);
       });
@@ -1740,6 +1749,7 @@ export const useDiagnosticsManager = ({
         materials,
         formValuesRef.current,
         SPARE_PARTS_PREFIX,
+        SYNC_SERVER_OWNED,
       );
       const currentTabs = tabsRef.current;
       const diagnosticTab = currentTabs.find((t) => t.name === "diagnosticData");
@@ -1794,6 +1804,7 @@ export const useDiagnosticsManager = ({
           prev,
           formValuesRef.current,
           SPARE_PARTS_PREFIX,
+          SYNC_SERVER_OWNED,
         );
         return normalizeMaterialOrders([
           ...syncedMaterials,
