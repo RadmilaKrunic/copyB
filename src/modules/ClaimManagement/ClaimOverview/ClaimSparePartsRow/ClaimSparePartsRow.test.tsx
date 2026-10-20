@@ -331,6 +331,89 @@ describe("ClaimSparePartsRow", () => {
       expect(capturedApplyFieldPermissions!(unitPriceField).isDisabled).toBe(true);
     });
 
+    describe("quantity field (same rules as job diagnostics)", () => {
+      const quantityField = {
+        name: `${NAME_PREFIX}quantity`,
+        label: "Quantity",
+        type: "number",
+        subtype: "diagnosticQuantity",
+        fieldMapping: { originalName: "quantity", nameStartsWith: NAME_PREFIX },
+      };
+      const statusFieldName = `${NAME_PREFIX}status`;
+      const statusField = {
+        name: statusFieldName,
+        label: "Status",
+        type: "badge",
+        subtype: "diagnosticMaterialStatus",
+        fieldMapping: { originalName: "status", nameStartsWith: NAME_PREFIX },
+      };
+      const quantityFields = [...fields, quantityField, statusField] as typeof fields;
+
+      beforeEach(() => {
+        mockUseClaimContext.mockReturnValue({
+          ...baseClaimContext,
+          materials: [{ isNew: false }],
+        } as never);
+      });
+
+      it("enables quantity on an existing row when the user has the position's units permission", () => {
+        mockUseHasPermission.mockImplementation(
+          (perms) => !perms?.length || perms.includes("DSUE"),
+        );
+        renderRow({
+          customFields: quantityFields,
+          initialValues: { [positionFieldName]: "SP", [statusFieldName]: "REVISED" },
+        });
+
+        expect(capturedApplyFieldPermissions!(quantityField).isDisabled).toBe(false);
+        expect(capturedApplyFieldPermissions!(partNumberField).isDisabled).toBe(true);
+      });
+
+      it("disables quantity when the user lacks the position's units permission", () => {
+        mockUseHasPermission.mockImplementation((perms) => !perms?.length);
+        renderRow({
+          customFields: quantityFields,
+          initialValues: { [positionFieldName]: "SP", [statusFieldName]: "REVISED" },
+        });
+
+        expect(mockUseHasPermission).toHaveBeenCalledWith(["DSUE"]);
+        expect(capturedApplyFieldPermissions!(quantityField).isDisabled).toBe(true);
+      });
+
+      it("enables quantity for a position without a units permission rule", () => {
+        mockUseHasPermission.mockImplementation((perms) => !perms?.length);
+        renderRow({
+          customFields: quantityFields,
+          initialValues: { [positionFieldName]: "XX", [statusFieldName]: "REVISED" },
+        });
+
+        expect(capturedApplyFieldPermissions!(quantityField).isDisabled).toBe(false);
+      });
+
+      it("disables quantity on an approved row", () => {
+        renderRow({
+          customFields: quantityFields,
+          initialValues: { [positionFieldName]: "SP", [statusFieldName]: "APPROVED" },
+        });
+
+        expect(capturedApplyFieldPermissions!(quantityField).isDisabled).toBe(true);
+      });
+
+      it("disables quantity when the claim is pending", () => {
+        mockUseClaimContext.mockReturnValue({
+          ...baseClaimContext,
+          materials: [{ isNew: false }],
+          isClaimPending: true,
+        } as never);
+        renderRow({
+          customFields: quantityFields,
+          initialValues: { [positionFieldName]: "SP", [statusFieldName]: "REVISED" },
+        });
+
+        expect(capturedApplyFieldPermissions!(quantityField).isDisabled).toBe(true);
+      });
+    });
+
     it("parses the area index from the field name prefix to look up the correct material", () => {
       const prefix = "claims_claimSpareParts#2_";
       const customFields = [
