@@ -2033,12 +2033,7 @@ describe("SparePartsRow current row behavior", () => {
 
     it("collapses a saved row (with material id) even while prices are not validated", async () => {
       renderRow(
-        {
-          row0_position: "SP",
-          row0_type: "CHARGEABLE",
-          row0_materialId: "MAT-9",
-          row0_unitPrice: 12,
-        },
+        { row0_position: "SP", row0_type: "CHARGEABLE", row0_materialId: "MAT-9" },
         [],
         "GROSS_PRICE",
         {},
@@ -2051,29 +2046,6 @@ describe("SparePartsRow current row behavior", () => {
         expect(screen.getByTestId("icon-up")).toBeInTheDocument();
       });
       expect(screen.getByTestId("field-row0_unitPrice")).toBeInTheDocument();
-    });
-
-    it("keeps a saved row with only zero prices closed while prices are not validated", async () => {
-      // Failed validation: the server returned null prices (synced as 0) for a saved row.
-      renderRow(
-        {
-          row0_position: "SP",
-          row0_type: "CHARGEABLE",
-          row0_materialId: "MAT-9",
-          row0_unitPrice: 0,
-        },
-        [],
-        "GROSS_PRICE",
-        {},
-        ELIGIBLE_WARRANTY_PANEL_INFO,
-        {},
-        { arePricesValidated: false },
-      );
-
-      await waitFor(() => {
-        expect(screen.getByTestId("icon-down")).toBeInTheDocument();
-      });
-      expect(screen.queryByTestId("field-row0_unitPrice")).not.toBeInTheDocument();
     });
 
     it("renders main and collapsed fields ordered by their position", () => {

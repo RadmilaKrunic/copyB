@@ -49,9 +49,6 @@ import { CreateJobContext } from "../CreateJob/CreateJob.context";
 import {
   buildJobOverviewWarrantyCheckPayload,
   updateJobOverviewWarrantyTabs,
-  clearNullMaterialValues,
-  hasPriceSummary,
-  hasServerMaterialPrices,
   extractDiagnosticFromValidateResponse,
   getRecalculationPayloadErrors,
   isRecalculationValueEmpty,
@@ -791,8 +788,6 @@ export default function JobOverview() {
             ? `${t("priceNotAvailable")}: ${uniqueErrorKeys.join(", ")}`
             : t("orderSimulationFailed");
         setMessages((prev) => [...prev, { text: errorText, type: "error", duration: 5000 }]);
-        // Failed validation: rows go back to their unvalidated (collapsed) state.
-        setArePricesValidated(false);
         scrollToTop();
         return;
       }
@@ -1266,7 +1261,6 @@ export default function JobOverview() {
       materials,
       formValuesRef.current ?? {},
       SPARE_PARTS_PREFIX,
-      { syncServerOwnedFields: true },
     );
     setMaterials(updatedMaterials);
     setIsExplosionDrawingModalOpen(true);
@@ -1907,18 +1901,12 @@ export default function JobOverview() {
 
   const showProductDetails = useCallback(() => !isRepairAnswerLocked, [isRepairAnswerLocked]);
   const showAddRow = useCallback(() => !isRepairAnswerLocked, [isRepairAnswerLocked]);
-  // The summary shows only when the latest server response has one: a failed validation
-  // returns priceSummaryDetailed null and hides it until a validation succeeds.
-  const isPriceSummaryAvailable = hasPriceSummary(diagnosticData);
   const hasPricesPopulated = useMemo(
     () =>
-      isPriceSummaryAvailable &&
-      (hasServerMaterialPrices(diagnosticData) ??
-        materials.some(
-          (m) =>
-            m.unitPrice !== 0 || m.netAmount !== 0 || m.grossAmount !== 0 || m.totalAmount !== 0,
-        )),
-    [materials, isPriceSummaryAvailable, diagnosticData],
+      materials.some(
+        (m) => m.unitPrice !== 0 || m.netAmount !== 0 || m.grossAmount !== 0 || m.totalAmount !== 0,
+      ),
+    [materials],
   );
 
   const showStartRepair = useCallback(() => {
@@ -2290,7 +2278,7 @@ export default function JobOverview() {
   const syncData = useCallback(
     (jobFullData: JobOverviewItem, allFields?: Field[]) => {
       const dataMapped = convertAPIDataToFormValues(
-        clearNullMaterialValues(jobFullData),
+        jobFullData,
         allFields || [],
         formValuesRef.current,
       );

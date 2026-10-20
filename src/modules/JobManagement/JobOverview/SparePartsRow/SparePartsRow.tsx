@@ -295,22 +295,16 @@ function SparePartsRow({
     return Number.isFinite(val);
   });
   const hasExpandablePrices = hasPricesPopulated || Boolean(materialId);
-  // A saved row whose prices came back null (shown as 0, e.g. failed validation) stays collapsed
-  // like an unvalidated row instead of opening on its materialId.
-  const hasNonZeroPrice = collapsableFields.some((field) => {
-    const val = Number(values[field.name]);
-    return Number.isFinite(val) && val !== 0;
-  });
 
   const areaPrefix = hasExpandablePrices ? collapsableFields[0]?.fieldMapping?.nameStartsWith : "";
   useEffect(() => {
     if (!hasPriceViewPermission) return;
-    if (materialId && hasNonZeroPrice) {
+    if (materialId) {
       setIsRowCollapsed(true);
       return;
     }
     setIsRowCollapsed(arePricesValidated);
-  }, [arePricesValidated, hasPriceViewPermission, materialId, hasNonZeroPrice]);
+  }, [arePricesValidated, hasPriceViewPermission, materialId]);
 
   const positionFieldsWithDisabledOptions = useMemo(() => {
     return fieldsWithTypeOptionsDisabled.map((field) => {

@@ -3842,19 +3842,8 @@ describe("JobOverview validate-and-save and recalculate responses", () => {
       ["diagnostic", "J-1"],
       diagnosticResponse.diagnostic,
     );
-    // Null ids/prices are cleared before the form sync, so the row cannot keep stale values.
     expect(convertAPIDataToFormValues).toHaveBeenCalledWith(
-      expect.objectContaining({
-        diagnostic: expect.objectContaining({
-          jobId: "J-1",
-          materials: [
-            expect.objectContaining({
-              id: "M-1",
-              price: expect.objectContaining({ totalAmount: 0 }),
-            }),
-          ],
-        }),
-      }),
+      expect.objectContaining({ diagnostic: diagnosticResponse.diagnostic }),
       expect.any(Array),
       expect.any(Object),
     );
@@ -3870,7 +3859,6 @@ describe("JobOverview validate-and-save and recalculate responses", () => {
 
   it("validateAndSave: lists unavailable price keys and skips the success flow", async () => {
     const { setMessagesMock } = renderWithMessages();
-    setPricesValidated(true);
 
     await runOnSuccess("validateAndSave", {
       ...diagnosticResponse,
@@ -3879,39 +3867,12 @@ describe("JobOverview validate-and-save and recalculate responses", () => {
 
     expect(queryClientMock.setQueryData).toHaveBeenCalled();
     expect(markAllValidatedMock).not.toHaveBeenCalled();
-    // Rows go back to their unvalidated, collapsed state.
-    await waitFor(() => expect(diagnosticsCtx().arePricesValidated).toBe(false));
     expect(scrollToTopMock).toHaveBeenCalled();
     expect(collectMessages(setMessagesMock)).toContainEqual({
       text: "priceNotAvailable: PN-1, PN-2",
       type: "error",
       duration: 5000,
     });
-  });
-
-  it.each([
-    [{ total: { totalAmount: 10 }, byJobType: [] }, true],
-    [null, false],
-  ])("hides the summary when priceSummaryDetailed is %o", (priceSummaryDetailed, expected) => {
-    materialsMock.value = [{ unitPrice: 10, netAmount: 10, grossAmount: 12, totalAmount: 12 }];
-    diagnosticDataMock.value = {
-      priceSummaryDetailed,
-    } as unknown as typeof diagnosticDataMock.value;
-    renderWithMessages();
-
-    expect(diagnosticsCtx().hasPricesPopulated).toBe(expected);
-  });
-
-  it("shows the summary after a successful validation even when materials[] kept zeros", () => {
-    // materials[] synced once from a failed first validation (null prices -> 0).
-    materialsMock.value = [{ unitPrice: 0, netAmount: 0, grossAmount: 0, totalAmount: 0 }];
-    diagnosticDataMock.value = {
-      materials: [{ id: "M-1", price: { unitPrice: 10, totalAmount: 12 } }],
-      priceSummaryDetailed: { total: { totalAmount: 12 }, byJobType: [] },
-    } as unknown as typeof diagnosticDataMock.value;
-    renderWithMessages();
-
-    expect(diagnosticsCtx().hasPricesPopulated).toBe(true);
   });
 
   it("recalculate: stores the returned diagnostic and re-syncs the form", async () => {

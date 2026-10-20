@@ -2209,40 +2209,6 @@ describe("useDiagnosticsManager effects", () => {
       expect(result.current.materials.at(-1)).toMatchObject({ position: "", quantity: 1 });
     });
 
-    it("keeps the latest server id and prices of row 0, not the first validated part", async () => {
-      const { props } = createHookProps({
-        diagnosticData: { jobId: "J-STALE", materials: [apiMaterial({ id: "M-OLD" })] },
-      });
-      const { result } = renderManager(props);
-      await waitFor(() => {
-        expect(result.current.materials[0]?.materialId).toBe("M-OLD");
-      });
-      // Part number changed and validation failed: the server returned no line id and no price.
-      props.formValuesRef.current = {
-        ...props.formValuesRef.current,
-        [`${SPARE}#0_sparePartNumber`]: "1600A001HY",
-        [`${SPARE}#0_materialId`]: "",
-        [`${SPARE}#0_unitPrice`]: "",
-        [`${SPARE}#0_netAmount`]: 0,
-        [`${SPARE}#0_grossAmount`]: 0,
-        [`${SPARE}#0_totalAmount`]: "",
-      };
-
-      act(() => {
-        result.current.onAddRow(props.formValuesRef.current);
-      });
-
-      expect(result.current.materials).toHaveLength(2);
-      expect(result.current.materials[0]).toMatchObject({
-        partNumber: "1600A001HY",
-        materialId: undefined,
-        unitPrice: 0,
-        netAmount: 0,
-        grossAmount: 0,
-        totalAmount: 0,
-      });
-    });
-
     it("allows freight rows for users with the insert permission", () => {
       const { props } = createHookProps({
         permissions: [
