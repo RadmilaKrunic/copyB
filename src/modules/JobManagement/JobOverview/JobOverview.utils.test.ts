@@ -6,6 +6,7 @@ import {
   buildJobOverviewWarrantyCheckPayload,
   clearNullMaterialValues,
   hasPriceSummary,
+  hasServerMaterialPrices,
   updateJobOverviewWarrantyTabs,
   getRecalculationPayloadErrors,
   isRecalculationValueEmpty,
@@ -180,5 +181,27 @@ describe("hasPriceSummary", () => {
     expect(hasPriceSummary(withSummary({ total: {}, byJobType: [] }))).toBe(true);
     expect(hasPriceSummary(withSummary(undefined))).toBe(true);
     expect(hasPriceSummary(undefined)).toBe(true);
+  });
+});
+
+describe("hasServerMaterialPrices", () => {
+  const diagnosticWith = (materials: unknown) =>
+    ({ materials }) as unknown as JobOverviewItem["diagnostic"];
+
+  it("is true when a returned material has a price", () => {
+    expect(
+      hasServerMaterialPrices(diagnosticWith([{ price: null }, { price: { totalAmount: 5 } }])),
+    ).toBe(true);
+  });
+
+  it("is false when every returned price is null or 0", () => {
+    expect(
+      hasServerMaterialPrices(diagnosticWith([{ price: null }, { price: { unitPrice: 0 } }])),
+    ).toBe(false);
+  });
+
+  it("is undefined when the response has no materials", () => {
+    expect(hasServerMaterialPrices(diagnosticWith([]))).toBeUndefined();
+    expect(hasServerMaterialPrices(undefined)).toBeUndefined();
   });
 });

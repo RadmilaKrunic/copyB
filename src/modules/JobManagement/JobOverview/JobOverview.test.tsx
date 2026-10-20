@@ -3902,6 +3902,18 @@ describe("JobOverview validate-and-save and recalculate responses", () => {
     expect(diagnosticsCtx().hasPricesPopulated).toBe(expected);
   });
 
+  it("shows the summary after a successful validation even when materials[] kept zeros", () => {
+    // materials[] synced once from a failed first validation (null prices -> 0).
+    materialsMock.value = [{ unitPrice: 0, netAmount: 0, grossAmount: 0, totalAmount: 0 }];
+    diagnosticDataMock.value = {
+      materials: [{ id: "M-1", price: { unitPrice: 10, totalAmount: 12 } }],
+      priceSummaryDetailed: { total: { totalAmount: 12 }, byJobType: [] },
+    } as unknown as typeof diagnosticDataMock.value;
+    renderWithMessages();
+
+    expect(diagnosticsCtx().hasPricesPopulated).toBe(true);
+  });
+
   it("recalculate: stores the returned diagnostic and re-syncs the form", async () => {
     renderWithMessages();
 
