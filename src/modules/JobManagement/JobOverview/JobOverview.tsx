@@ -49,6 +49,7 @@ import { CreateJobContext } from "../CreateJob/CreateJob.context";
 import {
   buildJobOverviewWarrantyCheckPayload,
   updateJobOverviewWarrantyTabs,
+  clearNullMaterialValues,
   extractDiagnosticFromValidateResponse,
   getRecalculationPayloadErrors,
   isRecalculationValueEmpty,
@@ -1261,6 +1262,7 @@ export default function JobOverview() {
       materials,
       formValuesRef.current ?? {},
       SPARE_PARTS_PREFIX,
+      { syncServerOwnedFields: true },
     );
     setMaterials(updatedMaterials);
     setIsExplosionDrawingModalOpen(true);
@@ -2278,7 +2280,7 @@ export default function JobOverview() {
   const syncData = useCallback(
     (jobFullData: JobOverviewItem, allFields?: Field[]) => {
       const dataMapped = convertAPIDataToFormValues(
-        jobFullData,
+        clearNullMaterialValues(jobFullData),
         allFields || [],
         formValuesRef.current,
       );

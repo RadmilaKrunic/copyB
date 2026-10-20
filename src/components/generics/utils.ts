@@ -764,13 +764,39 @@ export const getFieldsBySectionAndAreaName = (
     .flatMap((a) => a.fields);
 };
 
+/**
+ * Reads a server-owned price from the form. The form is synced from every server response,
+ * so a present value wins even when it is 0 or empty; the item value is only a fallback
+ * for rows whose fields are not in the form yet.
+ */
+const readServerOwnedNumber = <T extends number | undefined>(
+  formValues: Record<string, unknown>,
+  key: string,
+  fallback: T,
+): number | T => {
+  if (!(key in formValues)) return fallback;
+  const value = Number(formValues[key]);
+  return Number.isFinite(value) ? value : fallback;
+};
+
+export interface SyncMaterialsWithFormOptions {
+  /**
+   * Take materialId, status and all row prices from the form, including 0 and empty values.
+   * Without it a 0 price or a cleared id falls back to the value from the first API sync,
+   * which rebuilds a row with another part's prices. Needs row names #0..n-1 in row order
+   * (diagnostics rows); claim rows keep #N after a delete, so they do not opt in.
+   */
+  syncServerOwnedFields?: boolean;
+}
+
 export const syncMaterialsWithForm = (
   materials: MaterialItem[],
   formValues: Record<string, unknown>,
   prefix: string,
+  options: SyncMaterialsWithFormOptions = {},
 ) => {
   const syncedMaterials = materials.map((materialItem, index) => {
-    return {
+    const synced = {
       ...materialItem,
       description:
         (formValues[`${prefix}${index}_description`] as string) ?? materialItem.description,
@@ -785,6 +811,38 @@ export const syncMaterialsWithForm = (
       netAmount: Number(formValues[`${prefix}${index}_netAmount`]) || materialItem.netAmount,
       type: (formValues[`${prefix}${index}_type`] as string) ?? materialItem.type,
       unitPrice: Number(formValues[`${prefix}${index}_unitPrice`]) || materialItem.unitPrice,
+    };
+    if (!options.syncServerOwnedFields) return synced;
+
+    const key = (name: string) => `${prefix}${index}_${name}`;
+    const materialIdKey = key("materialId");
+    const statusKey = key("status");
+    return {
+      ...synced,
+      materialId:
+        materialIdKey in formValues
+          ? (formValues[materialIdKey] as string) || undefined
+          : materialItem.materialId,
+      status:
+        statusKey in formValues
+          ? (formValues[statusKey] as string) || materialItem.status
+          : materialItem.status,
+      unitPrice: readServerOwnedNumber(formValues, key("unitPrice"), materialItem.unitPrice),
+      suggestedNetPrice: readServerOwnedNumber(
+        formValues,
+        key("suggestedNetPrice"),
+        materialItem.suggestedNetPrice,
+      ),
+      netAmount: readServerOwnedNumber(formValues, key("netAmount"), materialItem.netAmount),
+      taxAmount: readServerOwnedNumber(formValues, key("taxAmount"), materialItem.taxAmount),
+      grossAmount: readServerOwnedNumber(formValues, key("grossAmount"), materialItem.grossAmount),
+      discount: readServerOwnedNumber(formValues, key("discount"), materialItem.discount),
+      discountAmount: readServerOwnedNumber(
+        formValues,
+        key("discountAmountHidden"),
+        materialItem.discountAmount,
+      ),
+      totalAmount: readServerOwnedNumber(formValues, key("totalAmount"), materialItem.totalAmount),
     };
   });
   return syncedMaterials;
