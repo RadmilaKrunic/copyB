@@ -86,31 +86,57 @@ const MATERIAL_PRICE_KEYS = [
   "totalAmount",
 ] as const;
 
+const SUMMARY_PRICE_KEYS = [
+  "suggestedNetPrice",
+  "netAmount",
+  "taxAmount",
+  "grossAmount",
+  "discount",
+  "discountAmount",
+  "totalAmount",
+] as const;
+
+const zeroPrices = (keys: readonly string[], price: Record<string, unknown> = {}) => {
+  const zeroed: Record<string, unknown> = { ...price };
+  keys.forEach((key) => {
+    zeroed[key] = price[key] ?? 0;
+  });
+  return zeroed;
+};
+
 /**
- * The form mapper keeps the old value when the API sends null. For a material's id and prices
- * null is the server's answer (new line after a part number change, price not available), so it
- * becomes "" here. Otherwise the row keeps the previous part's id and prices, shows them, and
- * validate-and-save sends that stale line id again.
+ * The form mapper keeps the old value when the API sends null. A null material id means a new
+ * line (part number changed) and becomes "". Null prices (price not available, failed
+ * validation) become 0, and a null priceSummaryDetailed zeroes the summary total. Otherwise the
+ * rows and summary keep the previous part's values and validate-and-save sends them again.
  */
 export const clearNullMaterialValues = (job: JobOverviewItem): JobOverviewItem => {
-  const materials = job.diagnostic?.materials;
-  if (!job.diagnostic || !Array.isArray(materials)) return job;
+  const diagnostic = job.diagnostic;
+  const materials = diagnostic?.materials;
+  if (!diagnostic || !Array.isArray(materials)) return job;
 
   const clearedMaterials = materials.map((material) => {
     if (!material) return material;
     const price = (material.price ?? {}) as Record<string, unknown>;
-    const clearedPrice: Record<string, unknown> = { ...price };
-    MATERIAL_PRICE_KEYS.forEach((key) => {
-      clearedPrice[key] = price[key] ?? "";
-    });
-    return { ...material, id: material.id ?? "", price: clearedPrice };
+    return { ...material, id: material.id ?? "", price: zeroPrices(MATERIAL_PRICE_KEYS, price) };
   });
 
-  return {
-    ...job,
-    diagnostic: { ...job.diagnostic, materials: clearedMaterials } as JobDiagnostic,
-  };
+  const cleared = { ...diagnostic, materials: clearedMaterials } as JobDiagnostic;
+  if (diagnostic.priceSummaryDetailed === null) {
+    (cleared as unknown as Record<string, unknown>).priceSummaryDetailed = {
+      total: zeroPrices(SUMMARY_PRICE_KEYS),
+      byJobType: [],
+    };
+  }
+  return { ...job, diagnostic: cleared };
 };
+
+/**
+ * False when the server returned `priceSummaryDetailed: null` (failed validation, nothing
+ * validated yet): the summary stays hidden until a validation succeeds.
+ */
+export const hasPriceSummary = (diagnostic?: JobDiagnostic): boolean =>
+  (diagnostic as { priceSummaryDetailed?: unknown } | undefined)?.priceSummaryDetailed !== null;
 
 /** Root of the diagnostic payload in `mapValuesToAPI` output; recalculation sends only this part. */
 const DIAGNOSTIC_PAYLOAD_ROOT = "diagnostic";
