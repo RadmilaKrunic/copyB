@@ -598,7 +598,7 @@ describe("useClaimMaterialsManager", () => {
     );
   });
 
-  it("bumps rowsChangedVersion once per deleted or restored row", async () => {
+  it("bumps rowsChangedVersion once per restored row, not on a deleted row", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     queryClient.setQueryData(["user"], { countryCode: "ZA", permissions: [] });
     const archivedArea = {
@@ -639,17 +639,17 @@ describe("useClaimMaterialsManager", () => {
     act(() => {
       result.current.onDeleteRow("claims_claimSpareParts#0");
     });
-    expect(result.current.rowsChangedVersion).toBe(1);
+    expect(result.current.rowsChangedVersion).toBe(0);
 
     act(() => {
       result.current.onRestoreRow("claims_claimArchivedSpareParts#0");
     });
-    expect(result.current.rowsChangedVersion).toBe(2);
+    expect(result.current.rowsChangedVersion).toBe(1);
 
     act(() => {
       result.current.onRestoreRow("claims_claimArchivedSpareParts#9");
     });
-    expect(result.current.rowsChangedVersion).toBe(2);
+    expect(result.current.rowsChangedVersion).toBe(1);
   });
 
   it("applies default values when claim material price fields are missing", async () => {

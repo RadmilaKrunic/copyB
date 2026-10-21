@@ -181,3 +181,33 @@ export const getRecalculationPayloadErrors = (
 /** Recalculation skips empty values only; `0` is a valid quantity, price or discount. */
 export const isRecalculationValueEmpty = (value: unknown): boolean =>
   value === null || value === undefined || value === "";
+
+/** Change types sent by the price summary row (lineId ""); see `onRecalculatePrices` typeMap. */
+const SUMMARY_CHANGE_TYPES = new Set(["summaryNetAmount", "summaryTotalAmount", "summaryDiscount"]);
+
+const isSummaryChange = (change: Record<string, unknown>): boolean => {
+  const type = typeof change.type === "string" ? change.type : "";
+  return SUMMARY_CHANGE_TYPES.has(type) || type.endsWith("Material");
+};
+
+/** Row changes collide on line + field; all summary changes share one slot (discount vs amount). */
+const getRecalculationChangeKey = (change: Record<string, unknown>): string => {
+  if (isSummaryChange(change)) return "summary";
+  const lineId = typeof change.lineId === "string" ? change.lineId : "";
+  const type = typeof change.type === "string" ? change.type : "";
+  return `${lineId}|${type}`;
+};
+
+/**
+ * Adds recalculation changes to the list sent with validate-and-save. A change replaces any
+ * earlier one with the same key, so only the last edit of a row field, and only the last
+ * summary edit (discount or amount), is sent.
+ */
+export const mergeRecalculationChanges = (
+  previous: Record<string, unknown>[],
+  next: Record<string, unknown>[],
+): Record<string, unknown>[] =>
+  next.reduce<Record<string, unknown>[]>((acc, change) => {
+    const key = getRecalculationChangeKey(change);
+    return [...acc.filter((c) => getRecalculationChangeKey(c) !== key), change];
+  }, previous);
