@@ -661,8 +661,7 @@ export const useClaimMaterialsManager = ({
       setTabs(currentTabs);
       setMaterials((prev) => normalizeMaterialOrders(prev.filter((_, i) => i !== areaIndex)));
       setArePricesValidated(false);
-      // Tabs, fields and values settle in this batch, so report the delete now.
-      setRowsChangedVersion((v) => v + 1);
+      // A claim row delete does not re-price (only restore does); prices refresh on Validate.
     },
     [
       setInitialFormValues,

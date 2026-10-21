@@ -532,9 +532,9 @@ export default function ClaimOverview() {
     ],
   );
 
-  // Deleting a claim spare-parts row or restoring one from archived re-prices the claim
-  // through the claim prices PUT, on the settled rows (rowsChangedVersion bumps once they
-  // settle). An invalid form is skipped without showing errors; Validate reports them.
+  // Restoring a claim spare-parts row from archived re-prices the claim through the claim
+  // prices PUT, on the settled rows (rowsChangedVersion bumps once they settle). A row delete
+  // does not bump it. An invalid form is skipped without showing errors; Validate reports them.
   const onUpdateClaimPricesAfterRowsChange = useCallback(
     (formValues: Record<string, unknown>) => {
       if (!claimId || !allFields || !claimData) return;

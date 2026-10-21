@@ -10,6 +10,7 @@ import {
   updateJobOverviewWarrantyTabs,
   getRecalculationPayloadErrors,
   isRecalculationValueEmpty,
+  mergeRecalculationChanges,
 } from "./JobOverview.utils";
 
 vi.mock("../CreateJob/CreateJob.warranty.utils", () => ({
@@ -203,5 +204,64 @@ describe("hasServerMaterialPrices", () => {
   it("is undefined when the response has no materials", () => {
     expect(hasServerMaterialPrices(diagnosticWith([]))).toBeUndefined();
     expect(hasServerMaterialPrices(undefined)).toBeUndefined();
+  });
+});
+
+describe("mergeRecalculationChanges", () => {
+  const summaryScope = { positions: ["SP", "PN", "AC"], jobTypes: ["CHARGEABLE"] };
+
+  it("keeps only the last change of the same row field", () => {
+    let changes: Record<string, unknown>[] = [];
+    changes = mergeRecalculationChanges(changes, [
+      { type: "quantity", lineId: "L1", value: 1, scope: null },
+    ]);
+    changes = mergeRecalculationChanges(changes, [
+      { type: "discount", lineId: "L1", value: 5, scope: null },
+    ]);
+    changes = mergeRecalculationChanges(changes, [
+      { type: "quantity", lineId: "L2", value: 4, scope: null },
+    ]);
+    changes = mergeRecalculationChanges(changes, [
+      { type: "quantity", lineId: "L1", value: 3, scope: null },
+    ]);
+
+    expect(changes).toEqual([
+      { type: "discount", lineId: "L1", value: 5, scope: null },
+      { type: "quantity", lineId: "L2", value: 4, scope: null },
+      { type: "quantity", lineId: "L1", value: 3, scope: null },
+    ]);
+  });
+
+  it("keeps only the last summary change, discount or amount", () => {
+    let changes: Record<string, unknown>[] = [
+      { type: "quantity", lineId: "L1", value: 2, scope: null },
+    ];
+    changes = mergeRecalculationChanges(changes, [
+      { type: "summaryDiscount", lineId: "", value: 10, scope: summaryScope },
+    ]);
+    changes = mergeRecalculationChanges(changes, [
+      { type: "summaryTotalAmount", lineId: "", value: 90, scope: summaryScope },
+    ]);
+
+    expect(changes).toEqual([
+      { type: "quantity", lineId: "L1", value: 2, scope: null },
+      { type: "summaryTotalAmount", lineId: "", value: 90, scope: summaryScope },
+    ]);
+
+    changes = mergeRecalculationChanges(changes, [
+      { type: "summaryDiscount", lineId: "", value: 15, scope: summaryScope },
+    ]);
+    expect(changes).toEqual([
+      { type: "quantity", lineId: "L1", value: 2, scope: null },
+      { type: "summaryDiscount", lineId: "", value: 15, scope: summaryScope },
+    ]);
+  });
+
+  it("does not mutate the previous list", () => {
+    const previous = [{ type: "quantity", lineId: "L1", value: 1, scope: null }];
+    mergeRecalculationChanges(previous, [
+      { type: "quantity", lineId: "L1", value: 2, scope: null },
+    ]);
+    expect(previous).toEqual([{ type: "quantity", lineId: "L1", value: 1, scope: null }]);
   });
 });

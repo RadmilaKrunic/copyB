@@ -55,6 +55,7 @@ import {
   extractDiagnosticFromValidateResponse,
   getRecalculationPayloadErrors,
   isRecalculationValueEmpty,
+  mergeRecalculationChanges,
 } from "./JobOverview.utils";
 import {
   getAllowedWarrantyTypes,
@@ -1588,7 +1589,7 @@ export default function JobOverview() {
             }
           : null,
       });
-      setRecalculatedPricesChanges((prev) => [...prev, ...changes]);
+      setRecalculatedPricesChanges((prev) => mergeRecalculationChanges(prev, changes));
       payload.changes = changes;
       recalculatePricesMutation.mutate(payload);
     },
