@@ -63,6 +63,13 @@ interface Field {
 - **Explicit return types for exported functions**
 - **Generic constraints** — `<T extends object>` when applicable
 
+## tsconfig & Sonar
+
+- Root `tsconfig.json` is non-strict; `npm run typecheck` and Sonar (`sonar.typescript.tsconfigPath`) use it. `tsconfig.app.json` / `tsconfig.node.json` are strict.
+- Code must compile in both modes. Non-strict does not narrow `typeof x === "object" && x !== null` out of a fall-through; check `null` separately first (PR #36).
+- Sonar S4325 flags `!` / `as` casts as unnecessary under the non-strict root. Don't delete them blindly; rewrite assertion-free (narrowing, `defined()` helper in tests).
+- Sonar S6551: never `String(unknown)`; narrow, or `JSON.stringify` non-strings.
+
 ## Console Logging
 
 - No `console.log` in production code.

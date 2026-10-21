@@ -54,7 +54,7 @@ npm run commit                 # Commitizen, REQUIRED
 ## Git & Commits
 
 - Base branch + branch pattern: `.github/ai-workflow.yml` (`project.baseBranch`). Never infer from `origin/HEAD`; if base missing/stale, ask.
-- Format: `type(scope): PTBASS-#### summary`. Types: feat, fix, docs, style, refactor, perf, test, chore. See `COMMIT_CONVENTIONS.md`.
+- Format: `type(scope): PTBASS-#### summary`. No ticket -> placeholder `PTBASS-0000` (approved; don't ask). Types: feat, fix, docs, style, refactor, perf, test, chore. See `COMMIT_CONVENTIONS.md`.
 - Use `npm run commit`; Husky + commitlint + lint-staged enforce format & lint.
 - Agents never push or open PRs unless user asks.
 
