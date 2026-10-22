@@ -4,6 +4,8 @@ import { getManufacturedDate } from "../../../api/services/orders/orders";
 import Field from "./GenericField.types";
 import type { AllowedPosition } from "api/services/countryConfiguration/countryConfiguration";
 import { resolveQuantityForPosition } from "hooks/useDiagnosticsManager";
+import type { ResolveDefaultQuantities } from "api/services/prices/prices.types";
+import { isProtectedPosition } from "modules/JobManagement/JobOverview/SparePartsRow/materialPriceEditability";
 
 export const getSerialNumberErrorKey = (
   value: string,
@@ -124,17 +126,20 @@ export const onBlurActions = (
 /**
  * Handles populating related fields when a fault code is selected from the dropdown.
  * Sets faultCode, faultCodeDescription, faultCodeLabourQuantity from the raw API item,
- * and updates the quantity on any spare parts row whose position is "LA" —
- * but only when the LA position's configured quantitySource is "FAULT_CODES".
+ * and updates the quantity on the spare parts row whose position is "LA".
+ * The quantity comes from the default-parameter API (`resolveDefaultQuantities`). When that
+ * is not supplied or gives no LA quantity, the country config decides: the fault code's
+ * labour quantity is used only when LA's quantitySource is "FAULT_CODES".
  * When `allowedPositions` is not supplied, the LA-source check is skipped (legacy behavior).
  */
-export const handleFaultCodeSelection = (
+export const handleFaultCodeSelection = async (
   rawItem: Record<string, unknown>,
   setFieldValue: (field: string, value: unknown) => Promise<void | FormikErrors<unknown>>,
   allFields: Field[] | null,
   formValues: Record<string, unknown>,
   allowedPositions?: AllowedPosition[],
-): void => {
+  resolveDefaultQuantities?: ResolveDefaultQuantities,
+): Promise<void> => {
   if (!allFields) return;
 
   const faultCodeNameList = ["faultCode", "faultCodeDescription", "faultCodeLabourQuantity"];
@@ -143,16 +148,26 @@ export const handleFaultCodeSelection = (
     void setFieldValue(fieldName, rawItem?.[fieldName]);
   }
 
-  if (allowedPositions) {
-    const laPosConfig = allowedPositions.find((p) => p.position === "LA");
-    if (laPosConfig?.quantity.quantitySource !== "FAULT_CODES") return;
-  }
-
-  const labourQty = Number(rawItem?.faultCodeLabourQuantity) || 0;
   const labourPosition = allFields.find(
     (f) => f.subtype === "diagnosticPosition" && formValues[f.name] === "LA",
   );
   if (!labourPosition) return;
+
+  const serverQuantities = resolveDefaultQuantities
+    ? await resolveDefaultQuantities({
+        ...formValues,
+        faultCode: rawItem?.faultCode,
+        faultCodeLabourQuantity: rawItem?.faultCodeLabourQuantity,
+      })
+    : null;
+  const serverLabourQty = serverQuantities?.LA;
+
+  if (serverLabourQty === undefined && allowedPositions) {
+    const laPosConfig = allowedPositions.find((p) => p.position === "LA");
+    if (laPosConfig?.quantity.quantitySource !== "FAULT_CODES") return;
+  }
+
+  const labourQty = serverLabourQty ?? (Number(rawItem?.faultCodeLabourQuantity) || 0);
 
   const labourRow = allFields.filter(
     (qf) => qf.fieldMapping?.nameStartsWith === labourPosition.fieldMapping?.nameStartsWith,
@@ -166,9 +181,12 @@ export const handleFaultCodeSelection = (
 
 /**
  * Applies the matched diagnostic rule to a spare-parts row whose position is changing, before
- * any price action runs (positions the rule does not list are left alone):
+ * any price action runs (positions the rule does not list, e.g. claim rows, only get the
+ * API quantity):
  * - rejects a position the rule caps (maxCount already used by the other rows);
- * - sets the quantity the rule prescribes for the position (DEFAULT / FAULT_CODES sources);
+ * - sets the quantity: protected positions (LA, FR, PC) take it from the default-parameter API
+ *   when `resolveDefaultQuantities` is supplied (job and claim rows); otherwise, or when the
+ *   API gives none, the quantity the rule prescribes (DEFAULT / FAULT_CODES sources);
  * - fills the fixed part number and description of autofilled positions (LA, FR).
  * Returns false when the position is rejected; the row is left unchanged in that case.
  */
@@ -180,6 +198,7 @@ export const applyPositionRules = async ({
   allowedPositions,
   positionAutofill,
   setFieldValue,
+  resolveDefaultQuantities,
 }: {
   field: Field;
   position: string;
@@ -188,6 +207,7 @@ export const applyPositionRules = async ({
   allowedPositions?: AllowedPosition[];
   positionAutofill: Record<string, { partNumber: string; description: string }>;
   setFieldValue: (field: string, value: unknown) => Promise<void | FormikErrors<unknown>>;
+  resolveDefaultQuantities?: ResolveDefaultQuantities;
 }): Promise<boolean> => {
   const rowPrefix = field.fieldMapping?.nameStartsWith;
   const rowFields = rowPrefix
@@ -196,25 +216,37 @@ export const applyPositionRules = async ({
   const rowField = (subtype: string) => rowFields.find((f) => f.subtype === subtype);
   const positionRule = allowedPositions?.find((p) => p.position === position);
   // Positions outside the matched rule (e.g. special-material SP, claim rows) have no rules.
-  if (!positionRule || !allowedPositions) return true;
+  const rulePositions = positionRule ? allowedPositions : undefined;
 
-  const usedByOtherRows = allFields.filter(
-    (f) =>
-      f.subtype === "diagnosticPosition" && f.name !== field.name && values[f.name] === position,
-  ).length;
-  if (usedByOtherRows >= positionRule.maxCount) return false;
+  if (positionRule) {
+    const usedByOtherRows = allFields.filter(
+      (f) =>
+        f.subtype === "diagnosticPosition" && f.name !== field.name && values[f.name] === position,
+    ).length;
+    if (usedByOtherRows >= positionRule.maxCount) return false;
+  }
 
-  const quantity = resolveQuantityForPosition(
-    allowedPositions,
-    position,
-    values.faultCode as string | undefined,
-    Number(values.faultCodeLabourQuantity) || 0,
-  );
+  const serverQuantities =
+    resolveDefaultQuantities && isProtectedPosition(position)
+      ? await resolveDefaultQuantities(values)
+      : null;
+  const quantity =
+    serverQuantities?.[position.toUpperCase()] ??
+    (rulePositions
+      ? resolveQuantityForPosition(
+          rulePositions,
+          position,
+          values.faultCode as string | undefined,
+          Number(values.faultCodeLabourQuantity) || 0,
+        )
+      : undefined);
   const quantityField = rowField("diagnosticQuantity");
 
   if (quantity !== undefined && quantityField) {
     await setFieldValue(quantityField.name, quantity);
   }
+
+  if (!positionRule) return true;
 
   const autofill = positionAutofill[position];
   if (autofill) {

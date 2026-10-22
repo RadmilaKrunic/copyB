@@ -4,6 +4,7 @@ import Field, {
 } from "components/generics/Field/GenericField.types";
 import { createContext } from "react";
 import { ActionMandatoryFields } from "./GenericForm.types";
+import type { ResolveDefaultQuantities } from "api/services/prices/prices.types";
 
 export interface ActionCallbackHelpers {
   setFieldValue: (field: string, value: unknown) => void | Promise<unknown>;
@@ -50,6 +51,8 @@ export interface GenericFormContextType {
   sparePartNotBelongsToTool?: React.RefObject<Record<string, boolean>>;
   warrantyPanelInfo?: WarrantyPanelInfo;
   isRepairAnswerLocked?: boolean;
+  /** Default quantity of protected spare-parts rows from the backend (job & claim). */
+  resolveDefaultQuantities?: ResolveDefaultQuantities;
 }
 
 export const GenericFormContext = createContext<GenericFormContextType>({
@@ -65,4 +68,5 @@ export const GenericFormContext = createContext<GenericFormContextType>({
   sparePartNotBelongsToTool: undefined,
   warrantyPanelInfo: undefined,
   isRepairAnswerLocked: undefined,
+  resolveDefaultQuantities: undefined,
 });

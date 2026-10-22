@@ -23,6 +23,8 @@ import { PERMISSIONS } from "utils/Permissions";
 import type { HeaderUserData } from "api/services/header/action";
 import type { Material } from "modules/ClaimManagement/ClaimOverview/Claims.types";
 import { MessagesContext } from "../contexts/messagescontext";
+import type { DefaultQuantities, ResolveDefaultQuantities } from "api/services/prices/prices.types";
+import { isProtectedPosition } from "modules/JobManagement/JobOverview/SparePartsRow/materialPriceEditability";
 import { scrollToTop } from "../utils/scrollToError";
 import {
   SummaryDetail,
@@ -674,6 +676,11 @@ interface UseDiagnosticsManagerProps {
   jobStatus?: string;
   /** Per part-number field "does not belong to tool" flags; re-keyed on row delete. */
   sparePartNotBelongsToToolRef?: RefObject<Record<string, boolean>>;
+  /**
+   * Backend default quantity of protected rows (LA, FR, PC). When it resolves null, the
+   * country-config quantity stays.
+   */
+  resolveDefaultQuantities?: ResolveDefaultQuantities;
   /** Per autocomplete field validity flags; re-keyed on row delete. */
   autocompleteValidationRef?: RefObject<Record<string, boolean>>;
 }
@@ -744,6 +751,7 @@ export const useDiagnosticsManager = ({
   jobStatus = "",
   sparePartNotBelongsToToolRef,
   autocompleteValidationRef,
+  resolveDefaultQuantities,
 }: UseDiagnosticsManagerProps): UseDiagnosticsManagerReturn => {
   const queryClient = useQueryClient();
   const { setMessages } = useContext(MessagesContext);
@@ -833,6 +841,8 @@ export const useDiagnosticsManager = ({
   automaticRowsRef.current = automaticRows;
   const getQuantityForPositionRef = useRef(getQuantityForPosition);
   getQuantityForPositionRef.current = getQuantityForPosition;
+  const resolveDefaultQuantitiesRef = useRef(resolveDefaultQuantities);
+  resolveDefaultQuantitiesRef.current = resolveDefaultQuantities;
   const addSpecialMaterialsAllowedRef = useRef(addSpecialMaterialsAllowed);
   addSpecialMaterialsAllowedRef.current = addSpecialMaterialsAllowed;
   const discountBaseRef = useRef(discountBase);
@@ -1042,6 +1052,26 @@ export const useDiagnosticsManager = ({
     setArchivedMaterials(items);
   }, [diagnosticData]);
 
+  /** Writes backend default quantities onto protected rows; rebuilds the rows' form values. */
+  const applyDefaultQuantities = (quantities: DefaultQuantities) => {
+    const getQuantity = (item: MaterialItem) =>
+      isProtectedPosition(item.position) ? quantities[item.position.toUpperCase()] : undefined;
+    const hasChange = materialsRef.current.some((item) => {
+      const quantity = getQuantity(item);
+      return quantity !== undefined && quantity !== item.quantity;
+    });
+    if (!hasChange) return;
+    forceRebuildRef.current = true;
+    setMaterials((prev) =>
+      prev.map((item) => {
+        const quantity = getQuantity(item);
+        return quantity === undefined ? item : { ...item, quantity };
+      }),
+    );
+  };
+  const applyDefaultQuantitiesRef = useRef(applyDefaultQuantities);
+  applyDefaultQuantitiesRef.current = applyDefaultQuantities;
+
   // ── Effect 2: Rule change → rebuild materials list ────────────────────────
   useEffect(() => {
     if (readOnly) return;
@@ -1074,9 +1104,10 @@ export const useDiagnosticsManager = ({
     const faultCode = (formValuesRef.current.faultCode as string) ?? "";
     const faultCodeLabourQty = Number(formValuesRef.current.faultCodeLabourQuantity) || 0;
 
+    // Build fresh from automatic rows only.
+    const positionsToAdd = sortByPositionOrder(automatic.filter((pos) => allowedSet.has(pos)));
+
     setMaterials((prev) => {
-      // Build fresh from automatic rows only.
-      const positionsToAdd = sortByPositionOrder(automatic.filter((pos) => allowedSet.has(pos)));
       const automaticItems = positionsToAdd.map((pos) => {
         const qty = getQuantityForPositionRef.current(pos, faultCode, faultCodeLabourQty) ?? 1;
         const item = buildEmptyMaterial(pos, currentJobType, qty, tRef.current);
@@ -1115,6 +1146,22 @@ export const useDiagnosticsManager = ({
 
       return normalizeMaterialOrders(rebuiltItems);
     });
+
+    // Protected rows were built with the country-config quantity; replace it with the
+    // backend default once it arrives, unless the rule changed again meanwhile.
+    const resolveDefaults = resolveDefaultQuantitiesRef.current;
+    if (resolveDefaults && positionsToAdd.some(isProtectedPosition)) {
+      void resolveDefaults({
+        ...formValuesRef.current,
+        actionType: currentActionType,
+        jobType: currentJobType,
+      })
+        .catch(() => null)
+        .then((quantities) => {
+          if (!quantities || prevRuleKeyRef.current !== ruleKey) return;
+          applyDefaultQuantitiesRef.current(quantities);
+        });
+    }
   }, [
     readOnly,
     currentActionType,
@@ -1526,9 +1573,11 @@ export const useDiagnosticsManager = ({
     setInitialFormValues((prev) => ({ ...prev, ...rowValues }));
   }, [priceSummaryDetailed, setInitialFormValues]);
 
+  // Blocks a second add while the default quantity of a new protected row is loading.
+  const addRowPendingRef = useRef(false);
   const onAddRow = useCallback(
     (formValues?: Record<string, unknown>) => {
-      if (!formValues) return;
+      if (!formValues || addRowPendingRef.current) return;
       const perms = userPermissionsRef.current;
       const hasPositionPermission = (position: string): boolean => {
         const required =
@@ -1569,26 +1618,42 @@ export const useDiagnosticsManager = ({
           )
           .find((p) => (positionCounts[p.position] ?? 0) < p.maxCount)?.position ?? "";
 
-      const qty = nextPosition
+      const configQty = nextPosition
         ? (getQuantityForPositionRef.current(
             nextPosition,
             (formValues.faultCode as string) ?? "",
             Number(formValues.faultCodeLabourQuantity) || 0,
           ) ?? 1)
         : 1;
-      const newItem = {
-        ...buildEmptyMaterial(nextPosition, "", qty, tRef.current),
+      const addRow = (qty: number) => {
+        const newItem = {
+          ...buildEmptyMaterial(nextPosition, "", qty, tRef.current),
+        };
+        setMaterials((prev) => {
+          const syncedMaterials = syncMaterialsWithForm(
+            prev,
+            formValues,
+            SPARE_PARTS_PREFIX,
+            SYNC_SERVER_OWNED,
+          );
+          return normalizeMaterialOrders([...syncedMaterials, newItem]);
+        });
+        setArePricesValidated(false);
       };
-      setMaterials((prev) => {
-        const syncedMaterials = syncMaterialsWithForm(
-          prev,
-          formValues,
-          SPARE_PARTS_PREFIX,
-          SYNC_SERVER_OWNED,
-        );
-        return normalizeMaterialOrders([...syncedMaterials, newItem]);
-      });
-      setArePricesValidated(false);
+
+      // Protected rows take the backend default quantity; country config is the fallback.
+      const resolveDefaults = resolveDefaultQuantitiesRef.current;
+      if (!resolveDefaults || !isProtectedPosition(nextPosition)) {
+        addRow(configQty);
+        return;
+      }
+      addRowPendingRef.current = true;
+      void resolveDefaults(formValues)
+        .catch(() => null)
+        .then((quantities) => addRow(quantities?.[nextPosition.toUpperCase()] ?? configQty))
+        .finally(() => {
+          addRowPendingRef.current = false;
+        });
     },
     [setArePricesValidated],
   );

@@ -798,3 +798,85 @@ describe("useClaimMaterialsManager", () => {
     });
   });
 });
+describe("useClaimMaterialsManager default quantity from the API", () => {
+  const renderWithPositions = (
+    positions: string[],
+    resolveDefaultQuantities: ReturnType<typeof vi.fn>,
+  ) => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(["user"], { countryCode: "ZA", permissions: [] });
+    queryClient.setQueryData(["countryConfiguration", "ZA"], {
+      diagnosticsConfiguration: {
+        rules: [
+          {
+            actionType: "REPAIR",
+            jobType: "WARRANTY",
+            rule: { allowedPositions: positions.map((position) => ({ position, maxCount: 1 })) },
+          },
+        ],
+      },
+    });
+    return renderHook(
+      () =>
+        useClaimMaterialsManager({
+          claimId: "C1",
+          claimMaterials: undefined,
+          currentActionType: "REPAIR",
+          currentJobType: "WARRANTY",
+          tabs: [claimsTab],
+          setTabs: vi.fn(),
+          allFields,
+          setAllFields: vi.fn(),
+          setInitialFormValues: vi.fn(),
+          skipFormResetRef: { current: false },
+          formValuesRef: { current: {} },
+          arePricesValidated: false,
+          setArePricesValidated: vi.fn(),
+          readOnly: false,
+          resolveDefaultQuantities,
+        }),
+      { wrapper: makeWrapper(queryClient) },
+    );
+  };
+
+  it("adds a protected row with the API quantity", async () => {
+    const resolve = vi.fn().mockResolvedValue({ LA: 5 });
+    const { result } = renderWithPositions(["LA"], resolve);
+
+    act(() => {
+      result.current.onAddRow({ actionType: "REPAIR" });
+    });
+
+    await waitFor(() => {
+      expect(result.current.materials).toHaveLength(1);
+    });
+    expect(result.current.materials[0]).toMatchObject({ position: "LA", quantity: 5 });
+    expect(resolve).toHaveBeenCalledWith({ actionType: "REPAIR" });
+  });
+
+  it("adds a protected row with quantity 1 when the API gives nothing", async () => {
+    const { result } = renderWithPositions(["LA"], vi.fn().mockResolvedValue(null));
+
+    act(() => {
+      result.current.onAddRow({});
+    });
+
+    await waitFor(() => {
+      expect(result.current.materials).toHaveLength(1);
+    });
+    expect(result.current.materials[0].quantity).toBe(1);
+  });
+
+  it("does not call the API when the new row has no protected position", () => {
+    const resolve = vi.fn();
+    const { result } = renderWithPositions(["SP", "LA"], resolve);
+
+    act(() => {
+      result.current.onAddRow({});
+    });
+
+    expect(result.current.materials).toHaveLength(1);
+    expect(result.current.materials[0].position).toBe("");
+    expect(resolve).not.toHaveBeenCalled();
+  });
+});
