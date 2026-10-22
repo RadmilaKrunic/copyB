@@ -33,6 +33,7 @@ import { useBareSalesRelation } from "api/services/bareSalesRelation/hooks";
 import { setDuplicatedArea } from "components/generics/utils";
 import { scrollToTop } from "utils/scrollToError";
 import { MessagesContext } from "@/contexts/messagescontext";
+import type { ResolveDefaultQuantities } from "api/services/prices/prices.types";
 import { PERMISSIONS } from "utils/Permissions";
 import {
   computeIsChargeable,
@@ -289,6 +290,7 @@ const createHookProps = (overrides: HookOverride = {}) => {
       setArePricesValidated,
       readOnly: false,
       jobStatus: overrides.jobStatus ?? "",
+      resolveDefaultQuantities: undefined as ResolveDefaultQuantities | undefined,
     },
     mocks: {
       setTabs,
@@ -2711,5 +2713,126 @@ describe("syncMaterialStatusesFromAPI", () => {
     expect(syncMaterialStatusesFromAPI(materials, [{ id: "m1", status: "APPROVED" }])).toBe(
       materials,
     );
+  });
+});
+describe("useDiagnosticsManager default quantity from the API", () => {
+  const withAutomaticRows = (
+    mocks: ReturnType<typeof createHookProps>["mocks"],
+    automaticRows: string[],
+  ) => {
+    const config = mocks.getQueryData(["countryConfiguration", "ZA"]) as CountryConfig;
+    config.diagnosticsConfiguration.rules[0].rule.automaticRows = automaticRows;
+  };
+
+  const freightPermissions = [
+    PERMISSIONS.DIAGNOSTICS.CAN_VIEW_FREIGHT_ITEMS,
+    PERMISSIONS.DIAGNOSTICS.CAN_INSERT_AND_DELETE_FREIGHT_ITEMS,
+  ];
+
+  it("replaces the config quantity of protected automatic rows with the API quantity", async () => {
+    const { props, mocks } = createHookProps({
+      permissions: freightPermissions,
+      allowedPositions: [
+        makeAllowedPosition("PN", "DEFAULT", 4, 1),
+        makeAllowedPosition("LA", "FAULT_CODES", 2, 1),
+        makeAllowedPosition("FR", "DEFAULT", 1, 1),
+      ],
+    });
+    withAutomaticRows(mocks, ["PN", "LA", "FR"]);
+    const resolveDefaultQuantities = vi.fn().mockResolvedValue({ LA: 5, FR: 2, PN: 9 });
+    const { result } = renderManager({ ...props, resolveDefaultQuantities });
+
+    await waitFor(() => {
+      expect(result.current.materials.map((m) => [m.position, m.quantity])).toEqual([
+        ["LA", 5],
+        ["PN", 4],
+        ["FR", 2],
+      ]);
+    });
+    expect(resolveDefaultQuantities).toHaveBeenCalledWith(
+      expect.objectContaining({ actionType: "REPAIR", jobType: "CHARGEABLE" }),
+    );
+  });
+
+  it("keeps the config quantity when the API gives nothing", async () => {
+    const { props, mocks } = createHookProps({
+      allowedPositions: [makeAllowedPosition("LA", "FAULT_CODES", 2, 1)],
+    });
+    withAutomaticRows(mocks, ["LA"]);
+    const resolveDefaultQuantities = vi.fn().mockResolvedValue(null);
+    const { result } = renderManager({ ...props, resolveDefaultQuantities });
+
+    await waitFor(() => {
+      expect(resolveDefaultQuantities).toHaveBeenCalled();
+    });
+    expect(result.current.materials.map((m) => [m.position, m.quantity])).toEqual([["LA", 7]]);
+  });
+
+  it("does not call the API when no automatic row is protected", async () => {
+    const { props } = createHookProps();
+    const resolveDefaultQuantities = vi.fn();
+    const { result } = renderManager({ ...props, resolveDefaultQuantities });
+
+    await waitFor(() => {
+      expect(result.current.materials.map((m) => m.position)).toEqual(["PN"]);
+    });
+    expect(resolveDefaultQuantities).not.toHaveBeenCalled();
+  });
+
+  it("adds a protected row with the API quantity", async () => {
+    const { props } = createHookProps({
+      permissions: freightPermissions,
+      formValues: { [`${SPARE}#0_position`]: "" },
+      allowedPositions: [makeAllowedPosition("FR", "DEFAULT", 1, 1)],
+    });
+    const resolveDefaultQuantities = vi.fn().mockResolvedValue({ FR: 3 });
+    const { result } = renderManager({ ...props, resolveDefaultQuantities });
+
+    act(() => {
+      result.current.onAddRow(props.formValuesRef.current);
+    });
+
+    await waitFor(() => {
+      expect(result.current.materials.find((m) => m.position === "FR")?.quantity).toBe(3);
+    });
+    expect(resolveDefaultQuantities).toHaveBeenCalledWith(props.formValuesRef.current);
+  });
+
+  it("adds a protected row with the config quantity when the API gives nothing", async () => {
+    const { props } = createHookProps({
+      permissions: freightPermissions,
+      formValues: { [`${SPARE}#0_position`]: "" },
+      allowedPositions: [makeAllowedPosition("FR", "DEFAULT", 2, 1)],
+    });
+    const resolveDefaultQuantities = vi.fn().mockResolvedValue(null);
+    const { result } = renderManager({ ...props, resolveDefaultQuantities });
+
+    act(() => {
+      result.current.onAddRow(props.formValuesRef.current);
+    });
+
+    await waitFor(() => {
+      expect(result.current.materials.find((m) => m.position === "FR")?.quantity).toBe(2);
+    });
+  });
+
+  it("adds only one row while the API call is pending", async () => {
+    const { props } = createHookProps({
+      permissions: freightPermissions,
+      formValues: { [`${SPARE}#0_position`]: "" },
+      allowedPositions: [makeAllowedPosition("FR", "DEFAULT", 1, 1)],
+    });
+    const resolveDefaultQuantities = vi.fn().mockResolvedValue({ FR: 1 });
+    const { result } = renderManager({ ...props, resolveDefaultQuantities });
+
+    act(() => {
+      result.current.onAddRow(props.formValuesRef.current);
+      result.current.onAddRow(props.formValuesRef.current);
+    });
+
+    await waitFor(() => {
+      expect(result.current.materials.filter((m) => m.position === "FR")).toHaveLength(1);
+    });
+    expect(resolveDefaultQuantities).toHaveBeenCalledTimes(1);
   });
 });

@@ -56,6 +56,8 @@ import { PositionItem } from "modules/JobManagement/JobOverview/ExplosionDiagram
 import { MessagesContext } from "contexts/messagescontext";
 import { ClaimItem } from "./Claims.types";
 import { makeFieldGetter } from "./ClaimOverview.utils";
+import { useFetchDefaultQuantities } from "api/services/prices/hooks";
+import type { ResolveDefaultQuantities } from "api/services/prices/prices.types";
 const SPARE_PARTS_PREFIX = "claims_claimSpareParts#";
 function FormikClaimSync({
   setCurrentActionType,
@@ -239,6 +241,25 @@ export default function ClaimOverview() {
 
   const tabsReady = tabs.length > 0;
 
+  // Default quantity of protected spare-parts rows (LA, FR, PC) comes from the backend.
+  // Form values win; the claim's own values fill what the claim form does not show.
+  const fetchDefaultQuantities = useFetchDefaultQuantities();
+  const resolveDefaultQuantities = useCallback<ResolveDefaultQuantities>(
+    (values) =>
+      fetchDefaultQuantities({
+        countryCode: claimData?.countryCode,
+        ascId: claimData?.ascId,
+        jobId: claimData?.jobId,
+        actionType: values.actionType || claimData?.actionType,
+        jobType: values.jobType || claimData?.jobType,
+        faultCode: values.faultCode || claimData?.faultCode,
+        faultCodeLabourQuantity:
+          values.faultCodeLabourQuantity || claimData?.faultCodeLabourQuantity,
+        exchangeReason: values.exchangeReason || claimData?.exchangeReason,
+      }),
+    [fetchDefaultQuantities, claimData],
+  );
+
   const {
     materials,
     setMaterials,
@@ -275,6 +296,7 @@ export default function ClaimOverview() {
     arePricesValidated,
     setArePricesValidated,
     readOnly: !isClaimEditMode,
+    resolveDefaultQuantities,
   });
 
   useEffect(() => {
@@ -844,8 +866,10 @@ export default function ClaimOverview() {
       sparePartNotBelongsToTool: sparePartNotBelongsToToolRef,
       onDeleteStart: () => setIsDeletingFile(true),
       onDeleteEnd: () => setIsDeletingFile(false),
+      resolveDefaultQuantities,
     }),
     [
+      resolveDefaultQuantities,
       allFields,
       setAllFields,
       mandatoryFields,

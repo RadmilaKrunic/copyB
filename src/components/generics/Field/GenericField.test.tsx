@@ -850,6 +850,7 @@ describe("GenericField", () => {
         expect.anything(),
         expect.anything(),
         allowedPositions,
+        undefined,
       );
     });
 

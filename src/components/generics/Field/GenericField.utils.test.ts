@@ -432,6 +432,87 @@ describe("handleFaultCodeSelection", () => {
     handleFaultCodeSelection(rawItem, setFieldValue, allFields, formValues, []);
     expect(setFieldValue).not.toHaveBeenCalledWith("row0_quantity", expect.anything());
   });
+
+  describe("with the default-parameter API", () => {
+    const laRow = () => [
+      makeField("row0_position", "diagnosticPosition", {
+        fieldMapping: {
+          originalName: "position",
+          map: "position",
+          parentMap: [],
+          prefixes: [],
+          nameStartsWith: "row0_",
+        },
+      }),
+      makeField("row0_quantity", "diagnosticQuantity", {
+        fieldMapping: {
+          originalName: "quantity",
+          map: "quantity",
+          parentMap: [],
+          prefixes: [],
+          nameStartsWith: "row0_",
+        },
+      }),
+    ];
+    const defaultSourceLa = [
+      {
+        position: "LA",
+        minCount: 1,
+        maxCount: 1,
+        quantity: { quantitySource: "DEFAULT", defaultQuantity: 3 },
+        unitPriceSource: "SAP",
+      },
+    ];
+    const rawItem = { faultCode: "C1", faultCodeDescription: "Desc", faultCodeLabourQuantity: 6 };
+
+    it("sets the LA quantity from the API, even when country config says DEFAULT", async () => {
+      const setFieldValue = vi.fn().mockResolvedValue(undefined);
+      const resolve = vi.fn().mockResolvedValue({ LA: 5, FR: 1 });
+      await handleFaultCodeSelection(
+        rawItem,
+        setFieldValue,
+        laRow(),
+        { row0_position: "LA", actionType: "REPAIR" },
+        defaultSourceLa,
+        resolve,
+      );
+      expect(resolve).toHaveBeenCalledWith({
+        row0_position: "LA",
+        actionType: "REPAIR",
+        faultCode: "C1",
+        faultCodeLabourQuantity: 6,
+      });
+      expect(setFieldValue).toHaveBeenCalledWith("row0_quantity", 5);
+    });
+
+    it("falls back to the country-config rule when the API gives no quantity", async () => {
+      const setFieldValue = vi.fn().mockResolvedValue(undefined);
+      const resolve = vi.fn().mockResolvedValue(null);
+      await handleFaultCodeSelection(
+        rawItem,
+        setFieldValue,
+        laRow(),
+        { row0_position: "LA" },
+        defaultSourceLa,
+        resolve,
+      );
+      expect(setFieldValue).not.toHaveBeenCalledWith("row0_quantity", expect.anything());
+    });
+
+    it("does not call the API when there is no LA row", async () => {
+      const setFieldValue = vi.fn().mockResolvedValue(undefined);
+      const resolve = vi.fn();
+      await handleFaultCodeSelection(
+        rawItem,
+        setFieldValue,
+        laRow(),
+        { row0_position: "SP" },
+        defaultSourceLa,
+        resolve,
+      );
+      expect(resolve).not.toHaveBeenCalled();
+    });
+  });
 });
 
 // ── resolveIsRequired ────────────────────────────────────────────────────────
@@ -636,5 +717,97 @@ describe("applyPositionRules", () => {
 
     expect(allowed).toBe(true);
     expect(setFieldValue).not.toHaveBeenCalled();
+  });
+
+  describe("with the default-parameter API", () => {
+    it("sets a protected position's quantity from the API instead of the rule", async () => {
+      const setFieldValue = vi.fn().mockResolvedValue(undefined);
+      const resolve = vi.fn().mockResolvedValue({ FR: 2 });
+      const values = { row0_position: "SP", row1_position: "SP" };
+      const allowed = await applyPositionRules({
+        field: positionField,
+        position: "FR",
+        allFields,
+        values,
+        allowedPositions,
+        positionAutofill,
+        setFieldValue,
+        resolveDefaultQuantities: resolve,
+      });
+
+      expect(allowed).toBe(true);
+      expect(resolve).toHaveBeenCalledWith(values);
+      expect(setFieldValue).toHaveBeenCalledWith("row1_quantity", 2);
+      expect(setFieldValue).toHaveBeenCalledWith("row1_partNumber", "1609888888");
+    });
+
+    it("keeps the rule quantity when the API call gives nothing", async () => {
+      const setFieldValue = vi.fn().mockResolvedValue(undefined);
+      await applyPositionRules({
+        field: positionField,
+        position: "FR",
+        allFields,
+        values: { row0_position: "SP", row1_position: "SP" },
+        allowedPositions,
+        positionAutofill,
+        setFieldValue,
+        resolveDefaultQuantities: vi.fn().mockResolvedValue(null),
+      });
+
+      expect(setFieldValue).toHaveBeenCalledWith("row1_quantity", 1);
+    });
+
+    it("does not call the API for a position that is not protected", async () => {
+      const setFieldValue = vi.fn().mockResolvedValue(undefined);
+      const resolve = vi.fn();
+      await applyPositionRules({
+        field: positionField,
+        position: "AC",
+        allFields,
+        values: { row0_position: "SP", row1_position: "SP" },
+        allowedPositions,
+        positionAutofill,
+        setFieldValue,
+        resolveDefaultQuantities: resolve,
+      });
+
+      expect(resolve).not.toHaveBeenCalled();
+      expect(setFieldValue).toHaveBeenCalledWith("row1_quantity", 3);
+    });
+
+    it("does not call the API for a rejected position", async () => {
+      const resolve = vi.fn();
+      const allowed = await applyPositionRules({
+        field: positionField,
+        position: "FR",
+        allFields,
+        values: { row0_position: "FR", row1_position: "SP" },
+        allowedPositions,
+        positionAutofill,
+        setFieldValue: vi.fn().mockResolvedValue(undefined),
+        resolveDefaultQuantities: resolve,
+      });
+
+      expect(allowed).toBe(false);
+      expect(resolve).not.toHaveBeenCalled();
+    });
+
+    it("sets the API quantity on a row without rules (claim row), without autofill", async () => {
+      const setFieldValue = vi.fn().mockResolvedValue(undefined);
+      const allowed = await applyPositionRules({
+        field: positionField,
+        position: "LA",
+        allFields,
+        values: { row0_position: "SP", row1_position: "SP" },
+        allowedPositions: [],
+        positionAutofill: { LA: { partNumber: "LABOUR", description: "Labour" } },
+        setFieldValue,
+        resolveDefaultQuantities: vi.fn().mockResolvedValue({ LA: 5 }),
+      });
+
+      expect(allowed).toBe(true);
+      expect(setFieldValue).toHaveBeenCalledTimes(1);
+      expect(setFieldValue).toHaveBeenCalledWith("row1_quantity", 5);
+    });
   });
 });
