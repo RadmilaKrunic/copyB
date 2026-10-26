@@ -94,6 +94,32 @@ const materialItemToMaterial = (item: MaterialItem): Material => ({
   },
 });
 
+/**
+ * Copies the current form values of the existing claim rows back onto the material items,
+ * so edits are not lost when a row is appended. `rowPrefixes[i]` is the i-th active area's
+ * own prefix; its "#N" can differ from i once a row has been deleted.
+ */
+const syncMaterialsFromFormValues = (
+  materials: MaterialItem[],
+  rowPrefixes: string[],
+  formValues: Record<string, unknown>,
+): void => {
+  materials.forEach((m, i) => {
+    const p = rowPrefixes[i] || `claims_claimSpareParts#${i}_`;
+    m.partNumber = (formValues[`${p}sparePartNumber`] as string) ?? m.partNumber;
+    m.position = (formValues[`${p}position`] as string) ?? m.position;
+    m.quantity = Number(formValues[`${p}quantity`]) || m.quantity;
+    m.unitPrice = Number(formValues[`${p}unitPrice`]) || m.unitPrice;
+    m.description = (formValues[`${p}description`] as string) ?? m.description;
+    m.type = (formValues[`${p}type`] as string) ?? m.type;
+    m.netAmount = Number(formValues[`${p}netAmount`]) || m.netAmount;
+    m.grossAmount = Number(formValues[`${p}grossAmount`]) || m.grossAmount;
+    m.totalAmount = Number(formValues[`${p}totalAmount`]) || m.totalAmount;
+    m.discount = Number(formValues[`${p}discount`]) || m.discount;
+    m.tax = Number(formValues[`${p}tax`]) || m.tax;
+  });
+};
+
 const buildEmptyClaimMaterial = (
   position: string,
   jobType: string,
@@ -632,20 +658,7 @@ export const useClaimMaterialsManager = ({
         );
         setMaterials((prev) => {
           // Sync current form values back into existing rows before appending
-          prev.forEach((m, i) => {
-            const p = rowPrefixes[i] || `claims_claimSpareParts#${i}_`;
-            m.partNumber = (formValues[`${p}sparePartNumber`] as string) ?? m.partNumber;
-            m.position = (formValues[`${p}position`] as string) ?? m.position;
-            m.quantity = Number(formValues[`${p}quantity`]) || m.quantity;
-            m.unitPrice = Number(formValues[`${p}unitPrice`]) || m.unitPrice;
-            m.description = (formValues[`${p}description`] as string) ?? m.description;
-            m.type = (formValues[`${p}type`] as string) ?? m.type;
-            m.netAmount = Number(formValues[`${p}netAmount`]) || m.netAmount;
-            m.grossAmount = Number(formValues[`${p}grossAmount`]) || m.grossAmount;
-            m.totalAmount = Number(formValues[`${p}totalAmount`]) || m.totalAmount;
-            m.discount = Number(formValues[`${p}discount`]) || m.discount;
-            m.tax = Number(formValues[`${p}tax`]) || m.tax;
-          });
+          syncMaterialsFromFormValues(prev, rowPrefixes, formValues);
           return normalizeMaterialOrders([...prev, newItem]);
         });
         setArePricesValidated(false);
