@@ -5,6 +5,7 @@ import Field, {
 import { createContext } from "react";
 import { ActionMandatoryFields } from "./GenericForm.types";
 import type { ResolveDefaultQuantities } from "api/services/prices/prices.types";
+import type { AllowedPosition } from "api/services/countryConfiguration/countryConfiguration";
 
 export interface ActionCallbackHelpers {
   setFieldValue: (field: string, value: unknown) => void | Promise<unknown>;
@@ -53,6 +54,11 @@ export interface GenericFormContextType {
   isRepairAnswerLocked?: boolean;
   /** Default quantity of protected spare-parts rows from the backend (job & claim). */
   resolveDefaultQuantities?: ResolveDefaultQuantities;
+  /**
+   * Allowed positions of this form's own spare-parts rows. Set by forms that are not the job
+   * diagnostics (claim); when unset, fields use the DiagnosticsContext positions.
+   */
+  allowedPositions?: AllowedPosition[];
 }
 
 export const GenericFormContext = createContext<GenericFormContextType>({
@@ -69,4 +75,5 @@ export const GenericFormContext = createContext<GenericFormContextType>({
   warrantyPanelInfo: undefined,
   isRepairAnswerLocked: undefined,
   resolveDefaultQuantities: undefined,
+  allowedPositions: undefined,
 });

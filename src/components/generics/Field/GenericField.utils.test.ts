@@ -749,6 +749,26 @@ describe("applyPositionRules", () => {
     expect(setFieldValue).not.toHaveBeenCalled();
   });
 
+  it("counts maxCount only among rows of the same list", async () => {
+    const claimFields = [
+      ...rowFields("diagnosticData_diagnosticsSpareParts#0_"),
+      ...rowFields("claims_claimSpareParts#0_"),
+    ];
+    const setFieldValue = vi.fn().mockResolvedValue(undefined);
+    const allowed = await applyPositionRules({
+      field: claimFields[4],
+      position: "FR",
+      allFields: claimFields,
+      values: { "diagnosticData_diagnosticsSpareParts#0_position": "FR" },
+      allowedPositions,
+      positionAutofill,
+      setFieldValue,
+    });
+
+    expect(allowed).toBe(true);
+    expect(setFieldValue).toHaveBeenCalledWith("claims_claimSpareParts#0_partNumber", "1609888888");
+  });
+
   it("allows a position the matched rule does not list without touching the row", async () => {
     const setFieldValue = vi.fn().mockResolvedValue(undefined);
     const allowed = await applyPositionRules({

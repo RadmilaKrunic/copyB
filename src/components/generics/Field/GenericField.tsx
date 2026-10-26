@@ -843,8 +843,11 @@ function GenericField({ field, className, ...restProps }: Readonly<GenericFieldP
     actionCallbacks,
     warrantyPanelInfo,
     resolveDefaultQuantities,
+    allowedPositions: formAllowedPositions,
   } = useContext(GenericFormContext);
-  const { allowedPositions, jobStatus } = useDiagnosticsContext();
+  const { allowedPositions: diagnosticsAllowedPositions, jobStatus } = useDiagnosticsContext();
+  // Claim rows follow the claim's own rule; job rows the diagnostics rule.
+  const allowedPositions = formAllowedPositions ?? diagnosticsAllowedPositions;
   const hasPermission = useHasPermission(field.permissions);
   const isVisible = isFieldVisible(field, allFields || [], formValues);
 
