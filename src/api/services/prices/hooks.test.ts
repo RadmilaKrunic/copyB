@@ -17,7 +17,15 @@ const getFetchDefaultQuantities = () => {
   return renderHook(() => useFetchDefaultQuantities(), { wrapper }).result.current;
 };
 
-const source = { countryCode: "IN", jobId: "J1", actionType: "REPAIR", jobType: "WARRANTY" };
+const source = {
+  countryCode: "IN",
+  ascId: "ASC1",
+  jobId: "J1",
+  actionType: "REPAIR",
+  jobType: "WARRANTY",
+  faultCode: "C1",
+  faultCodeLabourQuantity: 6,
+};
 
 beforeEach(() => vi.clearAllMocks());
 

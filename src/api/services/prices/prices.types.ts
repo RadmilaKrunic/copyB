@@ -2,12 +2,12 @@
 export interface DefaultParameterRequest {
   priceLevel?: string;
   countryCode: string;
-  ascId?: string;
+  ascId: string;
   jobId: string;
   actionType: string;
   jobType: string;
-  faultCode?: string;
-  faultCodeLabourQuantity?: number;
+  faultCode: string;
+  faultCodeLabourQuantity: number;
   /** Required by the backend when actionType is not REPAIR; omitted for REPAIR. */
   exchangeReason?: string;
 }

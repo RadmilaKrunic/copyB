@@ -30,37 +30,34 @@ describe("buildDefaultParameterRequest", () => {
     expect(buildDefaultParameterRequest({ ...base, actionType: "NEW_TOOL_EXCHANGE" })).toBeNull();
   });
 
-  it.each(["countryCode", "jobId", "actionType", "jobType"])(
-    "returns null when %s is missing",
-    (key) => {
-      expect(buildDefaultParameterRequest({ ...base, [key]: "" })).toBeNull();
-    },
-  );
-
-  it("leaves out empty optional values and parses a string labour quantity", () => {
-    expect(
-      buildDefaultParameterRequest({
-        countryCode: "IN",
-        jobId: "J1",
-        actionType: "REPAIR",
-        jobType: "WARRANTY",
-        ascId: "",
-        faultCode: undefined,
-        faultCodeLabourQuantity: "4",
-      }),
-    ).toEqual({
-      countryCode: "IN",
-      jobId: "J1",
-      actionType: "REPAIR",
-      jobType: "WARRANTY",
-      faultCodeLabourQuantity: 4,
-    });
+  it.each([
+    "countryCode",
+    "ascId",
+    "jobId",
+    "actionType",
+    "jobType",
+    "faultCode",
+    "faultCodeLabourQuantity",
+  ])("returns null while %s is missing, so no request is sent", (key) => {
+    expect(buildDefaultParameterRequest({ ...base, [key]: "" })).toBeNull();
+    expect(buildDefaultParameterRequest({ ...base, [key]: undefined })).toBeNull();
   });
 
-  it("leaves out a zero labour quantity", () => {
+  it("returns null before a fault code is selected", () => {
     expect(
-      buildDefaultParameterRequest({ ...base, faultCodeLabourQuantity: 0 }),
-    ).not.toHaveProperty("faultCodeLabourQuantity");
+      buildDefaultParameterRequest({ ...base, faultCode: "", faultCodeLabourQuantity: 0 }),
+    ).toBeNull();
+  });
+
+  it("parses a string labour quantity and keeps zero", () => {
+    expect(buildDefaultParameterRequest({ ...base, faultCodeLabourQuantity: "4" })).toEqual({
+      ...base,
+      faultCodeLabourQuantity: 4,
+    });
+    expect(buildDefaultParameterRequest({ ...base, faultCodeLabourQuantity: 0 })).toEqual({
+      ...base,
+      faultCodeLabourQuantity: 0,
+    });
   });
 });
 

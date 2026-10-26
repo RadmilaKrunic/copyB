@@ -126,10 +126,11 @@ export const onBlurActions = (
 /**
  * Handles populating related fields when a fault code is selected from the dropdown.
  * Sets faultCode, faultCodeDescription, faultCodeLabourQuantity from the raw API item,
- * and updates the quantity on the spare parts row whose position is "LA".
- * The quantity comes from the default-parameter API (`resolveDefaultQuantities`). When that
- * is not supplied or gives no LA quantity, the country config decides: the fault code's
- * labour quantity is used only when LA's quantitySource is "FAULT_CODES".
+ * and updates the quantity of the protected spare-parts rows (LA, FR, PC).
+ * The quantities come from the default-parameter API (`resolveDefaultQuantities`); the fault
+ * code is often the last value the request needs, so this is where existing rows get them.
+ * When the API is not supplied or gives no LA quantity, the country config decides for LA:
+ * the fault code's labour quantity is used only when LA's quantitySource is "FAULT_CODES".
  * When `allowedPositions` is not supplied, the LA-source check is skipped (legacy behavior).
  */
 export const handleFaultCodeSelection = async (
@@ -148,10 +149,10 @@ export const handleFaultCodeSelection = async (
     void setFieldValue(fieldName, rawItem?.[fieldName]);
   }
 
-  const labourPosition = allFields.find(
-    (f) => f.subtype === "diagnosticPosition" && formValues[f.name] === "LA",
+  const protectedPositions = allFields.filter(
+    (f) => f.subtype === "diagnosticPosition" && isProtectedPosition(String(formValues[f.name])),
   );
-  if (!labourPosition) return;
+  if (protectedPositions.length === 0) return;
 
   const serverQuantities = resolveDefaultQuantities
     ? await resolveDefaultQuantities({
@@ -160,6 +161,25 @@ export const handleFaultCodeSelection = async (
         faultCodeLabourQuantity: rawItem?.faultCodeLabourQuantity,
       })
     : null;
+  const quantityFieldOf = (positionField: Field) =>
+    allFields.find(
+      (f) =>
+        f.subtype === "diagnosticQuantity" &&
+        f.fieldMapping?.nameStartsWith === positionField.fieldMapping?.nameStartsWith,
+    );
+
+  // FR / PC rows take the API quantity only; their config quantity does not depend on the fault code.
+  for (const positionField of protectedPositions) {
+    const position = String(formValues[positionField.name]).toUpperCase();
+    const quantity = serverQuantities?.[position];
+    const qtyField = quantityFieldOf(positionField);
+    if (position !== "LA" && quantity !== undefined && qtyField) {
+      void setFieldValue(qtyField.name, quantity);
+    }
+  }
+
+  const labourPosition = protectedPositions.find((f) => formValues[f.name] === "LA");
+  if (!labourPosition) return;
   const serverLabourQty = serverQuantities?.LA;
 
   if (serverLabourQty === undefined && allowedPositions) {
@@ -169,11 +189,7 @@ export const handleFaultCodeSelection = async (
 
   const labourQty = serverLabourQty ?? (Number(rawItem?.faultCodeLabourQuantity) || 0);
 
-  const labourRow = allFields.filter(
-    (qf) => qf.fieldMapping?.nameStartsWith === labourPosition.fieldMapping?.nameStartsWith,
-  );
-
-  const qtyField = labourRow.find((f) => f.subtype === "diagnosticQuantity");
+  const qtyField = quantityFieldOf(labourPosition);
   if (qtyField) {
     void setFieldValue(qtyField.name, labourQty);
   }

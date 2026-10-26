@@ -499,7 +499,53 @@ describe("handleFaultCodeSelection", () => {
       expect(setFieldValue).not.toHaveBeenCalledWith("row0_quantity", expect.anything());
     });
 
-    it("does not call the API when there is no LA row", async () => {
+    it("sets FR from the API too, and leaves FR alone when the API gives nothing", async () => {
+      const frRow = [
+        makeField("row1_position", "diagnosticPosition", {
+          fieldMapping: {
+            originalName: "position",
+            map: "position",
+            parentMap: [],
+            prefixes: [],
+            nameStartsWith: "row1_",
+          },
+        }),
+        makeField("row1_quantity", "diagnosticQuantity", {
+          fieldMapping: {
+            originalName: "quantity",
+            map: "quantity",
+            parentMap: [],
+            prefixes: [],
+            nameStartsWith: "row1_",
+          },
+        }),
+      ];
+      const values = { row0_position: "LA", row1_position: "FR" };
+      const setFieldValue = vi.fn().mockResolvedValue(undefined);
+      await handleFaultCodeSelection(
+        rawItem,
+        setFieldValue,
+        [...laRow(), ...frRow],
+        values,
+        defaultSourceLa,
+        vi.fn().mockResolvedValue({ LA: 5, FR: 2 }),
+      );
+      expect(setFieldValue).toHaveBeenCalledWith("row0_quantity", 5);
+      expect(setFieldValue).toHaveBeenCalledWith("row1_quantity", 2);
+
+      const setAfterFailure = vi.fn().mockResolvedValue(undefined);
+      await handleFaultCodeSelection(
+        rawItem,
+        setAfterFailure,
+        [...laRow(), ...frRow],
+        values,
+        defaultSourceLa,
+        vi.fn().mockResolvedValue(null),
+      );
+      expect(setAfterFailure).not.toHaveBeenCalledWith("row1_quantity", expect.anything());
+    });
+
+    it("does not call the API when there is no protected row", async () => {
       const setFieldValue = vi.fn().mockResolvedValue(undefined);
       const resolve = vi.fn();
       await handleFaultCodeSelection(

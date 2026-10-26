@@ -8,6 +8,12 @@ import {
 const toText = (value: unknown): string | undefined =>
   typeof value === "string" && value.trim() !== "" ? value : undefined;
 
+const toNonNegativeNumber = (value: unknown): number | undefined => {
+  if (value === null || value === undefined || value === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+};
+
 const toPositiveNumber = (value: unknown): number | undefined => {
   if (value === null || value === undefined || value === "") return undefined;
   const parsed = Number(value);
@@ -15,8 +21,10 @@ const toPositiveNumber = (value: unknown): number | undefined => {
 };
 
 /**
- * Builds the default-parameter request, or null when a required value is missing.
- * exchangeReason is sent only when actionType is not REPAIR.
+ * Builds the default-parameter request, or null while a required value is still missing
+ * (e.g. no fault code selected yet), so no request is sent that the backend rejects.
+ * Required: countryCode, ascId, jobId, actionType, jobType, faultCode, faultCodeLabourQuantity,
+ * and exchangeReason when actionType is not REPAIR (it is sent only then).
  */
 export const buildDefaultParameterRequest = (
   source: DefaultParameterSource,
@@ -25,18 +33,31 @@ export const buildDefaultParameterRequest = (
   const jobId = toText(source.jobId);
   const actionType = toText(source.actionType);
   const jobType = toText(source.jobType);
-  if (!countryCode || !jobId || !actionType || !jobType) return null;
-
-  const request: DefaultParameterRequest = { countryCode, jobId, actionType, jobType };
-  const priceLevel = toText(source.priceLevel);
   const ascId = toText(source.ascId);
   const faultCode = toText(source.faultCode);
-  const faultCodeLabourQuantity = toPositiveNumber(source.faultCodeLabourQuantity);
+  const faultCodeLabourQuantity = toNonNegativeNumber(source.faultCodeLabourQuantity);
+  if (
+    !countryCode ||
+    !jobId ||
+    !actionType ||
+    !jobType ||
+    !ascId ||
+    !faultCode ||
+    faultCodeLabourQuantity === undefined
+  )
+    return null;
+
+  const request: DefaultParameterRequest = {
+    countryCode,
+    ascId,
+    jobId,
+    actionType,
+    jobType,
+    faultCode,
+    faultCodeLabourQuantity,
+  };
+  const priceLevel = toText(source.priceLevel);
   if (priceLevel) request.priceLevel = priceLevel;
-  if (ascId) request.ascId = ascId;
-  if (faultCode) request.faultCode = faultCode;
-  if (faultCodeLabourQuantity !== undefined)
-    request.faultCodeLabourQuantity = faultCodeLabourQuantity;
 
   if (actionType !== "REPAIR") {
     const exchangeReason = toText(source.exchangeReason);
