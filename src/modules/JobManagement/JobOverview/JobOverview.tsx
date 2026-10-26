@@ -132,6 +132,8 @@ import {
   ActionDependencyContext,
 } from "components/generics/Action/actionDependency";
 import { JobOverviewItem, JobDiagnostic } from "../JobList/JobList.types";
+import { useFetchDefaultQuantities } from "api/services/prices/hooks";
+import type { ResolveDefaultQuantities } from "api/services/prices/prices.types";
 import ActivityIndicatorWithDelay from "../../../components/ui/ActivityIndicatorWithDelay/ActivityIndicatorWithDelay";
 
 const WARRANTY_REASON_KEYS = new Set([
@@ -979,6 +981,25 @@ export default function JobOverview() {
     setCurrentJobType((initialFormValues?.jobType as string) || "");
   }, [initialFormValues]);
 
+  // Default quantity of protected spare-parts rows (LA, FR, PC) comes from the backend.
+  const fetchDefaultQuantities = useFetchDefaultQuantities();
+  const jobCountryCode = jobData?.order?.countryCode;
+  const jobAscId = jobData?.job?.ascId ?? jobData?.order?.ascId;
+  const resolveDefaultQuantities = useCallback<ResolveDefaultQuantities>(
+    (values) =>
+      fetchDefaultQuantities({
+        countryCode: jobCountryCode,
+        ascId: jobAscId,
+        jobId,
+        actionType: values.actionType,
+        jobType: values.jobType,
+        faultCode: values.faultCode,
+        faultCodeLabourQuantity: values.faultCodeLabourQuantity,
+        exchangeReason: values.exchangeReason,
+      }),
+    [fetchDefaultQuantities, jobCountryCode, jobAscId, jobId],
+  );
+
   const {
     materials,
     priceSummaryDetailedByJobType,
@@ -1004,6 +1025,7 @@ export default function JobOverview() {
     automaticRows,
     rowsChangedVersion,
   } = useDiagnosticsManager({
+    resolveDefaultQuantities,
     diagnosticData: tabs.length > 0 ? diagnosticData : undefined,
     currentActionType,
     currentJobType,
@@ -2147,8 +2169,10 @@ export default function JobOverview() {
       sparePartNotBelongsToTool: sparePartNotBelongsToToolRef,
       warrantyPanelInfo,
       isRepairAnswerLocked,
+      resolveDefaultQuantities,
     }),
     [
+      resolveDefaultQuantities,
       allFields,
       setAllFields,
       mandatoryFields,

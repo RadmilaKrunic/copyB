@@ -20,6 +20,8 @@ import {
 import type { Material } from "modules/ClaimManagement/ClaimOverview/Claims.types";
 import { PERMISSIONS } from "utils/Permissions";
 import type { HeaderUserData } from "api/services/header/action";
+import type { ResolveDefaultQuantities } from "api/services/prices/prices.types";
+import { isProtectedPosition } from "modules/JobManagement/JobOverview/SparePartsRow/materialPriceEditability";
 
 type AreaFields = {
   area: Area;
@@ -89,12 +91,16 @@ const materialItemToMaterial = (item: MaterialItem): Material => ({
   },
 });
 
-const buildEmptyClaimMaterial = (position: string, jobType: string): MaterialItem => ({
+const buildEmptyClaimMaterial = (
+  position: string,
+  jobType: string,
+  quantity = 1,
+): MaterialItem => ({
   position,
   partNumber: "",
   description: "",
   type: jobType,
-  quantity: 1,
+  quantity,
   unitPrice: 0,
   netAmount: 0,
   suggestedNetPrice: 0,
@@ -125,6 +131,8 @@ export interface UseClaimMaterialsManagerProps {
   arePricesValidated: boolean;
   setArePricesValidated: Dispatch<SetStateAction<boolean>>;
   readOnly?: boolean;
+  /** Backend default quantity of a new protected row (LA, FR, PC); null keeps quantity 1. */
+  resolveDefaultQuantities?: ResolveDefaultQuantities;
 }
 
 export interface UseClaimMaterialsManagerReturn {
@@ -211,6 +219,7 @@ export const useClaimMaterialsManager = ({
   formValuesRef,
   setArePricesValidated,
   readOnly = false,
+  resolveDefaultQuantities,
 }: UseClaimMaterialsManagerProps): UseClaimMaterialsManagerReturn => {
   const queryClient = useQueryClient();
 
@@ -557,9 +566,11 @@ export const useClaimMaterialsManager = ({
   }, [archivedMaterials, setAllFields, setTabs, setInitialFormValues, skipFormResetRef]);
 
   // ── onAddRow ───────────────────────────────────────────────────────────
+  // Blocks a second add while the default quantity of a new protected row is loading.
+  const addRowPendingRef = useRef(false);
   const onAddRow = useCallback(
     (formValues: Record<string, unknown>) => {
-      if (readOnly) return;
+      if (readOnly || addRowPendingRef.current) return;
       if (allowedPositions.length === 0) return;
 
       const current = allFieldsRef.current ?? [];
@@ -581,9 +592,6 @@ export const useClaimMaterialsManager = ({
       );
       const autoPosition = availablePositions.length === 1 ? availablePositions[0].position : "";
 
-      // New rows added via "add row" take the claim's (diagnostic) jobType.
-      const newItem = buildEmptyClaimMaterial(autoPosition, currentJobType || "WARRANTY");
-
       // materials[i] belongs to the i-th active area; its "#N" can differ from i
       // once a row has been deleted, so read form values by the area's own prefix.
       const rowPrefixes = (tabsRef.current.find((t) => t.name === "claims")?.areas ?? [])
@@ -595,27 +603,48 @@ export const useClaimMaterialsManager = ({
         )
         .map((a) => /^.*?#\d+_/.exec(a.fields[0]?.name ?? "")?.[0] ?? "");
 
-      setMaterials((prev) => {
-        // Sync current form values back into existing rows before appending
-        prev.forEach((m, i) => {
-          const p = rowPrefixes[i] || `claims_claimSpareParts#${i}_`;
-          m.partNumber = (formValues[`${p}sparePartNumber`] as string) ?? m.partNumber;
-          m.position = (formValues[`${p}position`] as string) ?? m.position;
-          m.quantity = Number(formValues[`${p}quantity`]) || m.quantity;
-          m.unitPrice = Number(formValues[`${p}unitPrice`]) || m.unitPrice;
-          m.description = (formValues[`${p}description`] as string) ?? m.description;
-          m.type = (formValues[`${p}type`] as string) ?? m.type;
-          m.netAmount = Number(formValues[`${p}netAmount`]) || m.netAmount;
-          m.grossAmount = Number(formValues[`${p}grossAmount`]) || m.grossAmount;
-          m.totalAmount = Number(formValues[`${p}totalAmount`]) || m.totalAmount;
-          m.discount = Number(formValues[`${p}discount`]) || m.discount;
-          m.tax = Number(formValues[`${p}tax`]) || m.tax;
+      const addRow = (quantity: number) => {
+        // New rows added via "add row" take the claim's (diagnostic) jobType.
+        const newItem = buildEmptyClaimMaterial(
+          autoPosition,
+          currentJobType || "WARRANTY",
+          quantity,
+        );
+        setMaterials((prev) => {
+          // Sync current form values back into existing rows before appending
+          prev.forEach((m, i) => {
+            const p = rowPrefixes[i] || `claims_claimSpareParts#${i}_`;
+            m.partNumber = (formValues[`${p}sparePartNumber`] as string) ?? m.partNumber;
+            m.position = (formValues[`${p}position`] as string) ?? m.position;
+            m.quantity = Number(formValues[`${p}quantity`]) || m.quantity;
+            m.unitPrice = Number(formValues[`${p}unitPrice`]) || m.unitPrice;
+            m.description = (formValues[`${p}description`] as string) ?? m.description;
+            m.type = (formValues[`${p}type`] as string) ?? m.type;
+            m.netAmount = Number(formValues[`${p}netAmount`]) || m.netAmount;
+            m.grossAmount = Number(formValues[`${p}grossAmount`]) || m.grossAmount;
+            m.totalAmount = Number(formValues[`${p}totalAmount`]) || m.totalAmount;
+            m.discount = Number(formValues[`${p}discount`]) || m.discount;
+            m.tax = Number(formValues[`${p}tax`]) || m.tax;
+          });
+          return normalizeMaterialOrders([...prev, newItem]);
         });
-        return normalizeMaterialOrders([...prev, newItem]);
-      });
-      setArePricesValidated(false);
+        setArePricesValidated(false);
+      };
+
+      // A protected row takes the backend default quantity; 1 is the fallback.
+      if (!resolveDefaultQuantities || !isProtectedPosition(autoPosition)) {
+        addRow(1);
+        return;
+      }
+      addRowPendingRef.current = true;
+      void resolveDefaultQuantities(formValues)
+        .catch(() => null)
+        .then((quantities) => addRow(quantities?.[autoPosition.toUpperCase()] ?? 1))
+        .finally(() => {
+          addRowPendingRef.current = false;
+        });
     },
-    [readOnly, allowedPositions, currentJobType, setArePricesValidated],
+    [readOnly, allowedPositions, currentJobType, setArePricesValidated, resolveDefaultQuantities],
   );
 
   // ── onDeleteRow ────────────────────────────────────────────────────────

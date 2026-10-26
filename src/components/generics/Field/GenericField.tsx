@@ -32,6 +32,7 @@ import {
   handleResetAutoCompleteFields,
 } from "../../ui/AutoComplete/AutoComplete.helper";
 import { AutoCompleteOption } from "../../ui/AutoComplete/OptionItem/OptionItem";
+import type { ResolveDefaultQuantities } from "api/services/prices/prices.types";
 import type { AllowedPosition } from "api/services/countryConfiguration/countryConfiguration";
 import InfoIconWithTooltip from "../../ui/TooltipContent/InfoIconWithTooltip";
 import { useHasPermission } from "hooks/useHasPermission";
@@ -82,6 +83,7 @@ interface FieldRenderCtx {
     hasPurchaseDate?: boolean;
   };
   allowedPositions?: AllowedPosition[];
+  resolveDefaultQuantities?: ResolveDefaultQuantities;
 }
 const fieldValueChanged = async (
   name: string,
@@ -417,6 +419,7 @@ function renderDropdownField(ctx: FieldRenderCtx): ReactElement {
     warrantyPanelInfo,
     allowedPositions,
     actionCallbacks,
+    resolveDefaultQuantities,
   } = ctx;
   const { name, label, subtype, defaultValue } = field;
   const isMulti = field.multiSelect === true;
@@ -458,6 +461,7 @@ function renderDropdownField(ctx: FieldRenderCtx): ReactElement {
                 allowedPositions,
                 positionAutofill: getPositionAutofill(t),
                 setFieldValue,
+                resolveDefaultQuantities,
               });
               if (!isAllowed) return;
               await fieldValueChanged(name, value, setFieldValue, allFields, field, formikContext);
@@ -473,12 +477,13 @@ function renderDropdownField(ctx: FieldRenderCtx): ReactElement {
         onRawOptionSelect={
           subtype === "diagnosticFaultCode"
             ? (rawItem) => {
-                handleFaultCodeSelection(
+                void handleFaultCodeSelection(
                   rawItem,
                   setFieldValue,
                   allFields,
                   values,
                   allowedPositions,
+                  resolveDefaultQuantities,
                 );
               }
             : undefined
@@ -837,6 +842,7 @@ function GenericField({ field, className, ...restProps }: Readonly<GenericFieldP
     radioSourceCallbacks,
     actionCallbacks,
     warrantyPanelInfo,
+    resolveDefaultQuantities,
   } = useContext(GenericFormContext);
   const { allowedPositions, jobStatus } = useDiagnosticsContext();
   const hasPermission = useHasPermission(field.permissions);
@@ -923,6 +929,7 @@ function GenericField({ field, className, ...restProps }: Readonly<GenericFieldP
     infoText,
     warrantyPanelInfo,
     allowedPositions,
+    resolveDefaultQuantities,
   };
 
   return renderer ? (
