@@ -44,6 +44,7 @@ import {
   getSummaryDetailedRowValues,
   buildSummaryDetailedRowValues,
   getSummaryTotalRowValues,
+  resolveNewRowType,
   syncMaterialStatusesFromAPI,
   useDiagnosticsManager,
   type MaterialItem,
@@ -319,6 +320,37 @@ afterEach(() => {
 });
 
 // ── computeIsChargeable ──────────────────────────────────────────────────────
+
+describe("resolveNewRowType", () => {
+  const typeField = (options: Field["options"]): Field => ({
+    ...makeField("diagnosticData_diagnosticsSpareParts#0_type", "diagnosticType"),
+    options,
+  });
+  const options = [
+    { name: "WARRANTY", value: "WARRANTY", disabled: true },
+    { name: "CHARGEABLE", value: "CHARGEABLE" },
+  ];
+
+  it("uses the jobType selected on the form", () => {
+    expect(resolveNewRowType([typeField(options)], { jobType: "WARRANTY" }, "CHARGEABLE")).toBe(
+      "WARRANTY",
+    );
+  });
+
+  it("falls back to currentJobType when the form has none", () => {
+    expect(resolveNewRowType([typeField(options)], {}, "SERVICE_OFFERING")).toBe(
+      "SERVICE_OFFERING",
+    );
+  });
+
+  it("falls back to the first enabled type option", () => {
+    expect(resolveNewRowType([typeField(options)], { jobType: "" })).toBe("CHARGEABLE");
+  });
+
+  it("returns empty when there is no type option", () => {
+    expect(resolveNewRowType([], {})).toBe("");
+  });
+});
 
 describe("computeIsChargeable", () => {
   it("returns null when no diagnosticType fields exist", () => {
@@ -917,17 +949,19 @@ describe("useDiagnosticsManager hook behavior", () => {
     ).toBeLessThanOrEqual(1);
   });
 
-  it("adds new empty row with blank type selection", async () => {
+  it("gives a new row the jobType selected at diagnostic level", async () => {
     const { props } = createHookProps();
     const { result } = renderHook(() => useDiagnosticsManager(props));
+    const before = result.current.materials.length;
 
     act(() => {
-      result.current.onAddRow(props.formValuesRef.current);
+      result.current.onAddRow({ ...props.formValuesRef.current, jobType: "SERVICE_OFFERING" });
     });
 
     await waitFor(() => {
-      expect(result.current.materials.some((m) => m.type === "")).toBe(true);
+      expect(result.current.materials.length).toBe(before + 1);
     });
+    expect(result.current.materials.at(-1)?.type).toBe("SERVICE_OFFERING");
   });
 
   it("collapses multiple SP rows to one when switching to spare parts exchange", async () => {
