@@ -460,6 +460,7 @@ describe("GenericField", () => {
     warrantyPanelInfo: undefined as
       | { isIneligible?: boolean; hasPurchaseDate?: boolean; supportedWarrantyType: string }
       | undefined,
+    allowedPositions: undefined as AllowedPosition[] | undefined,
   };
 
   const mockInitialValues = {
@@ -1343,6 +1344,31 @@ describe("GenericField", () => {
 
       await waitFor(() =>
         expect(order).toEqual(["rules", { recalculate: ["row0_position", "AC"] }]),
+      );
+    });
+
+    it("applies the form's own allowed positions (claim) over the diagnostics ones", async () => {
+      const claimPositions = [
+        {
+          position: "FR",
+          minCount: 0,
+          maxCount: 1,
+          quantity: { quantitySource: "DEFAULT", defaultQuantity: 1 },
+          unitPriceSource: "SYSTEM",
+        },
+      ] as AllowedPosition[];
+      renderWithContext(
+        positionField,
+        { allowedPositions: claimPositions },
+        { row0_position: "SP" },
+      );
+
+      fireEvent.change(screen.getByTestId("dropdown-row0_position"), { target: { value: "AC" } });
+
+      await waitFor(() =>
+        expect(applyPositionRules).toHaveBeenCalledWith(
+          expect.objectContaining({ allowedPositions: claimPositions }),
+        ),
       );
     });
 

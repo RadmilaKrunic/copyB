@@ -215,7 +215,8 @@ export const resolveQuantityForPosition = (
 ): number | undefined => {
   const posConfig = allowedPositions.find((p) => p.position === position);
   if (!posConfig) return undefined;
-  const source = posConfig.quantity.quantitySource;
+  // A rule without a quantity block (incomplete config) falls back to 1.
+  const source = posConfig.quantity?.quantitySource;
   if (source === (QuantitySource.USER as string)) return 1;
   if (source === (QuantitySource.FAULT_CODES as string)) {
     return resolveFaultCodesQuantity(
@@ -225,7 +226,7 @@ export const resolveQuantityForPosition = (
       posConfig.quantity.defaultQuantity,
     );
   }
-  return posConfig.quantity.defaultQuantity || 1;
+  return posConfig.quantity?.defaultQuantity || 1;
 };
 
 const buildEmptyMaterial = (

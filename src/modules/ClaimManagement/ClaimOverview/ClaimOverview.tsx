@@ -867,9 +867,12 @@ export default function ClaimOverview() {
       onDeleteStart: () => setIsDeletingFile(true),
       onDeleteEnd: () => setIsDeletingFile(false),
       resolveDefaultQuantities,
+      // Claim rows apply the claim rule on position change (quantity, LA/FR autofill).
+      allowedPositions,
     }),
     [
       resolveDefaultQuantities,
+      allowedPositions,
       allFields,
       setAllFields,
       mandatoryFields,

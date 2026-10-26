@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import type { RefObject, Dispatch, SetStateAction } from "react";
 import type {
   CountryConfig,
@@ -16,6 +17,8 @@ import {
   type ImportedMaterial,
   buildRowValues,
   buildMaterialsRowValues,
+  getPositionAutofill,
+  resolveQuantityForPosition,
 } from "hooks/useDiagnosticsManager";
 import type { Material } from "modules/ClaimManagement/ClaimOverview/Claims.types";
 import { PERMISSIONS } from "utils/Permissions";
@@ -95,10 +98,11 @@ const buildEmptyClaimMaterial = (
   position: string,
   jobType: string,
   quantity = 1,
+  autofill?: { partNumber: string; description: string },
 ): MaterialItem => ({
   position,
-  partNumber: "",
-  description: "",
+  partNumber: autofill?.partNumber ?? "",
+  description: autofill?.description ?? "",
   type: jobType,
   quantity,
   unitPrice: 0,
@@ -222,6 +226,9 @@ export const useClaimMaterialsManager = ({
   resolveDefaultQuantities,
 }: UseClaimMaterialsManagerProps): UseClaimMaterialsManagerReturn => {
   const queryClient = useQueryClient();
+  const { t } = useTranslation("translation", { keyPrefix: "app" });
+  const tRef = useRef(t);
+  tRef.current = t;
 
   // ── Country config ─────────────────────────────────────────────────────
   const userData = queryClient.getQueryData<HeaderUserData>(["user"]);
@@ -603,12 +610,25 @@ export const useClaimMaterialsManager = ({
         )
         .map((a) => /^.*?#\d+_/.exec(a.fields[0]?.name ?? "")?.[0] ?? "");
 
+      // Same defaults as a job diagnostics row: country-config quantity and the fixed
+      // part number / description of LA and FR.
+      const configQty = autoPosition
+        ? (resolveQuantityForPosition(
+            allowedPositions,
+            autoPosition,
+            (formValues.faultCode as string) ?? "",
+            Number(formValues.faultCodeLabourQuantity) || 0,
+          ) ?? 1)
+        : 1;
+      const autofill = getPositionAutofill(tRef.current)[autoPosition];
+
       const addRow = (quantity: number) => {
         // New rows added via "add row" take the claim's (diagnostic) jobType.
         const newItem = buildEmptyClaimMaterial(
           autoPosition,
           currentJobType || "WARRANTY",
           quantity,
+          autofill,
         );
         setMaterials((prev) => {
           // Sync current form values back into existing rows before appending
@@ -631,15 +651,15 @@ export const useClaimMaterialsManager = ({
         setArePricesValidated(false);
       };
 
-      // A protected row takes the backend default quantity; 1 is the fallback.
+      // A protected row takes the backend default quantity; country config is the fallback.
       if (!resolveDefaultQuantities || !isProtectedPosition(autoPosition)) {
-        addRow(1);
+        addRow(configQty);
         return;
       }
       addRowPendingRef.current = true;
       void resolveDefaultQuantities(formValues)
         .catch(() => null)
-        .then((quantities) => addRow(quantities?.[autoPosition.toUpperCase()] ?? 1))
+        .then((quantities) => addRow(quantities?.[autoPosition.toUpperCase()] ?? configQty))
         .finally(() => {
           addRowPendingRef.current = false;
         });

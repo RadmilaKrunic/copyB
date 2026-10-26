@@ -196,8 +196,8 @@ export const handleFaultCodeSelection = async (
 };
 
 /**
- * Applies the matched diagnostic rule to a spare-parts row whose position is changing, before
- * any price action runs (positions the rule does not list, e.g. claim rows, only get the
+ * Applies the matched diagnostic rule (job or claim) to a spare-parts row whose position is
+ * changing, before any price action runs (positions the rule does not list only get the
  * API quantity):
  * - rejects a position the rule caps (maxCount already used by the other rows);
  * - sets the quantity: protected positions (LA, FR, PC) take it from the default-parameter API
@@ -235,9 +235,14 @@ export const applyPositionRules = async ({
   const rulePositions = positionRule ? allowedPositions : undefined;
 
   if (positionRule) {
+    // Count only rows of the same list: the claim page also holds the job's read-only rows.
+    const rowGroup = /^(.*#)\d+_$/.exec(rowPrefix ?? "")?.[1] ?? "";
     const usedByOtherRows = allFields.filter(
       (f) =>
-        f.subtype === "diagnosticPosition" && f.name !== field.name && values[f.name] === position,
+        f.subtype === "diagnosticPosition" &&
+        f.name !== field.name &&
+        f.name.startsWith(rowGroup) &&
+        values[f.name] === position,
     ).length;
     if (usedByOtherRows >= positionRule.maxCount) return false;
   }

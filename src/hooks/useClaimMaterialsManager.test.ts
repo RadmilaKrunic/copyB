@@ -24,7 +24,12 @@ vi.mock("components/generics/utils", () => ({
   })),
 }));
 
-vi.mock("hooks/useDiagnosticsManager", () => ({
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+
+vi.mock("hooks/useDiagnosticsManager", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("hooks/useDiagnosticsManager")>()),
   buildRowValues: vi.fn(() => ({
     "claims_claimSpareParts#0_sparePartNumber": "PN-1",
   })),
@@ -811,7 +816,13 @@ describe("useClaimMaterialsManager default quantity from the API", () => {
           {
             actionType: "REPAIR",
             jobType: "WARRANTY",
-            rule: { allowedPositions: positions.map((position) => ({ position, maxCount: 1 })) },
+            rule: {
+              allowedPositions: positions.map((position) => ({
+                position,
+                maxCount: 1,
+                quantity: { quantitySource: "DEFAULT", defaultQuantity: position === "FR" ? 2 : 1 },
+              })),
+            },
           },
         ],
       },
@@ -854,8 +865,8 @@ describe("useClaimMaterialsManager default quantity from the API", () => {
     expect(resolve).toHaveBeenCalledWith({ actionType: "REPAIR" });
   });
 
-  it("adds a protected row with quantity 1 when the API gives nothing", async () => {
-    const { result } = renderWithPositions(["LA"], vi.fn().mockResolvedValue(null));
+  it("adds a protected row with the country-config quantity when the API gives nothing", async () => {
+    const { result } = renderWithPositions(["FR"], vi.fn().mockResolvedValue(null));
 
     act(() => {
       result.current.onAddRow({});
@@ -864,7 +875,26 @@ describe("useClaimMaterialsManager default quantity from the API", () => {
     await waitFor(() => {
       expect(result.current.materials).toHaveLength(1);
     });
-    expect(result.current.materials[0].quantity).toBe(1);
+    expect(result.current.materials[0].quantity).toBe(2);
+  });
+
+  it("fills an FR row like a job diagnostics row", async () => {
+    const { result } = renderWithPositions(["FR"], vi.fn().mockResolvedValue({ FR: 3 }));
+
+    act(() => {
+      result.current.onAddRow({});
+    });
+
+    await waitFor(() => {
+      expect(result.current.materials).toHaveLength(1);
+    });
+    expect(result.current.materials[0]).toMatchObject({
+      position: "FR",
+      partNumber: "1609888888",
+      description: "freightCost",
+      type: "WARRANTY",
+      quantity: 3,
+    });
   });
 
   it("does not call the API when the new row has no protected position", () => {
