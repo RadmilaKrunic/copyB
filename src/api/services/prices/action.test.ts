@@ -11,7 +11,15 @@ const mockPost = vi.mocked(axiosClient.post);
 beforeEach(() => vi.clearAllMocks());
 
 describe("postDefaultParameter", () => {
-  const request = { countryCode: "IN", jobId: "J1", actionType: "REPAIR", jobType: "WARRANTY" };
+  const request = {
+    countryCode: "IN",
+    ascId: "ASC1",
+    jobId: "J1",
+    actionType: "REPAIR",
+    jobType: "WARRANTY",
+    faultCode: "C1",
+    faultCodeLabourQuantity: 6,
+  };
 
   it("posts the request and returns the response data", async () => {
     const data = { byPosition: [{ position: "LA", value: 1, serviceUnits: 5 }] };
