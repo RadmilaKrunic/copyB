@@ -68,8 +68,8 @@ export const buildDefaultParameterRequest = (
 };
 
 /**
- * Quantity per position from the response: serviceUnits when the backend sends it
- * (labour, e.g. LA), otherwise value. Entries without a usable number are skipped.
+ * Quantity per position from the response: value, or serviceUnits when value is missing.
+ * Entries without a usable number are skipped.
  */
 export const toDefaultQuantities = (
   response: DefaultParameterResponse | null | undefined,
@@ -77,7 +77,7 @@ export const toDefaultQuantities = (
   const quantities: DefaultQuantities = {};
   for (const entry of response?.byPosition ?? []) {
     if (!entry?.position) continue;
-    const quantity = toPositiveNumber(entry.serviceUnits) ?? toPositiveNumber(entry.value);
+    const quantity = toPositiveNumber(entry.value) ?? toPositiveNumber(entry.serviceUnits);
     if (quantity !== undefined) quantities[entry.position.toUpperCase()] = quantity;
   }
   return quantities;
