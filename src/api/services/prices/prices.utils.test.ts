@@ -62,15 +62,16 @@ describe("buildDefaultParameterRequest", () => {
 });
 
 describe("toDefaultQuantities", () => {
-  it("uses serviceUnits when present, otherwise value", () => {
+  it("uses value, and serviceUnits only when value is missing", () => {
     expect(
       toDefaultQuantities({
         byPosition: [
           { position: "LA", value: 1, serviceUnits: 5 },
           { position: "FR", value: 1, serviceUnits: null },
+          { position: "PC", value: null, serviceUnits: 3 },
         ],
       }),
-    ).toEqual({ LA: 5, FR: 1 });
+    ).toEqual({ LA: 1, FR: 1, PC: 3 });
   });
 
   it("skips entries without a usable quantity", () => {

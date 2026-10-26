@@ -38,7 +38,7 @@ describe("useFetchDefaultQuantities", () => {
       ],
     });
     const fetchQuantities = getFetchDefaultQuantities();
-    expect(await fetchQuantities(source)).toEqual({ LA: 5, FR: 1 });
+    expect(await fetchQuantities(source)).toEqual({ LA: 1, FR: 1 });
     expect(mockPost).toHaveBeenCalledWith(source);
   });
 
