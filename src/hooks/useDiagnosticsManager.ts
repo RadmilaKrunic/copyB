@@ -228,6 +228,23 @@ export const resolveQuantityForPosition = (
   return posConfig.quantity.defaultQuantity || 1;
 };
 
+/**
+ * Type for a row added via "add row": the diagnostic-level jobType, else the
+ * first enabled option of the row type dropdown.
+ */
+export function resolveNewRowType(
+  allFields: Field[],
+  formValues: Record<string, unknown>,
+  currentJobType = "",
+): string {
+  const fromForm = typeof formValues.jobType === "string" ? formValues.jobType : "";
+  const selected = fromForm || currentJobType;
+  if (selected) return selected;
+  const typeField = allFields.find((f) => f.subtype === "diagnosticType");
+  const firstEnabled = typeField?.options?.find((o) => !o.disabled);
+  return firstEnabled ? String(firstEnabled.value ?? "") : "";
+}
+
 const buildEmptyMaterial = (
   position: string,
   jobType: string,
@@ -847,6 +864,8 @@ export const useDiagnosticsManager = ({
   addSpecialMaterialsAllowedRef.current = addSpecialMaterialsAllowed;
   const discountBaseRef = useRef(discountBase);
   discountBaseRef.current = discountBase;
+  const currentJobTypeRef = useRef(currentJobType);
+  currentJobTypeRef.current = currentJobType;
 
   const { t } = useTranslation("translation", { keyPrefix: "app" });
   const tRef = useRef(t);
@@ -1627,7 +1646,12 @@ export const useDiagnosticsManager = ({
         : 1;
       const addRow = (qty: number) => {
         const newItem = {
-          ...buildEmptyMaterial(nextPosition, "", qty, tRef.current),
+          ...buildEmptyMaterial(
+            nextPosition,
+            resolveNewRowType(allFieldsRef.current ?? [], formValues, currentJobTypeRef.current),
+            qty,
+            tRef.current,
+          ),
         };
         setMaterials((prev) => {
           const syncedMaterials = syncMaterialsWithForm(
