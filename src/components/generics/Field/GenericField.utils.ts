@@ -7,6 +7,15 @@ import { resolveQuantityForPosition } from "hooks/useDiagnosticsManager";
 import type { ResolveDefaultQuantities } from "api/services/prices/prices.types";
 import { isProtectedPosition } from "modules/JobManagement/JobOverview/SparePartsRow/materialPriceEditability";
 
+/**
+ * Reads a form value as a string. Objects (and empty values) give "" rather than
+ * "[object Object]", so they never look like a position or a code.
+ */
+const toFieldString = (value: unknown): string =>
+  typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+    ? String(value)
+    : "";
+
 export const getSerialNumberErrorKey = (
   value: string,
   brandValue: unknown,
@@ -150,7 +159,8 @@ export const handleFaultCodeSelection = async (
   }
 
   const protectedPositions = allFields.filter(
-    (f) => f.subtype === "diagnosticPosition" && isProtectedPosition(String(formValues[f.name])),
+    (f) =>
+      f.subtype === "diagnosticPosition" && isProtectedPosition(toFieldString(formValues[f.name])),
   );
   if (protectedPositions.length === 0) return;
 
@@ -170,7 +180,7 @@ export const handleFaultCodeSelection = async (
 
   // FR / PC rows take the API quantity only; their config quantity does not depend on the fault code.
   for (const positionField of protectedPositions) {
-    const position = String(formValues[positionField.name]).toUpperCase();
+    const position = toFieldString(formValues[positionField.name]).toUpperCase();
     const quantity = serverQuantities?.[position];
     const qtyField = quantityFieldOf(positionField);
     if (position !== "LA" && quantity !== undefined && qtyField) {
@@ -193,6 +203,43 @@ export const handleFaultCodeSelection = async (
   if (qtyField) {
     void setFieldValue(qtyField.name, labourQty);
   }
+};
+
+/**
+ * True when the rule's `maxCount` for this position is already used up by the other rows
+ * of the same list. The claim page also holds the job's read-only rows, so rows are counted
+ * per list prefix (`...#N_` -> `...#`), never across the whole form.
+ */
+const isPositionCapReached = (
+  allFields: Field[],
+  field: Field,
+  rowPrefix: string | undefined,
+  position: string,
+  values: Record<string, unknown>,
+  maxCount: number,
+): boolean => {
+  const rowGroup = /^(.*#)\d+_$/.exec(rowPrefix ?? "")?.[1] ?? "";
+  const usedByOtherRows = allFields.filter(
+    (f) =>
+      f.subtype === "diagnosticPosition" &&
+      f.name !== field.name &&
+      f.name.startsWith(rowGroup) &&
+      values[f.name] === position,
+  ).length;
+  return usedByOtherRows >= maxCount;
+};
+
+/** Fills the fixed part number and description of an autofilled position (LA, FR). */
+const applyPositionAutofill = async (
+  autofill: { partNumber: string; description: string } | undefined,
+  rowField: (subtype: string) => Field | undefined,
+  setFieldValue: (field: string, value: unknown) => Promise<void | FormikErrors<unknown>>,
+): Promise<void> => {
+  if (!autofill) return;
+  const partNumberField = rowField("diagnosticPartNumber");
+  const descriptionField = rowField("diagnosticDescription");
+  if (partNumberField) await setFieldValue(partNumberField.name, autofill.partNumber);
+  if (descriptionField) await setFieldValue(descriptionField.name, autofill.description);
 };
 
 /**
@@ -234,17 +281,11 @@ export const applyPositionRules = async ({
   // Positions outside the matched rule (e.g. special-material SP, claim rows) have no rules.
   const rulePositions = positionRule ? allowedPositions : undefined;
 
-  if (positionRule) {
-    // Count only rows of the same list: the claim page also holds the job's read-only rows.
-    const rowGroup = /^(.*#)\d+_$/.exec(rowPrefix ?? "")?.[1] ?? "";
-    const usedByOtherRows = allFields.filter(
-      (f) =>
-        f.subtype === "diagnosticPosition" &&
-        f.name !== field.name &&
-        f.name.startsWith(rowGroup) &&
-        values[f.name] === position,
-    ).length;
-    if (usedByOtherRows >= positionRule.maxCount) return false;
+  if (
+    positionRule &&
+    isPositionCapReached(allFields, field, rowPrefix, position, values, positionRule.maxCount)
+  ) {
+    return false;
   }
 
   const serverQuantities =
@@ -269,13 +310,7 @@ export const applyPositionRules = async ({
 
   if (!positionRule) return true;
 
-  const autofill = positionAutofill[position];
-  if (autofill) {
-    const partNumberField = rowField("diagnosticPartNumber");
-    const descriptionField = rowField("diagnosticDescription");
-    if (partNumberField) await setFieldValue(partNumberField.name, autofill.partNumber);
-    if (descriptionField) await setFieldValue(descriptionField.name, autofill.description);
-  }
+  await applyPositionAutofill(positionAutofill[position], rowField, setFieldValue);
 
   return true;
 };
