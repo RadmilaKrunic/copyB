@@ -10,6 +10,8 @@ import {
 } from "modules/JobManagement/JobOverview/SparePartsRow/SparePartsRow.components";
 import { PERMISSIONS } from "utils/Permissions";
 import { getQuantityEditPermission } from "modules/JobManagement/JobOverview/SparePartsRow/positionPermissions";
+import { isProtectedPosition } from "modules/JobManagement/JobOverview/SparePartsRow/materialPriceEditability";
+import { getPositionAutofill } from "hooks/useDiagnosticsManager";
 import { useClaimContext } from "../ClaimContext";
 import { GenericFormContext } from "components/generics/Form/GenericForm.context";
 import { getClaimRowMaterialIndex } from "./ClaimSparePartsRow.utils";
@@ -76,6 +78,16 @@ function ClaimSparePartsRow({
     (partNumberValue.trim().length === 0 ||
       sparePartNotBelongsToTool?.current[partNumberField?.name ?? ""] === true);
 
+  // Same locks as a job diagnostics row: the position is fixed once a part number is set,
+  // and the fixed part number / description of LA and FR cannot be changed.
+  const hasFixedPartNumber =
+    isProtectedPosition(positionValue) && Boolean(getPositionAutofill(t)[positionValue]);
+  const lockedNewRowSubtypes: Record<string, boolean> = {
+    diagnosticPosition: partNumberValue !== "",
+    diagnosticPartNumber: hasFixedPartNumber,
+    diagnosticDescription: hasFixedPartNumber,
+  };
+
   const applyFieldPermissions = (field: Field): Field => {
     if (isDisabled || isClaimPending) return { ...field, isDisabled: true };
 
@@ -87,7 +99,7 @@ function ClaimSparePartsRow({
 
     if (isNewRow) {
       if (field.type === "price") return { ...field, isDisabled: true };
-      return { ...field, isDisabled: false };
+      return { ...field, isDisabled: lockedNewRowSubtypes[field.subtype ?? ""] ?? false };
     }
 
     return { ...field, isDisabled: true };

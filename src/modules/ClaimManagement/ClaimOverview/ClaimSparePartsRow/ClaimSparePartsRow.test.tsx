@@ -320,6 +320,29 @@ describe("ClaimSparePartsRow", () => {
       expect(capturedApplyFieldPermissions!(partNumberField).isDisabled).toBe(false);
     });
 
+    it("locks position, part number and description of a new FR row, like a job row", () => {
+      const descriptionField = {
+        ...partNumberField,
+        name: `${NAME_PREFIX}description`,
+        subtype: "diagnosticDescription",
+      };
+      renderRow({
+        initialValues: { [positionFieldName]: "FR", [partNumberFieldName]: "1609888888" },
+      });
+
+      expect(capturedApplyFieldPermissions!(positionField).isDisabled).toBe(true);
+      expect(capturedApplyFieldPermissions!(partNumberField).isDisabled).toBe(true);
+      expect(capturedApplyFieldPermissions!(descriptionField).isDisabled).toBe(true);
+      expect(capturedApplyFieldPermissions!(typeField).isDisabled).toBe(false);
+    });
+
+    it("locks only the position of a new SP row once a part number is set", () => {
+      renderRow({ initialValues: { [positionFieldName]: "SP", [partNumberFieldName]: "123" } });
+
+      expect(capturedApplyFieldPermissions!(positionField).isDisabled).toBe(true);
+      expect(capturedApplyFieldPermissions!(partNumberField).isDisabled).toBe(false);
+    });
+
     it("disables all non-type fields for an existing (non-new) row", () => {
       mockUseClaimContext.mockReturnValue({
         ...baseClaimContext,
