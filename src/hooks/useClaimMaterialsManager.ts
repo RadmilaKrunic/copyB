@@ -143,6 +143,23 @@ const buildEmptyClaimMaterial = (
   order: 0,
 });
 
+/**
+ * Type of a row added with "add row": the claim's jobType, else the diagnostic jobType, else
+ * WARRANTY, else the first enabled option. A candidate the row's type dropdown does not offer
+ * (e.g. a CHARGEABLE diagnostic on a claim) is skipped, otherwise the dropdown shows nothing.
+ */
+export const resolveClaimRowType = (
+  candidates: Array<string | undefined>,
+  typeOptions: GenericOptionProps[] | undefined,
+): string => {
+  const enabled = (typeOptions ?? [])
+    .filter((o) => !o.disabled && o.value !== undefined && o.value !== "")
+    .map((o) => String(o.value));
+  const wanted = [...candidates, "WARRANTY"].filter((c): c is string => Boolean(c));
+  if (enabled.length === 0) return wanted[0];
+  return wanted.find((c) => enabled.includes(c)) ?? enabled[0];
+};
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface UseClaimMaterialsManagerProps {
@@ -151,6 +168,8 @@ export interface UseClaimMaterialsManagerProps {
   claimArchivedMaterials?: Material[];
   currentActionType: string;
   currentJobType: string;
+  /** The claim's own jobType (claimData.jobType); new rows prefer it over currentJobType. */
+  claimJobType?: string;
   tabs: Section[];
   setTabs: Dispatch<SetStateAction<Section[]>>;
   allFields: Field[] | null;
@@ -240,6 +259,7 @@ export const useClaimMaterialsManager = ({
   claimArchivedMaterials,
   currentActionType,
   currentJobType,
+  claimJobType,
   tabs,
   setTabs,
   allFields,
@@ -648,14 +668,13 @@ export const useClaimMaterialsManager = ({
         : 1;
       const autofill = getPositionAutofill(tRef.current)[autoPosition];
 
+      const typeOptions = (tabsRef.current.find((t) => t.name === "claims")?.areas ?? [])
+        .find((a) => a.isMultiple && a.name.includes("claimSpareParts"))
+        ?.fields.find((f) => f.subtype === "diagnosticType")?.options;
+      const rowType = resolveClaimRowType([claimJobType, currentJobType], typeOptions);
+
       const addRow = (quantity: number) => {
-        // New rows added via "add row" take the claim's (diagnostic) jobType.
-        const newItem = buildEmptyClaimMaterial(
-          autoPosition,
-          currentJobType || "WARRANTY",
-          quantity,
-          autofill,
-        );
+        const newItem = buildEmptyClaimMaterial(autoPosition, rowType, quantity, autofill);
         setMaterials((prev) => {
           // Sync current form values back into existing rows before appending
           syncMaterialsFromFormValues(prev, rowPrefixes, formValues);
@@ -677,7 +696,14 @@ export const useClaimMaterialsManager = ({
           addRowPendingRef.current = false;
         });
     },
-    [readOnly, allowedPositions, currentJobType, setArePricesValidated, resolveDefaultQuantities],
+    [
+      readOnly,
+      allowedPositions,
+      currentJobType,
+      claimJobType,
+      setArePricesValidated,
+      resolveDefaultQuantities,
+    ],
   );
 
   // ── onDeleteRow ────────────────────────────────────────────────────────

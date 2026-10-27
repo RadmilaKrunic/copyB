@@ -286,6 +286,7 @@ export default function ClaimOverview() {
     claimArchivedMaterials: tabsReady ? claimData?.archivedMaterials : undefined,
     currentActionType,
     currentJobType,
+    claimJobType: claimData?.jobType,
     tabs: tabs || [],
     setTabs,
     allFields,

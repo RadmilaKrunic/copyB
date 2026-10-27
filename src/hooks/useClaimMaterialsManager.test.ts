@@ -4,7 +4,7 @@ import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Field from "components/generics/Field/GenericField.types";
 import Section from "components/generics/Section/GenericSection.types";
-import { useClaimMaterialsManager } from "./useClaimMaterialsManager";
+import { useClaimMaterialsManager, resolveClaimRowType } from "./useClaimMaterialsManager";
 import { buildMaterialsRowValues } from "hooks/useDiagnosticsManager";
 
 vi.mock("components/generics/utils", () => ({
@@ -803,6 +803,35 @@ describe("useClaimMaterialsManager", () => {
     });
   });
 });
+describe("resolveClaimRowType", () => {
+  const options = [
+    { value: "", name: "select", disabled: true },
+    { value: "WARRANTY", name: "WARRANTY" },
+    { value: "SERVICE_OFFERING", name: "SERVICE_OFFERING" },
+    { value: "COMMERCIAL_GOODWILL", name: "COMMERCIAL_GOODWILL" },
+  ];
+
+  it("takes the claim's jobType first", () => {
+    expect(resolveClaimRowType(["SERVICE_OFFERING", "WARRANTY"], options)).toBe("SERVICE_OFFERING");
+  });
+
+  it("skips a jobType the type dropdown does not offer and falls back to WARRANTY", () => {
+    expect(resolveClaimRowType([undefined, "CHARGEABLE"], options)).toBe("WARRANTY");
+  });
+
+  it("takes the first enabled option when WARRANTY is not offered", () => {
+    const noWarranty = [
+      { value: "WARRANTY", name: "WARRANTY", disabled: true },
+      { value: "COMMERCIAL_GOODWILL", name: "COMMERCIAL_GOODWILL" },
+    ];
+    expect(resolveClaimRowType(["CHARGEABLE"], noWarranty)).toBe("COMMERCIAL_GOODWILL");
+  });
+
+  it("keeps the jobType when the field has no options", () => {
+    expect(resolveClaimRowType(["", "GOODWILL"], undefined)).toBe("GOODWILL");
+  });
+});
+
 describe("useClaimMaterialsManager default quantity from the API", () => {
   const renderWithPositions = (
     positions: string[],
