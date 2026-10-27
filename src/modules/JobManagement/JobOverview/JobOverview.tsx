@@ -1561,13 +1561,22 @@ export default function JobOverview() {
   const onRecalculatePrices = useCallback(
     (fieldName: string, value: unknown) => {
       if (recalculatePricesMutation.isPending) return;
-      if (isRecalculationValueEmpty(value)) return;
       if (!allFieldsRef.current) return;
       const field = allFieldsRef.current?.find((f) => f.name === fieldName);
       if (!field) return;
       const isMaterial = field.fieldMapping?.originalName?.endsWith("Material");
 
       setArePricesValidated(false);
+      // A cleared field (e.g. type back to "Select") is not recalculated, but it is a change:
+      // Validate re-enables above and the field's own error shows right away.
+      if (isRecalculationValueEmpty(value)) {
+        const fieldError = validateByAction("validate", {
+          ...formValuesRef.current,
+          [fieldName]: value,
+        })[fieldName];
+        if (fieldError) showFieldErrorsRef.current?.({ [fieldName]: fieldError });
+        return;
+      }
       const matrerialIdFieldName =
         allFieldsRef.current?.find(
           (f) =>

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { useContext } from "react";
+import { useFormikContext } from "formik";
 import ClaimOverview from "./ClaimOverview";
 import { ClaimContext } from "./ClaimContext";
 import { GenericFormContext } from "components/generics/Form/GenericForm.context";
@@ -62,6 +63,7 @@ const h = vi.hoisted(() => {
       generic: undefined as any,
       claim: undefined as any,
       diag: undefined as any,
+      formik: undefined as any,
       sections: [] as any[],
       onTabSelect: typed<((e: unknown, data: { value: string }) => void) | undefined>(undefined),
       tabsSelectedValue: typed<string | undefined>(undefined),
@@ -240,6 +242,7 @@ vi.mock("components/generics/Section/GenericSection", () => ({
     h.captured.generic = useContext(GenericFormContext);
     h.captured.claim = useContext(ClaimContext);
     h.captured.diag = useContext(DiagnosticsContext);
+    h.captured.formik = useFormikContext();
     h.captured.sections.push(props);
     return (
       <div
@@ -1005,6 +1008,30 @@ describe("ClaimOverview onRecalculatePrices field action", () => {
 
     recalc(`${ROW}quantity`, 0);
     expect(h.recalculatePrices).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats a cleared row type as a change and shows its error without recalculating", async () => {
+    setup();
+    await validateSuccessfully();
+    expect(h.captured.generic.actionCallbacks.enableRequestApproval()).toBe(true);
+    h.validateByAction.mockReturnValue({
+      [`${ROW}type`]: "typeRequired",
+      [`${ROW}sparePartNumber`]: "required",
+    });
+
+    recalc(`${ROW}type`, "");
+
+    expect(h.recalculatePrices).not.toHaveBeenCalled();
+    expect(h.validateByAction).toHaveBeenLastCalledWith(
+      "onValidate",
+      expect.objectContaining({ [`${ROW}type`]: "" }),
+    );
+    expect(h.captured.generic.actionCallbacks.enableRequestApproval()).toBe(false);
+    // Only the cleared field's error shows; the rest wait for Validate.
+    await waitFor(() =>
+      expect(h.captured.formik?.errors).toEqual({ [`${ROW}type`]: "typeRequired" }),
+    );
+    expect(h.captured.formik?.touched).toEqual({ [`${ROW}type`]: true });
   });
 
   it("skips rows without a line id and unknown fields", () => {
