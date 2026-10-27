@@ -471,7 +471,10 @@ function validateJobCreationDateWindow({
 }): void {
   if (field.fieldMapping?.originalName !== "jobCreationDate") return;
 
-  if (isBeforeEarliestJobCreationDate(values[fieldName])) {
+  // The 15-day window limits what a user may enter. A read-only date (job / claim overview)
+  // is the job's stored creation date; checking it would block every action on older jobs.
+  const isReadOnly = Boolean(field.isDisabled || field.alwaysDisabled);
+  if (!isReadOnly && isBeforeEarliestJobCreationDate(values[fieldName])) {
     errors[fieldName] = t(JOB_CREATION_DATE_PAST_LIMIT_ERROR_KEY);
     return;
   }

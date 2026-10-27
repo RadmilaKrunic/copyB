@@ -1699,22 +1699,23 @@ export const useDiagnosticsManager = ({
       if (areaIndex === -1) return;
 
       let isArchived = false;
-      // Archive the row when the current status is not in the permanent-delete set
-      if (!STATUSES_WITH_PERMANENT_DELETE.includes(jobStatusRef.current)) {
-        const syncedMaterials = syncMaterialsWithForm(
-          materialsRef.current,
-          formValuesRef.current,
-          SPARE_PARTS_PREFIX,
-          SYNC_SERVER_OWNED,
-        );
-        const deletedMaterial = syncedMaterials[areaIndex];
-        if (deletedMaterial) {
-          archivedForceRebuildRef.current = true;
-          pendingArchivedDeletionsRef.current += 1;
-          notifyAfterArchiveRebuildRef.current = true;
-          isArchived = true;
-          setArchivedMaterials((prev) => [...prev, deletedMaterial]);
-        }
+      const deletedMaterial = syncMaterialsWithForm(
+        materialsRef.current,
+        formValuesRef.current,
+        SPARE_PARTS_PREFIX,
+        SYNC_SERVER_OWNED,
+      )[areaIndex];
+      // Archive the row when the current status is not in the permanent-delete set.
+      // A row without a materialId was never saved, so deleting it just removes it.
+      if (
+        !STATUSES_WITH_PERMANENT_DELETE.includes(jobStatusRef.current) &&
+        deletedMaterial?.materialId
+      ) {
+        archivedForceRebuildRef.current = true;
+        pendingArchivedDeletionsRef.current += 1;
+        notifyAfterArchiveRebuildRef.current = true;
+        isArchived = true;
+        setArchivedMaterials((prev) => [...prev, deletedMaterial]);
       }
 
       const areaToRemove = sparePartsAreas[areaIndex];
@@ -1774,7 +1775,8 @@ export const useDiagnosticsManager = ({
       });
       setArePricesValidated(false);
       // Permanent delete: rows and fields settle in this batch, so report it now.
-      if (!isArchived) setRowsChangedVersion((v) => v + 1);
+      // An empty row (no part number) had no price, so its delete needs no recalculate.
+      if (!isArchived && deletedMaterial?.partNumber) setRowsChangedVersion((v) => v + 1);
     },
     [
       setInitialFormValues,

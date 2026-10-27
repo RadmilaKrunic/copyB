@@ -40,6 +40,8 @@ interface AutoCompleteProps {
   readonly pageNumber?: number;
   readonly incompatibleSelectionMessage?: string;
   readonly onBlur?: () => void;
+  /** Spare part numbers: an edited part number the search does not find (still a change). */
+  readonly onUnresolvedChange?: (typedValue: string) => void;
 }
 
 /** Part numbers compare without separators: "1600.A00 1" and "1600A001" are the same part. */
@@ -56,6 +58,7 @@ export default function AutoComplete({
   onClearFieldError,
   onValidation,
   onBlur,
+  onUnresolvedChange,
   minLength = 1,
   debounceMs = 300,
   isInfoIcon = false,
@@ -286,7 +289,8 @@ export default function AutoComplete({
   /**
    * Spare part number on blur: a field that was not edited is kept as is; otherwise the
    * autocomplete match for the typed text is selected (the exact part number when listed, else
-   * the first match), the same path as picking it from the list. No match is a not-found error.
+   * the first match), the same path as picking it from the list. No match is a not-found error
+   * (none for exchange), and is still reported as a change through onUnresolvedChange.
    */
   const resolveSparePartOnBlur = async () => {
     const typedValue = input.trim();
@@ -317,11 +321,12 @@ export default function AutoComplete({
     }
     if (isExchange) {
       onValidation?.(true);
-      return;
+    } else {
+      onValidation?.(false);
+      onSetFieldError?.(name, t("sparePartNumberNotFound", { id: typedValue }));
+      onSetFieldTouched?.(name, true);
     }
-    onValidation?.(false);
-    onSetFieldError?.(name, t("sparePartNumberNotFound", { id: typedValue }));
-    onSetFieldTouched?.(name, true);
+    onUnresolvedChange?.(typedValue);
   };
 
   const handleBlur = () => {

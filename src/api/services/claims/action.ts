@@ -81,6 +81,23 @@ export const putClaimPrices = async (
   }
 };
 
+/** Re-prices the claim's rows without saving. Payload = claim prices payload + `changes`. */
+export const postClaimRecalculatePrices = async (
+  claimId: string,
+  payload: Record<string, unknown>,
+): Promise<Record<string, unknown>> => {
+  try {
+    const response = await axiosClient.post<Record<string, unknown>>(
+      `/v1/claims/${claimId}/prices/recalculate`,
+      payload,
+    );
+    return response.data;
+  } catch (error) {
+    console.error(`Error recalculating prices for claim ${claimId}:`, error);
+    throw error;
+  }
+};
+
 export const patchClaimStatusPending = async (claimId: string, jobId?: string): Promise<void> => {
   try {
     await axiosClient.patch(
