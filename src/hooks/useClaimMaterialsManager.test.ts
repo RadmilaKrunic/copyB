@@ -553,6 +553,44 @@ describe("useClaimMaterialsManager", () => {
     expect(result.current.archivedMaterials[0].reimbursementPaymentMethod).toBe("BANK_TRANSFER");
   });
 
+  it("does not archive a deleted row that was added in this session", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(["user"], { countryCode: "ZA", permissions: [] });
+    const setArePricesValidated = vi.fn();
+
+    const { result } = renderHook(
+      () =>
+        useClaimMaterialsManager({
+          claimId: "C1",
+          currentActionType: "REPAIR",
+          currentJobType: "WARRANTY",
+          tabs: [claimsTab],
+          setTabs: vi.fn(),
+          allFields,
+          setAllFields: vi.fn(),
+          setInitialFormValues: vi.fn(),
+          skipFormResetRef: { current: false },
+          formValuesRef: { current: {} },
+          arePricesValidated: false,
+          setArePricesValidated,
+          readOnly: false,
+        }),
+      { wrapper: makeWrapper(queryClient) },
+    );
+
+    act(() => {
+      result.current.setMaterials([{ partNumber: "", position: "", type: "WARRANTY" }] as never);
+    });
+
+    act(() => {
+      result.current.onDeleteRow("claims_claimSpareParts#0");
+    });
+
+    expect(result.current.materials).toHaveLength(0);
+    expect(result.current.archivedMaterials).toHaveLength(0);
+    expect(result.current.rowsChangedVersion).toBe(0);
+  });
+
   it("keeps each row's source material through delete, archive and restore", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     queryClient.setQueryData(["user"], { countryCode: "ZA", permissions: [] });

@@ -1110,7 +1110,9 @@ describe("useDiagnosticsManager hook behavior", () => {
     expect(result.current.enableValidate()).toBe(false);
 
     act(() => {
-      result.current.setMaterials([makeItem({ partNumber: "Z" })]);
+      result.current.setMaterials([makeItem({ partNumber: "Z", materialId: "M-Z" })]);
+    });
+    act(() => {
       result.current.onDeleteRow("diagnosticData_diagnosticsSpareParts#0");
     });
 
@@ -1814,7 +1816,7 @@ describe("useDiagnosticsManager effects", () => {
       props.tabs = [makeDiagnosticsTab([spareArea(0)])];
       rerender();
       act(() => {
-        result.current.setMaterials([makeItem({ partNumber: "ROW" })]);
+        result.current.setMaterials([makeItem({ partNumber: "ROW", materialId: "M-ROW" })]);
       });
       mocks.setInitialFormValues.mockClear();
       act(() => {
@@ -2319,9 +2321,9 @@ describe("useDiagnosticsManager effects", () => {
       const { result } = renderManager(props);
       act(() => {
         result.current.setMaterials([
-          makeItem({ partNumber: "x0" }),
-          makeItem({ partNumber: "x1" }),
-          makeItem({ partNumber: "x2" }),
+          makeItem({ partNumber: "x0", materialId: "M-0" }),
+          makeItem({ partNumber: "x1", materialId: "M-1" }),
+          makeItem({ partNumber: "x2", materialId: "M-2" }),
         ]);
       });
 
@@ -2418,7 +2420,7 @@ describe("useDiagnosticsManager effects", () => {
       const { result } = renderManager(props);
       act(() => {
         result.current.setMaterials([
-          makeItem({ partNumber: "x0" }),
+          makeItem({ partNumber: "x0", materialId: "M-0" }),
           makeItem({ partNumber: "x1" }),
         ]);
       });
@@ -2443,6 +2445,38 @@ describe("useDiagnosticsManager effects", () => {
       });
 
       expect(result.current.rowsChangedVersion).toBe(1);
+    });
+
+    it("removes a never-saved row without archiving it", async () => {
+      const { props } = createHookProps({ arePricesValidated: true });
+      const { result } = renderManager(props);
+      act(() => {
+        result.current.setMaterials([makeItem({ partNumber: "NEW", type: "" })]);
+      });
+
+      act(() => {
+        result.current.onDeleteRow(`${SPARE}#0`);
+      });
+
+      expect(result.current.materials).toHaveLength(0);
+      expect(result.current.enableValidate()).toBe(false);
+      // A deleted unsaved row with a part number still re-prices the remaining rows.
+      expect(result.current.rowsChangedVersion).toBe(1);
+    });
+
+    it("does not recalculate after deleting an empty never-saved row", () => {
+      const { props } = createHookProps({ formValues: { [`${SPARE}#0_sparePartNumber`]: "" } });
+      const { result } = renderManager(props);
+      act(() => {
+        result.current.setMaterials([makeItem({ partNumber: "", type: "" })]);
+      });
+
+      act(() => {
+        result.current.onDeleteRow(`${SPARE}#0`);
+      });
+
+      expect(result.current.materials).toHaveLength(0);
+      expect(result.current.rowsChangedVersion).toBe(0);
     });
 
     it("keeps rowsChangedVersion when nothing was deleted", () => {
@@ -2486,7 +2520,7 @@ describe("useDiagnosticsManager effects", () => {
       const { props, mocks } = createHookProps({ arePricesValidated: true });
       const { result } = renderManager(props);
       act(() => {
-        result.current.setMaterials([makeItem({ partNumber: "ROW" })]);
+        result.current.setMaterials([makeItem({ partNumber: "ROW", materialId: "M-ROW" })]);
       });
       act(() => {
         result.current.onDeleteRow(`${SPARE}#0`);
