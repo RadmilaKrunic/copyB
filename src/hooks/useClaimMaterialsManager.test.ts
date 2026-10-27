@@ -562,6 +562,7 @@ describe("useClaimMaterialsManager", () => {
       () =>
         useClaimMaterialsManager({
           claimId: "C1",
+          claimMaterials: undefined,
           currentActionType: "REPAIR",
           currentJobType: "WARRANTY",
           tabs: [claimsTab],
