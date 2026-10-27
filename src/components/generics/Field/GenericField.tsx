@@ -674,6 +674,16 @@ function renderAutocompleteField(ctx: FieldRenderCtx): ReactElement {
     }
   };
 
+  /**
+   * A typed spare part number the search does not find is still a change: run the field's price
+   * action, so the page marks prices unvalidated (Validate re-enables) and shows the not-found
+   * error without a recalculate request (exchange rows have no error and are recalculated).
+   */
+  const onUnresolvedSparePart = (partNumber: string) => {
+    invokeFieldAction(actionCallbacks, "onValueChange", field.onValueChange, name, partNumber);
+    invokeFieldAction(actionCallbacks, "onBlur", field.onBlur, name, partNumber);
+  };
+
   return (
     <span className={`${fullWidth} ${className || ""}`} {...restProps}>
       <AutoComplete
@@ -716,6 +726,7 @@ function renderAutocompleteField(ctx: FieldRenderCtx): ReactElement {
             await validateForm();
           })();
         }}
+        onUnresolvedChange={isSparePart ? onUnresolvedSparePart : undefined}
         onSetFieldError={(fieldName: string, message: string) => {
           formikContext.setFieldError(fieldName, message);
         }}

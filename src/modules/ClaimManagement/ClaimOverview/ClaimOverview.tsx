@@ -645,12 +645,13 @@ export default function ClaimOverview() {
       if (isClaimPricingPending || !allFields || !claimData) return;
       const field = allFields.find((f) => f.name === fieldName);
       if (!field) return;
-      // A cleared field (e.g. type back to "Select") is not recalculated, but it is a change:
-      // prices count as not validated (Request Approval waits) and its own error shows now.
+      // Any row change marks prices not validated (Request Approval waits), also when it is not
+      // recalculated: a cleared field (e.g. type back to "Select") or an invalid row (e.g. a part
+      // number the search does not find). A cleared field's own error shows right away.
+      arePricesValidatedRef.current = false;
+      hasClaimChangesRef.current = true;
+      setArePricesValidated(false);
       if (isRecalculationValueEmpty(value)) {
-        arePricesValidatedRef.current = false;
-        hasClaimChangesRef.current = true;
-        setArePricesValidated(false);
         const fieldError = validateByAction("onValidate", {
           ...formValuesRef.current,
           [fieldName]: value,
@@ -675,8 +676,6 @@ export default function ClaimOverview() {
         scrollToFirstError(Object.keys(payloadErrors));
         return;
       }
-      arePricesValidatedRef.current = false;
-      setArePricesValidated(false);
       const changes = [buildRecalculationChange(originalName, lineId, value)];
       setRecalculatedPricesChanges((prev) => mergeRecalculationChanges(prev, changes));
       recalculateClaimPrices(formValues, changes);
