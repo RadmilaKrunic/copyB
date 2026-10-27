@@ -1054,6 +1054,19 @@ describe("ClaimOverview onRecalculatePrices field action", () => {
     expect(h.scrollToFirstError).toHaveBeenCalledWith([`${ROW}sparePartNumber`]);
   });
 
+  it("treats a part number the search does not find as a change without recalculating", async () => {
+    setup();
+    await validateSuccessfully();
+    expect(h.captured.generic.actionCallbacks.enableRequestApproval()).toBe(true);
+    h.validateByAction.mockReturnValue({ [`${ROW}sparePartNumber`]: "sparePartNumberNotFound" });
+
+    recalc(`${ROW}sparePartNumber`, "UNKNOWN");
+
+    expect(h.recalculatePrices).not.toHaveBeenCalled();
+    expect(h.captured.generic.actionCallbacks.enableRequestApproval()).toBe(false);
+    expect(h.scrollToFirstError).toHaveBeenCalledWith([`${ROW}sparePartNumber`]);
+  });
+
   it("sends the deduped changes with validate and clears them after a successful validate", async () => {
     setup();
 
