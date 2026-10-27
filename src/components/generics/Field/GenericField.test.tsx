@@ -273,7 +273,6 @@ vi.mock("components/ui/AutoComplete/AutoComplete", () => ({
     onSetFieldTouched,
     onClearFieldError,
     onValidation,
-    onUnresolvedChange,
     incompatibleSelectionMessage,
     position,
     brand,
@@ -290,7 +289,6 @@ vi.mock("components/ui/AutoComplete/AutoComplete", () => ({
     onSetFieldTouched?: (fieldName: string, touched: boolean) => void;
     onClearFieldError?: (fieldName: string) => void;
     onValidation?: (isValid: boolean) => void;
-    onUnresolvedChange?: (typedValue: string) => void;
     incompatibleSelectionMessage?: string;
     position?: string;
     brand?: string;
@@ -358,14 +356,6 @@ vi.mock("components/ui/AutoComplete/AutoComplete", () => ({
       <button data-testid={`autocomplete-validate-${name}`} onClick={() => onValidation?.(true)}>
         Validate
       </button>
-      {onUnresolvedChange && (
-        <button
-          data-testid={`autocomplete-unresolved-${name}`}
-          onClick={() => onUnresolvedChange("UNKNOWN")}
-        >
-          Unresolved
-        </button>
-      )}
     </div>
   ),
 }));
@@ -1066,25 +1056,6 @@ describe("GenericField", () => {
       expect(wrapper).toHaveAttribute("data-isexchange", "true");
     });
 
-    it("searches spare parts as SP while the row has no position", () => {
-      renderWithContext(
-        {
-          name: "row0_sparePartNumber",
-          label: "Spare Part",
-          type: "autocomplete",
-          isRequired: false,
-          fieldMapping: { originalName: "sparePartNumber" },
-        },
-        {},
-        { row0_position: "" },
-      );
-
-      expect(screen.getByTestId("autocomplete-context-row0_sparePartNumber")).toHaveAttribute(
-        "data-position",
-        "SP",
-      );
-    });
-
     it("does not extract spare-part context for non spare-part-number fields", () => {
       const field: Field = {
         name: "bareToolNumber",
@@ -1336,34 +1307,6 @@ describe("GenericField", () => {
         expect(screen.getByTestId(incompatible)).toHaveTextContent("incompatibleWarrantyType"),
       );
       vi.mocked(getSparePartCompatibilityMessage).mockImplementation(() => "");
-    });
-
-    it("runs the price action for a typed part number the search does not find", async () => {
-      const user = userEvent.setup();
-      const onRecalculatePrices = vi.fn();
-      renderWithContext(sparePartField({ onBlur: "onRecalculatePrices" }), {
-        actionCallbacks: { onRecalculatePrices },
-      });
-
-      await user.click(screen.getByTestId("autocomplete-unresolved-row0_sparePartNumber"));
-
-      expect(onRecalculatePrices).toHaveBeenCalledTimes(1);
-      expect(onRecalculatePrices).toHaveBeenCalledWith("row0_sparePartNumber", "UNKNOWN");
-      expect(handleAutoCompleteSelect).not.toHaveBeenCalled();
-    });
-
-    it("does not report unresolved changes for other autocomplete fields", () => {
-      renderWithContext({
-        name: "bareToolNumber",
-        label: "Bare Tool",
-        type: "autocomplete",
-        isRequired: false,
-        fieldMapping: { originalName: "bareToolNumber" },
-      });
-
-      expect(
-        screen.queryByTestId("autocomplete-unresolved-bareToolNumber"),
-      ).not.toBeInTheDocument();
     });
   });
 

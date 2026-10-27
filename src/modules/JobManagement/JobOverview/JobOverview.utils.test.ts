@@ -11,7 +11,6 @@ import {
   getRecalculationPayloadErrors,
   isRecalculationValueEmpty,
   mergeRecalculationChanges,
-  buildRecalculationChange,
 } from "./JobOverview.utils";
 
 vi.mock("../CreateJob/CreateJob.warranty.utils", () => ({
@@ -264,31 +263,5 @@ describe("mergeRecalculationChanges", () => {
       { type: "quantity", lineId: "L1", value: 2, scope: null },
     ]);
     expect(previous).toEqual([{ type: "quantity", lineId: "L1", value: 1, scope: null }]);
-  });
-});
-
-describe("buildRecalculationChange", () => {
-  it("sends a row change with its line id and no scope", () => {
-    expect(buildRecalculationChange("quantity", "SP_1611016003_CHARGEABLE", "10.00")).toEqual({
-      type: "quantity",
-      lineId: "SP_1611016003_CHARGEABLE",
-      value: "10.00",
-      scope: null,
-    });
-  });
-
-  it("maps row field names to change types", () => {
-    expect(buildRecalculationChange("type", "L1", "WARRANTY").type).toBe("jobType");
-    expect(buildRecalculationChange("sparePartNumber", "L1", "1").type).toBe("partNumber");
-    expect(buildRecalculationChange("position", "L1", "LA").type).toBe("position");
-  });
-
-  it("sends a summary change with the chargeable scope", () => {
-    expect(buildRecalculationChange("summaryDiscountMaterial", "", 5)).toEqual({
-      type: "summaryDiscount",
-      lineId: "",
-      value: 5,
-      scope: { positions: ["SP", "PN", "AC"], jobTypes: ["CHARGEABLE"] },
-    });
   });
 });

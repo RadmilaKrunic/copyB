@@ -53,12 +53,8 @@ function ClientOverview() {
   const totalActiveJobs = customerDetails?.totalActiveJobs ?? 0;
 
   const user = queryClient.getQueryData<HeaderUserData>(["user"]);
-  const canAnonymizeClient = useHasPermission([PERMISSIONS.CLIENT.CAN_ANONYMIZE_CLIENT]);
-  const canDeleteClient =
-    canAnonymizeClient &&
-    !!user?.roles?.some((role) =>
-      ["ASC_MANAGER", "ASC_MANAGER_WITHOUT_CLAIM", "ASC_RECEPTIONIST"].includes(role),
-    );
+  const canDeleteClient = useHasPermission([PERMISSIONS.CLIENT.CAN_DELETE_CLIENT]);
+  const canEditClientDetails = useHasPermission([PERMISSIONS.CLIENT.CAN_EDIT_CLIENT_DETAILS]);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const deleteCustomer = useDeleteCustomer();
   const deletionPendingRef = useRef(false);
@@ -172,7 +168,7 @@ function ClientOverview() {
   );
 
   const enableEditSection = (sectionName: string) => {
-    if (sectionName === "clientInfo") {
+    if (sectionName === "clientInfo" && canEditClientDetails) {
       setClientInfoDisabled(false);
     }
   };

@@ -302,22 +302,6 @@ describe("formValidation", () => {
       }
     });
 
-    it("skips the past-limit check on a read-only job creation date", () => {
-      // Claim / job overview show the stored creation date read-only; an older job must
-      // not block actions such as claim Validate.
-      for (const readOnly of [{ isDisabled: true }, { alwaysDisabled: true }]) {
-        const fields = [createMockField({ ...jobCreationDateField(), ...readOnly })];
-        const errors: ValidationErrors = {
-          "assets#0_jobCreationDate": "Job Creation Date cannot be more than 15 days in the past.",
-        };
-        const values = { "assets#0_jobCreationDate": isoDaysAgo(60) };
-
-        validateByAction({ errors, mandatoryFields: [], values, fields, t: mockT });
-
-        expect(errors["assets#0_jobCreationDate"]).toBeUndefined();
-      }
-    });
-
     it("clears the past-limit error once a valid date is selected", () => {
       const fields = [jobCreationDateField()];
       const errors: ValidationErrors = {

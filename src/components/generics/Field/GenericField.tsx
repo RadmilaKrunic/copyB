@@ -580,9 +580,6 @@ function renderTextareaField(ctx: FieldRenderCtx): ReactElement {
   );
 }
 
-/** Position the spare part search uses while the row has none selected. */
-const DEFAULT_SPARE_PART_SEARCH_POSITION = "SP";
-
 function renderAutocompleteField(ctx: FieldRenderCtx): ReactElement {
   const {
     field,
@@ -613,10 +610,9 @@ function renderAutocompleteField(ctx: FieldRenderCtx): ReactElement {
   const isSparePart = name?.toLowerCase().includes("sparepartnumber");
   const actionType = (values["actionType"] as string) || "";
   if (isSparePart) {
-    // Extract position from the same row (e.g., diagnosticMaterials#0.position). A row without a
-    // position yet searches as SP, so the part's belongs-to-tool flag matches the SP default.
+    // Extract position from the same row (e.g., diagnosticMaterials#0.position)
     const positionFieldName = name.replace(/sparepartnumber/i, "position");
-    position = (values[positionFieldName] as string) || DEFAULT_SPARE_PART_SEARCH_POSITION;
+    position = (values[positionFieldName] as string) || "";
 
     // Extract actionType to determine isExchange
 
@@ -678,16 +674,6 @@ function renderAutocompleteField(ctx: FieldRenderCtx): ReactElement {
     }
   };
 
-  /**
-   * A typed spare part number the search does not find is still a change: run the field's price
-   * action, so the page marks prices unvalidated (Validate re-enables) and shows the not-found
-   * error without a recalculate request (exchange rows have no error and are recalculated).
-   */
-  const onUnresolvedSparePart = (partNumber: string) => {
-    invokeFieldAction(actionCallbacks, "onValueChange", field.onValueChange, name, partNumber);
-    invokeFieldAction(actionCallbacks, "onBlur", field.onBlur, name, partNumber);
-  };
-
   return (
     <span className={`${fullWidth} ${className || ""}`} {...restProps}>
       <AutoComplete
@@ -730,7 +716,6 @@ function renderAutocompleteField(ctx: FieldRenderCtx): ReactElement {
             await validateForm();
           })();
         }}
-        onUnresolvedChange={isSparePart ? onUnresolvedSparePart : undefined}
         onSetFieldError={(fieldName: string, message: string) => {
           formikContext.setFieldError(fieldName, message);
         }}

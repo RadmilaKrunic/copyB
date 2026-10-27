@@ -60,12 +60,7 @@ function ClientsList() {
     pageSize: Number(sessionStorage.getItem("clientList-pageSize")) || 10,
   });
 
-  const canAnonymizeClient = useHasPermission([PERMISSIONS.CLIENT.CAN_ANONYMIZE_CLIENT]);
-  const canDeleteClient =
-    canAnonymizeClient &&
-    !!user?.roles?.some((role) =>
-      ["ASC_MANAGER", "ASC_MANAGER_WITHOUT_CLAIM", "ASC_RECEPTIONIST"].includes(role),
-    );
+  const canDeleteClient = useHasPermission([PERMISSIONS.CLIENT.CAN_DELETE_CLIENT]);
   const [clientToDelete, setClientToDelete] = useState<ClientManagementCustomer | null>(null);
   const deleteCustomer = useDeleteCustomer();
   const deletionPendingRef = useRef(false);

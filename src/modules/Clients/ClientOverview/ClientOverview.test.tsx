@@ -124,37 +124,28 @@ vi.mock("@bosch/react-frok", () => ({
   ),
 }));
 
-const baseFields = [
+// ClientOverview mutates the form/field objects it receives (isDisabled flags),
+// so every test gets fresh copies instead of shared module-level objects.
+const createBaseFields = () => [
   { name: "firstName", isDisabled: true },
   { name: "lastName", isDisabled: true },
 ];
 
+// Stable per-test result: the real hook returns stable references between renders.
+let formInitResult: any;
 vi.mock("../../../hooks/useFormInitialization", () => ({
-  useFormInitialization: () => ({
-    initialFormValues: {},
-    setInitialFormValues: vi.fn(),
-    allFields: baseFields,
-    setAllFields: vi.fn(),
-    mandatoryFields: {},
-    tabs: [
-      { name: "clientInfo", label: "clientInfo", position: 0 },
-      { name: "Assets", label: "assets", position: 1 },
-      { name: "Orders", label: "orders", position: 2 },
-      { name: "Jobs", label: "jobs", position: 3 },
-      { name: "otherTab", label: "otherTab", position: 4 },
-    ],
-    isInitialized: true,
-  }),
+  useFormInitialization: () => formInitResult,
 }));
 
+const formValidationResult = {
+  validate: vi.fn(),
+  validateByAction: vi.fn(),
+  startValidation: vi.fn(),
+  stopValidation: vi.fn(),
+  setCurrentAction: vi.fn(),
+};
 vi.mock("../../../components/generics/Form/useFormValidation", () => ({
-  useFormValidation: () => ({
-    validate: vi.fn(),
-    validateByAction: vi.fn(),
-    startValidation: vi.fn(),
-    stopValidation: vi.fn(),
-    setCurrentAction: vi.fn(),
-  }),
+  useFormValidation: () => formValidationResult,
 }));
 
 // Runs the success callback immediately, simulating a form that passes validation.
@@ -251,7 +242,7 @@ vi.mock("../../../api/axios-client/axiosClient", () => ({
 
 const mockSetMessages = vi.fn();
 
-const clientOverviewForm = {
+const createClientOverviewForm = () => ({
   name: "ClientOverview",
   sections: [
     {
@@ -259,7 +250,7 @@ const clientOverviewForm = {
       label: "clientInfo",
       position: 0,
       isDisabled: false,
-      areas: [{ fields: baseFields }],
+      areas: [{ fields: createBaseFields() }],
     },
     {
       name: "Assets",
@@ -291,7 +282,7 @@ const clientOverviewForm = {
     },
   ],
   actions: [{ name: "onDeleteClient" }, { name: "onCreateJob" }],
-};
+});
 
 const mockClient = {
   customerId: "customer-1",
@@ -325,7 +316,8 @@ const mockCustomerDetails: ClientManagementCustomerDetails = {
   createdAt: "2024-01-01",
 };
 
-function createQueryClient(roles = ["ASC_MANAGER"], permissions = ["CL_A"]) {
+// "CLDE" is PERMISSIONS.CLIENT.CAN_DELETE_CLIENT.
+function createQueryClient(roles = ["ASC_MANAGER"], permissions = ["CLDE"]) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -337,7 +329,7 @@ function createQueryClient(roles = ["ASC_MANAGER"], permissions = ["CL_A"]) {
     roles,
     permissions,
   });
-  queryClient.setQueryData(["UIConfiguration", "US"], { forms: [clientOverviewForm] });
+  queryClient.setQueryData(["UIConfiguration", "US"], { forms: [createClientOverviewForm()] });
   return queryClient;
 }
 
@@ -354,9 +346,26 @@ function renderWithProviders(queryClient: QueryClient) {
 describe("ClientOverview", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // clearAllMocks keeps unconsumed mockImplementationOnce queues, so reset these explicitly.
+    mockNavigate.mockReset();
     mockAxiosDelete.mockReset();
     sessionStorage.clear();
     updateCustomerOptions = undefined;
+    formInitResult = {
+      initialFormValues: {},
+      setInitialFormValues: vi.fn(),
+      allFields: createBaseFields(),
+      setAllFields: vi.fn(),
+      mandatoryFields: {},
+      tabs: [
+        { name: "clientInfo", label: "clientInfo", position: 0 },
+        { name: "Assets", label: "assets", position: 1 },
+        { name: "Orders", label: "orders", position: 2 },
+        { name: "Jobs", label: "jobs", position: 3 },
+        { name: "otherTab", label: "otherTab", position: 4 },
+      ],
+      isInitialized: true,
+    };
     mockUseClientManagementCustomerDetails.mockReturnValue({ data: mockCustomerDetails });
     mockMapValuesToAPI.mockReturnValue({});
   });
@@ -619,7 +628,9 @@ describe("ClientOverview", () => {
       renderWithProviders(queryClient);
 
       await screen.findByTestId("trigger-save");
-      updateCustomerOptions.onSuccess();
+      await act(async () => {
+        updateCustomerOptions.onSuccess();
+      });
 
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["client", "client-123"] });
       expect(invalidateSpy).toHaveBeenCalledWith({
@@ -637,7 +648,9 @@ describe("ClientOverview", () => {
       renderWithProviders(createQueryClient());
 
       await screen.findByTestId("trigger-save");
-      updateCustomerOptions.onError();
+      await act(async () => {
+        updateCustomerOptions.onError();
+      });
 
       expect(mockSetMessages).toHaveBeenCalledTimes(1);
       const updater = mockSetMessages.mock.calls[0][0];
@@ -697,7 +710,7 @@ describe("ClientOverview", () => {
     });
 
     it.each(["ASC_MANAGER", "ASC_MANAGER_WITHOUT_CLAIM", "ASC_RECEPTIONIST"])(
-      "allows %s with anonymize permission to open confirmation",
+      "allows %s with delete permission to open confirmation",
       async (role) => {
         vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
         renderWithProviders(createQueryClient([role]));
@@ -707,19 +720,6 @@ describe("ClientOverview", () => {
         expect(
           screen.getByRole("dialog", { name: "deleteClientConfirmationTitle" }),
         ).toBeInTheDocument();
-        expect(mockAxiosDelete).not.toHaveBeenCalled();
-      },
-    );
-
-    it.each(["ASA_MANAGER", "ASA_ADMIN", "ASC_TECHNICIAN"])(
-      "hides deletion for %s even with anonymize permission",
-      async (role) => {
-        vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
-        renderWithProviders(createQueryClient([role]));
-
-        await screen.findByTestId("overview-header");
-
-        expect(screen.queryByText("onDeleteClient")).not.toBeInTheDocument();
         expect(mockAxiosDelete).not.toHaveBeenCalled();
       },
     );
@@ -734,19 +734,26 @@ describe("ClientOverview", () => {
       expect(mockAxiosDelete).not.toHaveBeenCalled();
     });
 
-    it("hides deletion when user has edit permission but not anonymize permission", async () => {
-      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
-      renderWithProviders(createQueryClient(["ASC_MANAGER"], ["CL_E"]));
+    it.each([
+      { permissions: ["CL_E"] },
+      { permissions: ["CL_A"] },
+      { permissions: ["CL_E", "CL_A", "CL_V"] },
+    ])(
+      "hides deletion when user has $permissions but not the delete permission",
+      async ({ permissions }) => {
+        vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+        renderWithProviders(createQueryClient(["ASC_MANAGER"], permissions));
 
-      await screen.findByTestId("overview-header");
+        await screen.findByTestId("overview-header");
 
-      expect(screen.queryByText("onDeleteClient")).not.toBeInTheDocument();
-      expect(mockAxiosDelete).not.toHaveBeenCalled();
-    });
+        expect(screen.queryByText("onDeleteClient")).not.toBeInTheDocument();
+        expect(mockAxiosDelete).not.toHaveBeenCalled();
+      },
+    );
 
     it("keeps the other actions visible when deletion is hidden", async () => {
       vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
-      renderWithProviders(createQueryClient(["ASC_TECHNICIAN"]));
+      renderWithProviders(createQueryClient(["ASC_MANAGER"], []));
 
       await screen.findByTestId("overview-header");
 

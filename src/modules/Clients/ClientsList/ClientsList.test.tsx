@@ -357,18 +357,15 @@ describe("ClientsList", () => {
   });
 
   describe("delete permissions", () => {
-    it.each(["ASC_MANAGER", "ASC_MANAGER_WITHOUT_CLAIM", "ASC_RECEPTIONIST"])(
-      "shows the delete action for allowed role %s",
-      async (role) => {
-        mockCustomers([{ customerId: "42", name: "John Doe" }]);
+    it("shows the delete action when the user has the delete permission", async () => {
+      mockCustomers([{ customerId: "42", name: "John Doe" }]);
 
-        renderWithProviders(createQueryClient([role]));
+      renderWithProviders(createQueryClient());
 
-        expect(await screen.findByTestId("client-action-delete-42")).toBeInTheDocument();
-      },
-    );
+      expect(await screen.findByTestId("client-action-delete-42")).toBeInTheDocument();
+    });
 
-    it("hides the delete action when the user lacks the anonymize permission", async () => {
+    it("hides the delete action when the user lacks the delete permission", async () => {
       vi.mocked(useHasPermission).mockReturnValue(false);
       mockCustomers([{ customerId: "42", name: "John Doe" }]);
 
@@ -376,24 +373,6 @@ describe("ClientsList", () => {
 
       await screen.findByTestId("table");
       expect(screen.getByTestId("client-action-view-42")).toBeInTheDocument();
-      expect(screen.queryByTestId("client-action-delete-42")).not.toBeInTheDocument();
-    });
-
-    it("hides the delete action when the user has no allowed role", async () => {
-      mockCustomers([{ customerId: "42", name: "John Doe" }]);
-
-      renderWithProviders(createQueryClient(["ASC_MECHANIC"]));
-
-      await screen.findByTestId("table");
-      expect(screen.queryByTestId("client-action-delete-42")).not.toBeInTheDocument();
-    });
-
-    it("hides the delete action when the user has no roles", async () => {
-      mockCustomers([{ customerId: "42", name: "John Doe" }]);
-
-      renderWithProviders(createQueryClient(null));
-
-      await screen.findByTestId("table");
       expect(screen.queryByTestId("client-action-delete-42")).not.toBeInTheDocument();
     });
   });

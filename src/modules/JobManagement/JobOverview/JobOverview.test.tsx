@@ -383,7 +383,7 @@ vi.mock("components/generics/utils", () => ({
   setSectionDisabledState: vi.fn((s: unknown) => s),
   mapValuesToAPI: vi.fn(() => ({
     order: { customer: { useBillingAddressForDelivery: false } },
-    job: { asset: { hasAccessories: true } },
+    job: { asset: { hasAccessories: true, isBareTool: false } },
   })),
 }));
 
@@ -780,7 +780,7 @@ describe("JobOverview", () => {
     expect(patchJobMutateMock).toHaveBeenCalledWith(
       {
         jobId: "J-1",
-        data: { asset: { hasAccessories: true } },
+        data: { asset: { hasAccessories: true, isBareTool: false } },
       },
       expect.any(Object),
     );
@@ -2538,7 +2538,7 @@ describe("JobOverview save customer / save asset", () => {
 
     expect(actionWithValidationMock).not.toHaveBeenCalled();
     expect(patchJobMutateMock).toHaveBeenCalledWith(
-      { jobId: "J-1", data: { asset: { accessories: null } } },
+      { jobId: "J-1", data: { asset: { accessories: null, isBareTool: false } } },
       expect.any(Object),
     );
     const options = patchJobMutateMock.mock.calls[0][1] as CapturedMutationOptions;
@@ -2583,6 +2583,28 @@ describe("JobOverview save customer / save asset", () => {
 
     await waitFor(() => expect(formikValues().serialNumber).toBe("set-by-helper"));
     expect(patchJobMutateMock).toHaveBeenCalled();
+  });
+
+  it.each([
+    { input: "true", expected: true },
+    { input: true, expected: true },
+    { input: "false", expected: true },
+    { input: false, expected: false },
+    { input: "", expected: false },
+    { input: undefined, expected: false },
+  ])("normalizes isBareTool %o to $expected on save asset", async ({ input, expected }) => {
+    vi.mocked(mapValuesToAPI).mockReturnValueOnce({
+      job: { asset: { hasAccessories: true, isBareTool: input } },
+    });
+    mockJob();
+    renderWithMessages();
+
+    await act(async () => {
+      await callbacks().onSaveAsset({ serialNumber: "SN" });
+    });
+
+    const { data } = patchJobMutateMock.mock.calls[0][0] as { data: AnyRecord };
+    expect(data.asset.isBareTool).toBe(expected);
   });
 });
 
@@ -3547,27 +3569,6 @@ describe("JobOverview onRecalculatePrices", () => {
     recalculate(fieldName, value);
 
     expect(recalculatePricesMutateMock).not.toHaveBeenCalled();
-  });
-
-  it("re-enables Validate and shows the type error when a row type is cleared", async () => {
-    validateByActionMock.mockImplementation(() => ({
-      row0_type: "typeRequired",
-      jobNote: "too long",
-    }));
-    renderWithMessages();
-    setPricesValidated(true);
-
-    recalculate("row0_type", "");
-
-    expect(recalculatePricesMutateMock).not.toHaveBeenCalled();
-    expect(validateByActionMock).toHaveBeenCalledWith(
-      "validate",
-      expect.objectContaining({ row0_id: "M-1", row0_type: "" }),
-    );
-    expect(diagnosticsCtx().arePricesValidated).toBe(false);
-    // Only the cleared field's error shows; the rest wait for Validate.
-    await waitFor(() => expect(captured.formik?.errors).toEqual({ row0_type: "typeRequired" }));
-    expect(captured.formik?.touched).toEqual({ row0_type: true });
   });
 
   it("skips recalculation while fields are not loaded yet", () => {

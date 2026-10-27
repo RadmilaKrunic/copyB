@@ -368,6 +368,9 @@ function CreateJob() {
           if (asset && !asset["hasAccessories"]) {
             delete asset["accessories"];
           }
+          if (asset) {
+            asset["isBareTool"] = !!asset["isBareTool"];
+          }
         }
 
         mappedValues.jobs = validJobsWithIndices.map((item) => item.job);

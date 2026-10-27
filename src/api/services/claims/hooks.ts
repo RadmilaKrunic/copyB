@@ -14,7 +14,6 @@ import {
   postBulkApproveClaims,
   postClaimDecision,
   putClaimPrices,
-  postClaimRecalculatePrices,
   patchClaimStatusPending,
   ClaimDecisionPayload,
   BulkApproveClaimsPayload,
@@ -96,20 +95,6 @@ export const useUpdateClaimPrices = (
     },
   });
 };
-
-/** Recalculation does not save, so the claim query is left as is; the caller applies the result. */
-export const useRecalculateClaimPrices = (
-  options?: UseMutationOptions<
-    Record<string, unknown>,
-    Error,
-    { claimId: string; payload: Record<string, unknown> }
-  >,
-) =>
-  useMutation({
-    mutationFn: ({ claimId, payload }: { claimId: string; payload: Record<string, unknown> }) =>
-      postClaimRecalculatePrices(claimId, payload),
-    ...options,
-  });
 
 export const useClaimRequestApproval = (
   options?: UseMutationOptions<void, Error, { claimId: string; jobId?: string }>,

@@ -728,10 +728,8 @@ export const useClaimMaterialsManager = ({
       const fieldNamesToRemove = new Set(areaToRemove.fields.map((f) => f.name));
 
       // ── Archive the deleted material ───────────────────────────────────
-      // Only rows loaded from the claim are archived. A row added in this session
-      // (no source material) was never saved, so deleting it just removes it.
       const materialItem = materialsRef.current[areaIndex];
-      if (materialItem?.sourceMaterial) {
+      if (materialItem) {
         archivedForceRebuildRef.current = true;
         setArchivedMaterials((prev) => [...prev, materialItemToMaterial(materialItem)]);
       }

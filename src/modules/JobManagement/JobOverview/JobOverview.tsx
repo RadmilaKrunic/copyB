@@ -53,7 +53,6 @@ import {
   hasPriceSummary,
   hasServerMaterialPrices,
   extractDiagnosticFromValidateResponse,
-  buildRecalculationChange,
   getRecalculationPayloadErrors,
   isRecalculationValueEmpty,
   mergeRecalculationChanges,
@@ -1195,6 +1194,7 @@ export default function JobOverview() {
       if (!mappedAsset["hasAccessories"]) {
         mappedAsset["accessories"] = null;
       }
+      mappedAsset["isBareTool"] = !!mappedAsset["isBareTool"];
 
       mappedJob["asset"] = mappedAsset;
       const payload: Record<string, unknown> = mappedJob;
@@ -1561,22 +1561,13 @@ export default function JobOverview() {
   const onRecalculatePrices = useCallback(
     (fieldName: string, value: unknown) => {
       if (recalculatePricesMutation.isPending) return;
+      if (isRecalculationValueEmpty(value)) return;
       if (!allFieldsRef.current) return;
       const field = allFieldsRef.current?.find((f) => f.name === fieldName);
       if (!field) return;
       const isMaterial = field.fieldMapping?.originalName?.endsWith("Material");
 
       setArePricesValidated(false);
-      // A cleared field (e.g. type back to "Select") is not recalculated, but it is a change:
-      // Validate re-enables above and the field's own error shows right away.
-      if (isRecalculationValueEmpty(value)) {
-        const fieldError = validateByAction("validate", {
-          ...formValuesRef.current,
-          [fieldName]: value,
-        })[fieldName];
-        if (fieldError) showFieldErrorsRef.current?.({ [fieldName]: fieldError });
-        return;
-      }
       const matrerialIdFieldName =
         allFieldsRef.current?.find(
           (f) =>
@@ -1598,13 +1589,29 @@ export default function JobOverview() {
       }
       const payload = buildDiagnosticPayload(formValuesRef.current, allFieldsRef.current);
       payload.countryCode = jobData?.order?.countryCode;
-      const changes = [
-        buildRecalculationChange(
-          field.fieldMapping?.originalName ?? "",
-          (materialId as string) || "",
-          value,
-        ),
-      ];
+      const changes: Record<string, unknown>[] = [];
+      const typeMap: Record<string, string> = {
+        type: "jobType",
+        sparePartNumber: "partNumber",
+        position: "position",
+        summarySubtotalMaterial: "summaryNetAmount",
+        summaryTotalAmountMaterial: "summaryTotalAmount",
+        summaryDiscountNetMaterial: "summaryDiscount",
+        summaryDiscountMaterial: "summaryDiscount",
+      };
+      const type =
+        typeMap[field.fieldMapping?.originalName || ""] ?? field.fieldMapping?.originalName;
+      changes.push({
+        type,
+        lineId: materialId || "",
+        value,
+        scope: isMaterial
+          ? {
+              positions: ["SP", "PN", "AC"],
+              jobTypes: ["CHARGEABLE"],
+            }
+          : null,
+      });
       setRecalculatedPricesChanges((prev) => mergeRecalculationChanges(prev, changes));
       payload.changes = changes;
       recalculatePricesMutation.mutate(payload);
