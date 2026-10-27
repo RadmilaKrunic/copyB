@@ -5,6 +5,7 @@ import {
   postClaimDecision,
   postBulkApproveClaims,
   putClaimPrices,
+  postClaimRecalculatePrices,
   patchClaimStatusPending,
   saveClaimListColumns,
 } from "./action";
@@ -119,6 +120,21 @@ describe("putClaimPrices", () => {
   it("throws on error", async () => {
     mockPut.mockRejectedValueOnce(new Error("put failed"));
     await expect(putClaimPrices("C001", {})).rejects.toThrow("put failed");
+  });
+});
+
+describe("postClaimRecalculatePrices", () => {
+  it("posts the payload with changes and returns response", async () => {
+    mockPost.mockResolvedValueOnce({ data: { materials: [] } });
+    const payload = { id: "C001", changes: [{ type: "quantity", lineId: "L1", value: 2 }] };
+    const result = await postClaimRecalculatePrices("C001", payload);
+    expect(result).toEqual({ materials: [] });
+    expect(mockPost).toHaveBeenCalledWith("/v1/claims/C001/prices/recalculate", payload);
+  });
+
+  it("throws on error", async () => {
+    mockPost.mockRejectedValueOnce(new Error("recalc failed"));
+    await expect(postClaimRecalculatePrices("C001", {})).rejects.toThrow("recalc failed");
   });
 });
 

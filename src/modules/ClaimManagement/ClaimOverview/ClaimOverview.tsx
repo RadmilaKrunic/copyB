@@ -14,7 +14,8 @@ import Section from "components/generics/Section/GenericSection.types";
 import Field from "components/generics/Field/GenericField.types";
 import { Formik, Form, useFormikContext } from "formik";
 import { useFormValidation } from "components/generics/Form/useFormValidation";
-import { scrollToTop } from "utils/scrollToError";
+import { scrollToFirstError, scrollToTop } from "utils/scrollToError";
+import { getApiErrorMessage } from "utils/getApiErrorMessage";
 import { useTranslation } from "react-i18next";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import {
@@ -36,6 +37,7 @@ import { useSectionEditing } from "hooks/useSectionEditing";
 import {
   useClaimById,
   useUpdateClaimPrices,
+  useRecalculateClaimPrices,
   useClaimRequestApproval,
 } from "api/services/claims/hooks";
 import { useResourceUIConfiguration } from "hooks/useUIConfiguration";
@@ -55,7 +57,21 @@ import ExplosionDrawingModal from "modules/JobManagement/JobOverview/ExplosionDi
 import { PositionItem } from "modules/JobManagement/JobOverview/ExplosionDiagram/ExplosionDrawing.types";
 import { MessagesContext } from "contexts/messagescontext";
 import { ClaimItem } from "./Claims.types";
-import { makeFieldGetter } from "./ClaimOverview.utils";
+import {
+  applyClaimRecalculation,
+  findClaimRowIndex,
+  getClaimFieldOriginalName,
+  getClaimRecalculationPayloadErrors,
+  getClaimSparePartsAreas,
+  getRecalculationErrorKeys,
+  hasRecalculationErrors,
+  makeFieldGetter,
+} from "./ClaimOverview.utils";
+import {
+  buildRecalculationChange,
+  isRecalculationValueEmpty,
+  mergeRecalculationChanges,
+} from "modules/JobManagement/JobOverview/JobOverview.utils";
 import { useFetchDefaultQuantities } from "api/services/prices/hooks";
 import type { ResolveDefaultQuantities } from "api/services/prices/prices.types";
 const SPARE_PARTS_PREFIX = "claims_claimSpareParts#";
@@ -123,6 +139,7 @@ export default function ClaimOverview() {
       arePricesValidatedRef.current = true;
       setArePricesValidated(true);
       hasClaimChangesRef.current = false;
+      setRecalculatedPricesChanges([]);
       scrollToTop();
       setMessages((prev) => [
         ...prev,
@@ -152,6 +169,43 @@ export default function ClaimOverview() {
         failedAction: AnalyticsEventName.CLAIM_PRICES_UPDATED,
         failureReason: toFailureReason(error),
       });
+    },
+  });
+  // Recalculation re-prices the rows without saving: the response goes into the claim cache
+  // (rows rebuild from it) and the claim stays unvalidated until Validate.
+  const recalculateClaimPricesMutation = useRecalculateClaimPrices({
+    onSuccess: (data) => {
+      if (claimId) {
+        queryClient.setQueryData<ClaimItem>(["claim", claimId], (prev) =>
+          prev ? applyClaimRecalculation(prev, data) : prev,
+        );
+      }
+      arePricesValidatedRef.current = false;
+      hasClaimChangesRef.current = true;
+      setArePricesValidated(false);
+
+      if (hasRecalculationErrors(data)) {
+        const errorKeys = getRecalculationErrorKeys(data);
+        const errorText =
+          errorKeys.length > 0
+            ? `${t("priceNotAvailable")}: ${errorKeys.join(", ")}`
+            : t("orderSimulationFailed");
+        setMessages((prev) => [...prev, { text: errorText, type: "error", duration: 5000 }]);
+        scrollToTop();
+      }
+    },
+    onError: (error) => {
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: getApiErrorMessage(error, t, "claimPricesRecalculateError"),
+          type: "error",
+          duration: 8000,
+        },
+      ]);
+      arePricesValidatedRef.current = false;
+      setArePricesValidated(false);
+      scrollToTop();
     },
   });
   const requestApprovalMutation = useClaimRequestApproval();
@@ -221,6 +275,13 @@ export default function ClaimOverview() {
   // Tracks whether user has made changes since last successful validate.
   // Only a ref is needed — the value is read in callbacks (not in JSX render).
   const hasClaimChangesRef = useRef(false);
+  // Row edits sent to recalculate since the last validate; validate sends them too
+  // (same as job diagnostics), deduped per line + field.
+  const [recalculatedPricesChanges, setRecalculatedPricesChanges] = useState<
+    Record<string, unknown>[]
+  >([]);
+  // Marks recalculation errors on the row fields from outside the Formik render.
+  const showFieldErrorsRef = useRef<((errors: Record<string, string>) => void) | null>(null);
   // summaryTypeOptions is owned here so genericFormContextValue can expose it to radioSourceCallbacks
   const [summaryTypeOptions, setSummaryTypeOptions] = useState<{ label: string; value: string }[]>([
     { value: "totalSummary", label: "totalSummary" },
@@ -388,13 +449,7 @@ export default function ClaimOverview() {
   });
   const buildClaimPayload = useCallback(
     (formValues: Record<string, unknown>, claimData: ClaimItem): Record<string, unknown> => {
-      const claimsTab = tabs.find((t) => t.name === "claims");
-      const sparePartsAreas = (claimsTab?.areas ?? []).filter(
-        (a) =>
-          a.isMultiple &&
-          a.name.includes("claimSpareParts") &&
-          !a.name.includes("claimArchivedSpareParts"),
-      );
+      const sparePartsAreas = getClaimSparePartsAreas(tabs);
 
       const updatedMaterials = sparePartsAreas.map((area, idx) => {
         const get = makeFieldGetter(area.fields, formValues);
@@ -530,6 +585,7 @@ export default function ClaimOverview() {
     ) => {
       if (!claimId || !allFields || !claimData) return;
       const payload = buildClaimPayload(formValues, claimFullData || {});
+      payload.changes = recalculatedPricesChanges;
       claimForceRebuildRef.current = true;
       skipFormResetRef.current = true;
 
@@ -552,42 +608,102 @@ export default function ClaimOverview() {
       claimHasSyncedRef,
       handleActionWithValidation,
       validateClaimPricesMutation,
+      recalculatedPricesChanges,
     ],
   );
 
-  // Restoring a claim spare-parts row from archived re-prices the claim through the claim
-  // prices PUT, on the settled rows (rowsChangedVersion bumps once they settle). A row delete
-  // does not bump it. An invalid form is skipped without showing errors; Validate reports them.
-  const onUpdateClaimPricesAfterRowsChange = useCallback(
-    (formValues: Record<string, unknown>) => {
-      if (!claimId || !allFields || !claimData) return;
-      if (validateClaimPricesMutation.isPending) return;
-      if (Object.keys(validateByAction("onValidate", formValues)).length > 0) return;
+  const isClaimPricingPending =
+    validateClaimPricesMutation.isPending || recalculateClaimPricesMutation.isPending;
+
+  // Sends the claim prices payload plus `changes` to recalculate. The row rebuild flags are
+  // the same as validate's: rows rebuild from the re-priced materials.
+  const recalculateClaimPrices = useCallback(
+    (formValues: Record<string, unknown>, changes: Record<string, unknown>[]) => {
+      if (!claimId) return;
       const payload = buildClaimPayload(formValues, claimFullData || {});
+      payload.changes = changes;
       claimForceRebuildRef.current = true;
       skipFormResetRef.current = true;
       claimHasSyncedRef.current = false;
-      validateClaimPricesMutation.mutate({ claimId, payload });
+      recalculateClaimPricesMutation.mutate({ claimId, payload });
     },
     [
       claimId,
-      allFields,
-      claimData,
       buildClaimPayload,
       claimFullData,
       claimForceRebuildRef,
       claimHasSyncedRef,
-      validateByAction,
-      validateClaimPricesMutation,
+      recalculateClaimPricesMutation,
     ],
+  );
+
+  // Field action (`onBlur` / `onValueChange` = "onRecalculatePrices") on a claim spare-parts
+  // row, same rules as job diagnostics: skip empty values and rows without a line id, block
+  // and mark an invalid row payload, keep the change for validate.
+  const onRecalculatePrices = useCallback(
+    (fieldName: string, value: unknown) => {
+      if (isClaimPricingPending || !allFields || !claimData) return;
+      if (isRecalculationValueEmpty(value)) return;
+      const field = allFields.find((f) => f.name === fieldName);
+      if (!field) return;
+      const originalName = getClaimFieldOriginalName(field);
+      const isSummary = originalName.endsWith("Material");
+      const sparePartsAreas = getClaimSparePartsAreas(tabs);
+      const rowIndex = findClaimRowIndex(sparePartsAreas, fieldName);
+      const lineId = rowIndex >= 0 ? (materials[rowIndex]?.sourceMaterial?.id ?? "") : "";
+      if (!lineId && !isSummary) return;
+
+      const formValues = formValuesRef.current;
+      const payloadErrors = getClaimRecalculationPayloadErrors(
+        sparePartsAreas,
+        validateByAction("onValidate", formValues),
+      );
+      if (Object.keys(payloadErrors).length > 0) {
+        showFieldErrorsRef.current?.(payloadErrors);
+        scrollToFirstError(Object.keys(payloadErrors));
+        return;
+      }
+      arePricesValidatedRef.current = false;
+      setArePricesValidated(false);
+      const changes = [buildRecalculationChange(originalName, lineId, value)];
+      setRecalculatedPricesChanges((prev) => mergeRecalculationChanges(prev, changes));
+      recalculateClaimPrices(formValues, changes);
+    },
+    [
+      isClaimPricingPending,
+      allFields,
+      claimData,
+      tabs,
+      materials,
+      validateByAction,
+      setArePricesValidated,
+      recalculateClaimPrices,
+    ],
+  );
+
+  // Restoring a claim spare-parts row from archived re-prices the claim through recalculate
+  // with an empty `changes` list (as job diagnostics do), on the settled rows
+  // (rowsChangedVersion bumps once they settle). A row delete does not bump it.
+  // An invalid row payload is skipped without showing errors; Validate reports them.
+  const onRecalculateClaimPricesAfterRowsChange = useCallback(
+    (formValues: Record<string, unknown>) => {
+      if (!allFields || !claimData || isClaimPricingPending) return;
+      const payloadErrors = getClaimRecalculationPayloadErrors(
+        getClaimSparePartsAreas(tabs),
+        validateByAction("onValidate", formValues),
+      );
+      if (Object.keys(payloadErrors).length > 0) return;
+      recalculateClaimPrices(formValues, []);
+    },
+    [allFields, claimData, isClaimPricingPending, tabs, validateByAction, recalculateClaimPrices],
   );
 
   const handledRowsChangedVersionRef = useRef(0);
   useEffect(() => {
     if (rowsChangedVersion === handledRowsChangedVersionRef.current) return;
     handledRowsChangedVersionRef.current = rowsChangedVersion;
-    onUpdateClaimPricesAfterRowsChange(initialFormValues);
-  }, [rowsChangedVersion, initialFormValues, onUpdateClaimPricesAfterRowsChange]);
+    onRecalculateClaimPricesAfterRowsChange(initialFormValues);
+  }, [rowsChangedVersion, initialFormValues, onRecalculateClaimPricesAfterRowsChange]);
 
   const onRequestApproval = useCallback(
     async (
@@ -837,6 +953,9 @@ export default function ClaimOverview() {
         canChangeClaimDecision,
         onSummaryDiscountChange: () => {},
         onSummaryTotalAmountChange: () => {},
+        onRecalculatePrices: (fieldName: unknown, value: unknown) => {
+          if (typeof fieldName === "string") onRecalculatePrices(fieldName, value);
+        },
         onEditClaim: () => setIsClaimEditMode(true),
         onAddRow: (formValues: unknown) => onAddSparePart(formValues as Record<string, unknown>),
         onAddSpecialMaterials: (formValues: unknown) =>
@@ -885,6 +1004,7 @@ export default function ClaimOverview() {
       onProductDetails,
       onValidateClaim,
       onRequestApproval,
+      onRecalculatePrices,
       claimPricesValidated,
       enableValidate,
       enableAddingSparePart,
@@ -1234,10 +1354,23 @@ export default function ClaimOverview() {
               enableReinitialize={true}
               validateOnBlur={false}
             >
-              {({ values, setFieldValue, setErrors, setTouched }) => {
+              {({
+                values,
+                setFieldValue,
+                setErrors,
+                setTouched,
+                setFieldError,
+                setFieldTouched,
+              }) => {
                 formValuesRef.current = values;
                 setFieldValueRef.current = (field: string, value: unknown) => {
                   void setFieldValue(field, value);
+                };
+                showFieldErrorsRef.current = (fieldErrors: Record<string, string>) => {
+                  Object.entries(fieldErrors).forEach(([field, error]) => {
+                    void setFieldTouched(field, true, false);
+                    setFieldError(field, error);
+                  });
                 };
                 const currentMode: "view" | "edit" =
                   editingSections.size > 0 || isClaimEditMode ? "edit" : "view";

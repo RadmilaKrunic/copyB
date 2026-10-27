@@ -55,6 +55,8 @@ export interface Price {
 }
 
 export interface Material {
+  /** Line id (e.g. SP_1611016003_CHARGEABLE); the recalculate `changes` lineId. */
+  id?: string | null;
   order?: number;
   position: string;
   partNumber: string;

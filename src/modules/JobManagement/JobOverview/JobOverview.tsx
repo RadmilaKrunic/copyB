@@ -53,6 +53,7 @@ import {
   hasPriceSummary,
   hasServerMaterialPrices,
   extractDiagnosticFromValidateResponse,
+  buildRecalculationChange,
   getRecalculationPayloadErrors,
   isRecalculationValueEmpty,
   mergeRecalculationChanges,
@@ -1588,29 +1589,13 @@ export default function JobOverview() {
       }
       const payload = buildDiagnosticPayload(formValuesRef.current, allFieldsRef.current);
       payload.countryCode = jobData?.order?.countryCode;
-      const changes: Record<string, unknown>[] = [];
-      const typeMap: Record<string, string> = {
-        type: "jobType",
-        sparePartNumber: "partNumber",
-        position: "position",
-        summarySubtotalMaterial: "summaryNetAmount",
-        summaryTotalAmountMaterial: "summaryTotalAmount",
-        summaryDiscountNetMaterial: "summaryDiscount",
-        summaryDiscountMaterial: "summaryDiscount",
-      };
-      const type =
-        typeMap[field.fieldMapping?.originalName || ""] ?? field.fieldMapping?.originalName;
-      changes.push({
-        type,
-        lineId: materialId || "",
-        value,
-        scope: isMaterial
-          ? {
-              positions: ["SP", "PN", "AC"],
-              jobTypes: ["CHARGEABLE"],
-            }
-          : null,
-      });
+      const changes = [
+        buildRecalculationChange(
+          field.fieldMapping?.originalName ?? "",
+          (materialId as string) || "",
+          value,
+        ),
+      ];
       setRecalculatedPricesChanges((prev) => mergeRecalculationChanges(prev, changes));
       payload.changes = changes;
       recalculatePricesMutation.mutate(payload);
