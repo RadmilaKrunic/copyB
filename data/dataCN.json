@@ -5723,7 +5723,6 @@
                 },
                 {
                   "name": "position",
-                  "onValueChange": "onRecalculatePrices",
                   "label": "sparePartPosition",
                   "type": "dropdown",
                   "subtype": "diagnosticPosition",
@@ -5785,7 +5784,6 @@
                 },
                 {
                   "name": "sparePartNumber",
-                  "onBlur": "onRecalculatePrices",
                   "label": "sparePartNumber",
                   "type": "autocomplete",
                   "subtype": "diagnosticPartNumber",
@@ -5853,7 +5851,6 @@
                 },
                 {
                   "name": "type",
-                  "onValueChange": "onRecalculatePrices",
                   "label": "sparePartType",
                   "type": "dropdown",
                   "subtype": "diagnosticType",
@@ -5900,7 +5897,6 @@
                 },
                 {
                   "name": "quantity",
-                  "onBlur": "onRecalculatePrices",
                   "label": "sparePartQuantity",
                   "type": "number",
                   "subtype": "diagnosticQuantity",
@@ -5967,7 +5963,6 @@
                 },
                 {
                   "name": "unitPrice",
-                  "onBlur": "onRecalculatePrices",
                   "label": "sparePartsUnitPrice",
                   "type": "price",
                   "subtype": "diagnosticUnitPrice",
@@ -6001,7 +5996,6 @@
                 },
                 {
                   "name": "suggestedNetPrice",
-                  "onBlur": "onRecalculatePrices",
                   "label": "sparePartsSuggestedNetPrice",
                   "type": "price",
                   "subtype": "diagnosticSuggestedNetPrice",
@@ -6041,7 +6035,6 @@
                 },
                 {
                   "name": "discountNet",
-                  "onBlur": "onRecalculatePrices",
                   "label": "sparePartsDiscount",
                   "type": "price",
                   "subtype": "diagnosticDiscount",
@@ -6076,7 +6069,6 @@
                 },
                 {
                   "name": "netAmount",
-                  "onBlur": "onRecalculatePrices",
                   "label": "sparePartsNetAmount",
                   "type": "price",
                   "subtype": "diagnosticNetAmount",
@@ -6110,7 +6102,6 @@
                 },
                 {
                   "name": "tax",
-                  "onBlur": "onRecalculatePrices",
                   "label": "sparePartsTax",
                   "type": "price",
                   "subtype": "diagnosticTax",
@@ -6144,7 +6135,6 @@
                 },
                 {
                   "name": "taxAmount",
-                  "onBlur": "onRecalculatePrices",
                   "label": "sparePartsTaxAmount",
                   "type": "price",
                   "subtype": "diagnosticTaxAmount",
@@ -6178,7 +6168,6 @@
                 },
                 {
                   "name": "grossAmount",
-                  "onBlur": "onRecalculatePrices",
                   "label": "sparePartsGrossAmount",
                   "type": "price",
                   "subtype": "diagnosticGrossAmount",
@@ -6217,7 +6206,6 @@
                 },
                 {
                   "name": "discount",
-                  "onBlur": "onRecalculatePrices",
                   "label": "sparePartsDiscount",
                   "type": "price",
                   "subtype": "diagnosticDiscount",
@@ -6319,7 +6307,6 @@
                 },
                 {
                   "name": "totalAmount",
-                  "onBlur": "onRecalculatePrices",
                   "label": "sparePartsTotalAmount",
                   "type": "price",
                   "subtype": "diagnosticTotalAmount",
