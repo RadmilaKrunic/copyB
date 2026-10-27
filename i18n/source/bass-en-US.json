@@ -726,6 +726,7 @@
     "errorValidateOnlyAssignedTechnician": "Only assigned technician can validate diagnostics.",
     "claimPricesValidateSuccess": "Prices validated successfully.",
     "claimPricesValidateError": "Price validation failed. Please try again.",
+    "claimPricesRecalculateError": "Price recalculation failed. Please try again.",
     "claimRequestApprovalSuccess": "Request for approval submitted successfully.",
     "claimRequestApprovalError": "Failed to submit request for approval. Please try again.",
     "DrillChuck": "Drill Chuck",

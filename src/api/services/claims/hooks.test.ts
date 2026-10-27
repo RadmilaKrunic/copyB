@@ -9,11 +9,24 @@ vi.mock("./action", () => ({
   postBulkApproveClaims: vi.fn().mockResolvedValue(undefined),
   postClaimDecision: vi.fn().mockResolvedValue(undefined),
   putClaimPrices: vi.fn().mockResolvedValue(undefined),
+  postClaimRecalculatePrices: vi.fn().mockResolvedValue({}),
   patchClaimStatusPending: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { useClaimById, useClaims, useClaimDecision, useBulkApproveClaims } from "./hooks";
-import { fetchClaimById, fetchClaims, postClaimDecision, postBulkApproveClaims } from "./action";
+import {
+  useClaimById,
+  useClaims,
+  useClaimDecision,
+  useBulkApproveClaims,
+  useRecalculateClaimPrices,
+} from "./hooks";
+import {
+  fetchClaimById,
+  fetchClaims,
+  postClaimDecision,
+  postBulkApproveClaims,
+  postClaimRecalculatePrices,
+} from "./action";
 
 function makeWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -73,5 +86,20 @@ describe("useBulkApproveClaims", () => {
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(postBulkApproveClaims).toHaveBeenCalled();
+  });
+});
+
+describe("useRecalculateClaimPrices", () => {
+  it("posts the recalculation for the claim", async () => {
+    vi.mocked(postClaimRecalculatePrices).mockResolvedValue({ materials: [] });
+    const onSuccess = vi.fn();
+    const { result } = renderHook(() => useRecalculateClaimPrices({ onSuccess }), {
+      wrapper: makeWrapper(),
+    });
+    const payload = { id: "c1", changes: [] };
+    result.current.mutate({ claimId: "c1", payload });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(postClaimRecalculatePrices).toHaveBeenCalledWith("c1", payload);
+    expect(onSuccess).toHaveBeenCalled();
   });
 });
