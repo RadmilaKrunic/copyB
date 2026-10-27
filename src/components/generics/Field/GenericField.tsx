@@ -580,6 +580,9 @@ function renderTextareaField(ctx: FieldRenderCtx): ReactElement {
   );
 }
 
+/** Position the spare part search uses while the row has none selected. */
+const DEFAULT_SPARE_PART_SEARCH_POSITION = "SP";
+
 function renderAutocompleteField(ctx: FieldRenderCtx): ReactElement {
   const {
     field,
@@ -610,9 +613,10 @@ function renderAutocompleteField(ctx: FieldRenderCtx): ReactElement {
   const isSparePart = name?.toLowerCase().includes("sparepartnumber");
   const actionType = (values["actionType"] as string) || "";
   if (isSparePart) {
-    // Extract position from the same row (e.g., diagnosticMaterials#0.position)
+    // Extract position from the same row (e.g., diagnosticMaterials#0.position). A row without a
+    // position yet searches as SP, so the part's belongs-to-tool flag matches the SP default.
     const positionFieldName = name.replace(/sparepartnumber/i, "position");
-    position = (values[positionFieldName] as string) || "";
+    position = (values[positionFieldName] as string) || DEFAULT_SPARE_PART_SEARCH_POSITION;
 
     // Extract actionType to determine isExchange
 

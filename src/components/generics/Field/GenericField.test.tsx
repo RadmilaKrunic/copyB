@@ -1066,6 +1066,25 @@ describe("GenericField", () => {
       expect(wrapper).toHaveAttribute("data-isexchange", "true");
     });
 
+    it("searches spare parts as SP while the row has no position", () => {
+      renderWithContext(
+        {
+          name: "row0_sparePartNumber",
+          label: "Spare Part",
+          type: "autocomplete",
+          isRequired: false,
+          fieldMapping: { originalName: "sparePartNumber" },
+        },
+        {},
+        { row0_position: "" },
+      );
+
+      expect(screen.getByTestId("autocomplete-context-row0_sparePartNumber")).toHaveAttribute(
+        "data-position",
+        "SP",
+      );
+    });
+
     it("does not extract spare-part context for non spare-part-number fields", () => {
       const field: Field = {
         name: "bareToolNumber",
