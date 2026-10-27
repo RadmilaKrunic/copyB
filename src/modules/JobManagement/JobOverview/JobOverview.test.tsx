@@ -3549,6 +3549,27 @@ describe("JobOverview onRecalculatePrices", () => {
     expect(recalculatePricesMutateMock).not.toHaveBeenCalled();
   });
 
+  it("re-enables Validate and shows the type error when a row type is cleared", async () => {
+    validateByActionMock.mockImplementation(() => ({
+      row0_type: "typeRequired",
+      jobNote: "too long",
+    }));
+    renderWithMessages();
+    setPricesValidated(true);
+
+    recalculate("row0_type", "");
+
+    expect(recalculatePricesMutateMock).not.toHaveBeenCalled();
+    expect(validateByActionMock).toHaveBeenCalledWith(
+      "validate",
+      expect.objectContaining({ row0_id: "M-1", row0_type: "" }),
+    );
+    expect(diagnosticsCtx().arePricesValidated).toBe(false);
+    // Only the cleared field's error shows; the rest wait for Validate.
+    await waitFor(() => expect(captured.formik?.errors).toEqual({ row0_type: "typeRequired" }));
+    expect(captured.formik?.touched).toEqual({ row0_type: true });
+  });
+
   it("skips recalculation while fields are not loaded yet", () => {
     allFieldsMock.value = null;
     renderWithMessages();
