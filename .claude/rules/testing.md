@@ -161,6 +161,14 @@ describe("GenericField", () => {
 - **Clean up mocks** — `vi.clearAllMocks()` in `afterEach`
 - **Test error states** — mock rejection, verify error handling
 
+## Sonar-clean tests
+
+- No non-null `!` (S4325): use a local `defined<T>(v: T | undefined): T` that throws.
+- `undefined as X | undefined` in `vi.hoisted` state: use an identity `typed<T>(v: T): T` helper.
+- Prefer `.at(-1)` over `[length - 1]` (S7755).
+- Fixtures use real UIConfiguration field names (`fieldMapping.originalName` = field name; only summary fields end in `Material`).
+- Some test files are CRLF (`JobOverview.test.tsx`, `GenericField.test.tsx`); keep line endings when editing.
+
 ## Critical Rules
 
 - **NEVER mock React Query directly** — mock action.ts

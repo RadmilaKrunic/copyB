@@ -29,4 +29,6 @@ New action pages use `useActionWithValidation`; do not hand-roll the pipeline.
 - Autocomplete not-found: bare tool / tool model / spare part number fields with `autocompleteValidationRef[name] === false` -> `bareToolNumberNotFound` / `toolModelNameNotFound` / `sparePartNumberNotFound`. Error survives re-validation until a part resolves.
 - Spare part not-belongs-to-tool: `sparePartNotBelongsToToolRef`; typing marks unresolved (except `SPARE_PARTS_EXCHANGE`).
 - Keep `autocompleteValidationRef` a stable `useRef` owned by the page; pass via `GenericFormContext.autocompleteValidation`.
+- `jobCreationDate`: max 15 days in the past (`JOB_CREATION_MAX_PAST_DAYS`, `utils/dateFormatter.ts`); `validateJobCreationDateWindow` -> `jobCreationDateTooFarInPast`; datepicker `minDate` set in `renderDatepickerField`.
+- Diagnostics recalculation reuses `validateByAction("validate", values)` filtered to payload fields (`getRecalculationPayloadErrors`) before calling the endpoint.
 - Serial number check on blur (`onBlurActions` -> `getSerialNumberErrorKey`).

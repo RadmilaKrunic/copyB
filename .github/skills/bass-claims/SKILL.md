@@ -27,9 +27,13 @@ description: "ClaimOverview: claim spare-part rows, claim prices, useClaimMateri
 - Request approval enabled only when `arePricesValidatedRef.current && !hasClaimChangesRef.current` (refs, not state — avoids stale render).
 - Adding a row / special materials sets `hasClaimChangesRef = true`, `arePricesValidatedRef = false`.
 - Row deletion allowed only in edit mode + status `REVISED` (`canDeleteRows`). Status `PENDING` locks material inputs (`isClaimPending`).
+- Row delete / restore from archived: `useClaimMaterialsManager` bumps `rowsChangedVersion` -> `onUpdateClaimPricesAfterRowsChange` -> `PUT /v1/claims/{id}/prices` on the settled rows; invalid form -> silent skip (PR #48).
+- Each claim row carries its own API material as `sourceMaterial` through load, delete/archive and restore; `buildClaimPayload` reads status/approvedBy from it, never from `claimData.materials[idx]` (PR #48).
+- Row naming hazard: `claims_claimSpareParts#N_*` keeps N after a delete and new rows get max+1, so N != position in `materials[]`. PR #53 mapped rows by rank (`getClaimRowMaterialIndex` in `ClaimSparePartsRow.utils.ts`) and synced `onAddRow` by area prefix; commit 814a90e (2026-10-20) restored the `#N` lookup, so the "new row locked after delete" bug is back. `syncMaterialsWithForm` and claim validate paths also use `#i`. Confirm intent before touching.
+- "Add row" type: code currently uses `WARRANTY` (814a90e); PR #53 used the claim's `currentJobType` (Radmila's ask, 2026-10-16). Explosion-drawing rows default to `WARRANTY`.
 - Claim summary discount/total callbacks are no-ops; claim summary is read-only.
 - Statuses: `PENDING`, `REVISED`, `APPROVED`, `REJECTED`.
 
 ## Tests
 
-- `useClaimMaterialsManager.test.ts`, `useClaimMaterialsManager.integration.test.tsx`, `ClaimOverview.test.tsx`, `ClaimSparePartsRow.test.tsx`.
+- `ClaimSparePartsRow.utils.test.ts`, `useClaimMaterialsManager.test.ts`, `useClaimMaterialsManager.integration.test.tsx`, `ClaimOverview.test.tsx`, `ClaimSparePartsRow.test.tsx`.

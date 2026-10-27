@@ -11,6 +11,8 @@ description: "BASS-Next API domain creation rules and React Query keys."
 - `hooks.ts` — `useQuery` / `useMutation` wrappers, `use<Verb><Resource>`.
 - `<domain>.types.ts` — request/response interfaces (some legacy domains keep types in module folders; do not add more).
 - Client: `src/api/axios-client/axiosClient.ts` (`VITE_API_BASE_URL`, JWT from `localStorage.token`, `withCredentials`; 401 -> login redirect; 403 on `/auth/me` -> logout).
+- Other base path or timeout: `createApiClient({ basePath, timeout })` (shares interceptors); never `axios.create({ ...axiosClient.defaults })`. Tiers `API_TIMEOUTS` (`axios-client/timeouts.ts`): `DEFAULT` 30s, `LONG` 2 min (uploads/exports/reports), `EXTENDED` 5 min (reimbursement generation). No hardcoded numbers. Details: `.claude/rules/api-domain-pattern.md`.
+- Errors -> `utils/getApiErrorMessage.ts`; non-string params are JSON-stringified (never `[object Object]`).
 - Stale/GC: `DEFAULT_STALE_TIME_MS`, `DEFAULT_GC_TIME_MS` (`utils/queryConstants.ts`, env `VITE_STALE_TIME`, `VITE_GC_TIME`, default 5 min). Config caches use `Infinity`.
 
 ## Existing Domains
