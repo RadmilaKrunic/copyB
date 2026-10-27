@@ -643,9 +643,21 @@ export default function ClaimOverview() {
   const onRecalculatePrices = useCallback(
     (fieldName: string, value: unknown) => {
       if (isClaimPricingPending || !allFields || !claimData) return;
-      if (isRecalculationValueEmpty(value)) return;
       const field = allFields.find((f) => f.name === fieldName);
       if (!field) return;
+      // A cleared field (e.g. type back to "Select") is not recalculated, but it is a change:
+      // prices count as not validated (Request Approval waits) and its own error shows now.
+      if (isRecalculationValueEmpty(value)) {
+        arePricesValidatedRef.current = false;
+        hasClaimChangesRef.current = true;
+        setArePricesValidated(false);
+        const fieldError = validateByAction("onValidate", {
+          ...formValuesRef.current,
+          [fieldName]: value,
+        })[fieldName];
+        if (fieldError) showFieldErrorsRef.current?.({ [fieldName]: fieldError });
+        return;
+      }
       const originalName = getClaimFieldOriginalName(field);
       const isSummary = originalName.endsWith("Material");
       const sparePartsAreas = getClaimSparePartsAreas(tabs);
