@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { useContext } from "react";
+import { useFormikContext } from "formik";
 import ClaimOverview from "./ClaimOverview";
 import { ClaimContext } from "./ClaimContext";
 import { GenericFormContext } from "components/generics/Form/GenericForm.context";
@@ -23,6 +24,10 @@ const h = vi.hoisted(() => {
     postMessageMutate: vi.fn(),
     updatePrices: vi.fn(),
     updatePricesOptions: undefined as any,
+    recalculatePrices: vi.fn(),
+    recalculatePricesOptions: undefined as any,
+    setQueryData: vi.fn(),
+    scrollToFirstError: vi.fn(),
     refetchQueries: vi.fn(),
     uiConfig: { isLoading: false, isError: false },
     uiConfigCountry: typed<string | undefined>(undefined),
@@ -58,6 +63,7 @@ const h = vi.hoisted(() => {
       generic: undefined as any,
       claim: undefined as any,
       diag: undefined as any,
+      formik: undefined as any,
       sections: [] as any[],
       onTabSelect: typed<((e: unknown, data: { value: string }) => void) | undefined>(undefined),
       tabsSelectedValue: typed<string | undefined>(undefined),
@@ -83,7 +89,10 @@ vi.mock("@/analytics", () => ({
   },
 }));
 
-vi.mock("utils/scrollToError", () => ({ scrollToTop: h.scrollToTop }));
+vi.mock("utils/scrollToError", () => ({
+  scrollToTop: h.scrollToTop,
+  scrollToFirstError: h.scrollToFirstError,
+}));
 
 vi.mock("@bosch/react-frok", () => ({
   TabNavigation: ({
@@ -150,6 +159,7 @@ const queryClientMock = {
   }),
   invalidateQueries: h.invalidateQueries,
   refetchQueries: h.refetchQueries,
+  setQueryData: h.setQueryData,
 };
 
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
@@ -232,6 +242,7 @@ vi.mock("components/generics/Section/GenericSection", () => ({
     h.captured.generic = useContext(GenericFormContext);
     h.captured.claim = useContext(ClaimContext);
     h.captured.diag = useContext(DiagnosticsContext);
+    h.captured.formik = useFormikContext();
     h.captured.sections.push(props);
     return (
       <div
@@ -336,6 +347,10 @@ vi.mock("api/services/claims/hooks", () => ({
   useUpdateClaimPrices: (options?: unknown) => {
     h.updatePricesOptions = options;
     return { mutate: h.updatePrices, mutateAsync: h.updatePrices, isPending: false };
+  },
+  useRecalculateClaimPrices: (options?: unknown) => {
+    h.recalculatePricesOptions = options;
+    return { mutate: h.recalculatePrices, mutateAsync: h.recalculatePrices, isPending: false };
   },
   useClaimRequestApproval: () => ({
     mutate: h.requestApproval,
@@ -885,38 +900,241 @@ describe("ClaimOverview re-pricing after a row delete or restore", () => {
     return { setVersion };
   };
 
-  it("calls the claim prices PUT once per rowsChangedVersion bump", () => {
+  it("recalculates with an empty changes list once per rowsChangedVersion bump", () => {
     h.formInit.initialFormValues = { claims_claimSpareParts_0_x: 1 };
     const { setVersion } = renderWithRowsChangedVersion();
-    expect(h.updatePrices).not.toHaveBeenCalled();
+    expect(h.recalculatePrices).not.toHaveBeenCalled();
 
     setVersion(1);
 
-    expect(h.updatePrices).toHaveBeenCalledTimes(1);
-    expect(h.updatePrices).toHaveBeenCalledWith({
-      claimId: expect.any(String),
-      payload: expect.objectContaining({ materials: expect.any(Array) }),
+    expect(h.recalculatePrices).toHaveBeenCalledTimes(1);
+    expect(h.recalculatePrices).toHaveBeenCalledWith({
+      claimId: "C-1",
+      payload: expect.objectContaining({ materials: expect.any(Array), changes: [] }),
     });
     expect(h.validateByAction).toHaveBeenCalledWith("onValidate", {
       claims_claimSpareParts_0_x: 1,
     });
+    expect(h.updatePrices).not.toHaveBeenCalled();
     expect(h.handleActionWithValidation).not.toHaveBeenCalled();
 
     setVersion(1);
-    expect(h.updatePrices).toHaveBeenCalledTimes(1);
+    expect(h.recalculatePrices).toHaveBeenCalledTimes(1);
 
     setVersion(2);
-    expect(h.updatePrices).toHaveBeenCalledTimes(2);
+    expect(h.recalculatePrices).toHaveBeenCalledTimes(2);
   });
 
-  it("skips the PUT without showing errors when the form is invalid", () => {
-    h.validateByAction.mockReturnValue({ claims_claimSpareParts_0_x: "required" });
+  it("skips the recalculation without showing errors when a row is invalid", () => {
+    h.validateByAction.mockReturnValue({ a0_diagnosticQuantity: "required" });
     const { setVersion } = renderWithRowsChangedVersion();
 
     setVersion(1);
 
-    expect(h.updatePrices).not.toHaveBeenCalled();
-    expect(h.handleActionWithValidation).not.toHaveBeenCalled();
+    expect(h.recalculatePrices).not.toHaveBeenCalled();
+    expect(h.scrollToFirstError).not.toHaveBeenCalled();
+  });
+
+  it("ignores errors outside the spare-parts rows", () => {
+    h.validateByAction.mockReturnValue({ claimData_field: "required" });
+    const { setVersion } = renderWithRowsChangedVersion();
+
+    setVersion(1);
+
+    expect(h.recalculatePrices).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("ClaimOverview onRecalculatePrices field action", () => {
+  const ROW = "claims_claimSpareParts#0_";
+  const rowArea = () => ({
+    ...makeSparePartArea("row0", "claimSpareParts#0"),
+    fields: [
+      { name: `${ROW}quantity`, subtype: "diagnosticQuantity" },
+      { name: `${ROW}position`, subtype: "diagnosticPosition" },
+      { name: `${ROW}sparePartNumber`, subtype: "diagnosticPartNumber" },
+      { name: `${ROW}type`, subtype: "diagnosticType" },
+    ],
+  });
+
+  const setup = (sourceMaterial: Record<string, unknown> | undefined = { id: "SP_1_WARRANTY" }) => {
+    const area = rowArea();
+    h.formInit.tabs = [
+      makeTab("claims", { label: "claimDetails", areas: [area] }),
+      makeTab("notes"),
+      makeTab("diagnosticData"),
+    ];
+    h.formInit.allFields = area.fields;
+    h.mgr = makeManager({ materials: [{ sourceMaterial }] });
+    renderClaim();
+  };
+
+  const recalc = (fieldName: string, value: unknown) =>
+    act(() => h.captured.generic.actionCallbacks.onRecalculatePrices(fieldName, value));
+
+  it("posts the claim payload with the row change", () => {
+    setup();
+
+    recalc(`${ROW}quantity`, "10.00");
+
+    expect(h.recalculatePrices).toHaveBeenCalledTimes(1);
+    const arg = h.recalculatePrices.mock.calls[0][0];
+    expect(arg.claimId).toBe("C-1");
+    expect(arg.payload).toEqual(
+      expect.objectContaining({ id: "C-1", jobId: "J-1", materials: expect.any(Array) }),
+    );
+    expect(arg.payload.changes).toEqual([
+      { type: "quantity", lineId: "SP_1_WARRANTY", value: "10.00", scope: null },
+    ]);
+  });
+
+  it("maps part number, type and position to the job change types", () => {
+    setup();
+
+    recalc(`${ROW}sparePartNumber`, "1611016003");
+    recalc(`${ROW}type`, "CHARGEABLE");
+    recalc(`${ROW}position`, "LA");
+
+    const types = h.recalculatePrices.mock.calls.map((c: any[]) => c[0].payload.changes[0].type);
+    expect(types).toEqual(["partNumber", "jobType", "position"]);
+  });
+
+  it("recalculates a zero value but skips empty values", () => {
+    setup();
+
+    recalc(`${ROW}quantity`, "");
+    recalc(`${ROW}quantity`, null);
+    expect(h.recalculatePrices).not.toHaveBeenCalled();
+
+    recalc(`${ROW}quantity`, 0);
+    expect(h.recalculatePrices).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats a cleared row type as a change and shows its error without recalculating", async () => {
+    setup();
+    await validateSuccessfully();
+    expect(h.captured.generic.actionCallbacks.enableRequestApproval()).toBe(true);
+    h.validateByAction.mockReturnValue({
+      [`${ROW}type`]: "typeRequired",
+      [`${ROW}sparePartNumber`]: "required",
+    });
+
+    recalc(`${ROW}type`, "");
+
+    expect(h.recalculatePrices).not.toHaveBeenCalled();
+    expect(h.validateByAction).toHaveBeenLastCalledWith(
+      "onValidate",
+      expect.objectContaining({ [`${ROW}type`]: "" }),
+    );
+    expect(h.captured.generic.actionCallbacks.enableRequestApproval()).toBe(false);
+    // Only the cleared field's error shows; the rest wait for Validate.
+    await waitFor(() =>
+      expect(h.captured.formik?.errors).toEqual({ [`${ROW}type`]: "typeRequired" }),
+    );
+    expect(h.captured.formik?.touched).toEqual({ [`${ROW}type`]: true });
+  });
+
+  it("skips rows without a line id and unknown fields", () => {
+    setup({});
+
+    recalc(`${ROW}quantity`, 2);
+    recalc("unknownField", 2);
+
+    expect(h.recalculatePrices).not.toHaveBeenCalled();
+  });
+
+  it("marks the row errors and does not post an invalid payload", () => {
+    h.validateByAction.mockReturnValue({ [`${ROW}sparePartNumber`]: "required" });
+    setup();
+
+    recalc(`${ROW}quantity`, 2);
+
+    expect(h.recalculatePrices).not.toHaveBeenCalled();
+    expect(h.validateByAction).toHaveBeenCalledWith("onValidate", expect.any(Object));
+    expect(h.scrollToFirstError).toHaveBeenCalledWith([`${ROW}sparePartNumber`]);
+  });
+
+  it("treats a part number the search does not find as a change without recalculating", async () => {
+    setup();
+    await validateSuccessfully();
+    expect(h.captured.generic.actionCallbacks.enableRequestApproval()).toBe(true);
+    h.validateByAction.mockReturnValue({ [`${ROW}sparePartNumber`]: "sparePartNumberNotFound" });
+
+    recalc(`${ROW}sparePartNumber`, "UNKNOWN");
+
+    expect(h.recalculatePrices).not.toHaveBeenCalled();
+    expect(h.captured.generic.actionCallbacks.enableRequestApproval()).toBe(false);
+    expect(h.scrollToFirstError).toHaveBeenCalledWith([`${ROW}sparePartNumber`]);
+  });
+
+  it("sends the deduped changes with validate and clears them after a successful validate", async () => {
+    setup();
+
+    recalc(`${ROW}quantity`, 2);
+    recalc(`${ROW}quantity`, 3);
+    recalc(`${ROW}position`, "LA");
+
+    await validateSuccessfully();
+    expect(h.updatePrices.mock.calls[0][0].payload.changes).toEqual([
+      { type: "quantity", lineId: "SP_1_WARRANTY", value: 3, scope: null },
+      { type: "position", lineId: "SP_1_WARRANTY", value: "LA", scope: null },
+    ]);
+
+    await validateSuccessfully();
+    expect(h.updatePrices.mock.calls[1][0].payload.changes).toEqual([]);
+  });
+
+  it("applies the re-priced materials and summary to the cached claim", () => {
+    setup();
+    recalc(`${ROW}quantity`, 2);
+
+    const response = {
+      materials: [{ id: "SP_1_WARRANTY", quantity: 2 }],
+      claimPriceSummary: { netAmount: 10 },
+      unrelated: "x",
+    };
+    act(() => h.recalculatePricesOptions.onSuccess(response));
+
+    expect(h.setQueryData).toHaveBeenCalledWith(["claim", "C-1"], expect.any(Function));
+    const updater = h.setQueryData.mock.calls.at(-1)[1];
+    const updated = updater({ id: "C-1", jobId: "J-1", materials: [] });
+    expect(updated).toEqual({
+      id: "C-1",
+      jobId: "J-1",
+      materials: response.materials,
+      claimPriceSummary: response.claimPriceSummary,
+    });
+    expect(h.captured.generic.actionCallbacks.arePricesValidated()).toBe(false);
+  });
+
+  it("shows the price errors from the response", () => {
+    setup();
+    recalc(`${ROW}quantity`, 2);
+
+    act(() =>
+      h.recalculatePricesOptions.onSuccess({
+        errorMessages: [{ key: "1611016003" }, { key: "1611016003" }, { key: "2004" }],
+      }),
+    );
+
+    expect(messagesFromSetMessages()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ text: "priceNotAvailable: 1611016003", type: "error" }),
+      ]),
+    );
+  });
+
+  it("shows an error when the recalculation fails", () => {
+    setup();
+    recalc(`${ROW}quantity`, 2);
+
+    act(() => h.recalculatePricesOptions.onError(new Error("boom")));
+
+    expect(messagesFromSetMessages()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ text: "claimPricesRecalculateError", type: "error" }),
+      ]),
+    );
   });
 });
 

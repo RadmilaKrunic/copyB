@@ -326,6 +326,52 @@ describe("AutoComplete", () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 
+  it("reports an edited sparePartNumber the search does not find as an unresolved change", async () => {
+    vi.mocked(getAutocompleteOptions).mockResolvedValue([] as never);
+    const onSelect = vi.fn();
+    const onUnresolvedChange = vi.fn();
+    renderWithProviders(
+      React.createElement(AutoComplete, {
+        name: "sparePartNumber",
+        label: "Spare part",
+        value: "seed",
+        onSelect,
+        onUnresolvedChange,
+      }),
+      { ascId: "ASC", countryCode: "ZA" },
+    );
+
+    fireEvent.change(screen.getByLabelText("Spare part"), { target: { value: "UNKNOWN" } });
+    fireEvent.blur(screen.getByLabelText("Spare part"));
+
+    await waitFor(() => expect(onUnresolvedChange).toHaveBeenCalledWith("UNKNOWN"));
+    expect(onUnresolvedChange).toHaveBeenCalledTimes(1);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("reports an unmatched sparePartNumber for an exchange action without a not-found error", async () => {
+    vi.mocked(getAutocompleteOptions).mockResolvedValue([] as never);
+    const onSetFieldError = vi.fn();
+    const onUnresolvedChange = vi.fn();
+    renderWithProviders(
+      React.createElement(AutoComplete, {
+        name: "sparePartNumber",
+        label: "Spare part",
+        value: "seed",
+        isExchange: true,
+        onSetFieldError,
+        onUnresolvedChange,
+      }),
+      { ascId: "ASC", countryCode: "ZA" },
+    );
+
+    fireEvent.change(screen.getByLabelText("Spare part"), { target: { value: "UNKNOWN" } });
+    fireEvent.blur(screen.getByLabelText("Spare part"));
+
+    await waitFor(() => expect(onUnresolvedChange).toHaveBeenCalledWith("UNKNOWN"));
+    expect(onSetFieldError).not.toHaveBeenCalled();
+  });
+
   it("does not resolve a sparePartNumber on blur when the value is unchanged", async () => {
     const onSelect = vi.fn();
     const onClearFieldError = vi.fn();

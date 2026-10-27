@@ -182,6 +182,39 @@ export const getRecalculationPayloadErrors = (
 export const isRecalculationValueEmpty = (value: unknown): boolean =>
   value === null || value === undefined || value === "";
 
+/** Field name (`fieldMapping.originalName`) -> recalculation change type, when they differ. */
+const RECALCULATION_CHANGE_TYPES: Record<string, string> = {
+  type: "jobType",
+  sparePartNumber: "partNumber",
+  position: "position",
+  summarySubtotalMaterial: "summaryNetAmount",
+  summaryTotalAmountMaterial: "summaryTotalAmount",
+  summaryDiscountNetMaterial: "summaryDiscount",
+  summaryDiscountMaterial: "summaryDiscount",
+};
+
+/** Summary "Material" fields re-price the chargeable spare parts, not one line. */
+const SUMMARY_CHANGE_SCOPE = { positions: ["SP", "PN", "AC"], jobTypes: ["CHARGEABLE"] };
+
+/**
+ * One entry of the recalculate `changes` list, shared by job diagnostics and claims.
+ * Row fields send their line id and no scope; summary fields (name ends in "Material")
+ * send lineId "" and the chargeable scope.
+ */
+export const buildRecalculationChange = (
+  originalName: string,
+  lineId: string,
+  value: unknown,
+): Record<string, unknown> => {
+  const isSummary = originalName.endsWith("Material");
+  return {
+    type: RECALCULATION_CHANGE_TYPES[originalName] ?? originalName,
+    lineId,
+    value,
+    scope: isSummary ? SUMMARY_CHANGE_SCOPE : null,
+  };
+};
+
 /** Change types sent by the price summary row (lineId ""); see `onRecalculatePrices` typeMap. */
 const SUMMARY_CHANGE_TYPES = new Set(["summaryNetAmount", "summaryTotalAmount", "summaryDiscount"]);
 
