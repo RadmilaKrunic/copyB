@@ -3,8 +3,8 @@ import { ApprovalColumnConfiguration } from "modules/ClaimManagement/ApprovalLis
 import { fetchJobs, fetchDiagnosticByJobId } from "../jobs/action";
 import { getASCById } from "../serviceCenters/action";
 import axiosClient from "api/axios-client/axiosClient";
+import { saveColumnPreferences } from "api/services/header/action";
 import { PreApprovalDecision } from "./approvals.types";
-import { DEFAULT_COLUMN_CONFIGURATION as JOB_COLUMN_CONFIGURATION } from "modules/JobManagement/JobList/JobList.columns.utils";
 
 const APPROVAL_DETAILS_BATCH_SIZE = 10;
 
@@ -61,14 +61,7 @@ export const saveApprovalListColumns = async (
   columns: ApprovalColumnConfiguration[],
 ): Promise<void> => {
   try {
-    const jobColumnKeys = new Set<string>(JOB_COLUMN_CONFIGURATION.map((col) => col.key));
-    const selectedColumnKeys = new Set<string>(
-      JOB_COLUMN_CONFIGURATION.filter((col) => col.isFixed).map((col) => col.key),
-    );
-    columns
-      .filter((col) => col.isChecked && jobColumnKeys.has(col.key))
-      .forEach((col) => selectedColumnKeys.add(col.key));
-    await axiosClient.post(`/v1/profile/preferences/job`, [...selectedColumnKeys]);
+    await saveColumnPreferences("approval", columns);
   } catch (error) {
     console.error("Error saving approval list columns:", error);
     throw error;

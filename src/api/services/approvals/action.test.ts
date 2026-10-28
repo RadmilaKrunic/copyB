@@ -189,84 +189,17 @@ describe("fetchApprovals", () => {
 });
 
 describe("saveApprovalListColumns", () => {
-  it("posts four base job columns without unchecked optional columns", async () => {
+  it("posts selected column keys to approval preferences endpoint", async () => {
     mockPost.mockResolvedValueOnce(undefined);
     await saveApprovalListColumns([
       { key: "jobId", isChecked: true, isFixed: true, order: 0 },
-      { key: "customer", isChecked: false, isFixed: false, order: 1 },
-    ] as any);
-    expect(mockPost).toHaveBeenCalledWith("/v1/profile/preferences/job", [
+      { key: "toolModelName", isChecked: false, isFixed: false, order: 4 },
+      { key: "faultCode", isChecked: true, isFixed: false, order: 11 },
+    ]);
+
+    expect(mockPost).toHaveBeenCalledWith("/v1/profile/preferences/approval", [
       "jobId",
-      "toolModelName",
-      "jobStatus",
-      "createdAt",
-    ]);
-  });
-
-  it("expands the reported three-column payload to four unique keys", async () => {
-    mockPost.mockResolvedValueOnce(undefined);
-    await saveApprovalListColumns([
-      { key: "jobId", isChecked: true, isFixed: true, order: 0 },
-      { key: "createdAt", isChecked: true, isFixed: true, order: 1 },
-      { key: "toolModelName", isChecked: true, isFixed: false, order: 2 },
-      { key: "jobStatus", isChecked: false, isFixed: false, order: 3 },
-    ]);
-
-    expect(mockPost).toHaveBeenCalledWith("/v1/profile/preferences/job", [
-      "jobId",
-      "toolModelName",
-      "jobStatus",
-      "createdAt",
-    ]);
-  });
-
-  it("posts eight keys when four supported optional columns are selected", async () => {
-    mockPost.mockResolvedValueOnce(undefined);
-    await saveApprovalListColumns([
-      { key: "serialNumber", isChecked: true, isFixed: false, order: 0 },
-      { key: "customer", isChecked: true, isFixed: false, order: 1 },
-      { key: "updatedAt", isChecked: true, isFixed: false, order: 2 },
-      { key: "assignee", isChecked: true, isFixed: false, order: 3 },
-    ]);
-
-    expect(mockPost).toHaveBeenCalledWith("/v1/profile/preferences/job", [
-      "jobId",
-      "toolModelName",
-      "jobStatus",
-      "createdAt",
-      "serialNumber",
-      "customer",
-      "updatedAt",
-      "assignee",
-    ]);
-  });
-
-  it("omits Approval-only keys but saves supported optional job preferences", async () => {
-    mockPost.mockResolvedValueOnce(undefined);
-    await saveApprovalListColumns([
-      { key: "jobId", isChecked: true, isFixed: true, order: 0 },
-      { key: "createdAt", isChecked: true, isFixed: true, order: 1 },
-      { key: "ascName", isChecked: true, isFixed: true, order: 2 },
-      { key: "actionType", isChecked: true, isFixed: true, order: 3 },
-      { key: "materialCost", isChecked: true, isFixed: true, order: 4 },
-      { key: "serialNumber", isChecked: true, isFixed: false, order: 5 },
-      { key: "customer", isChecked: false, isFixed: false, order: 6 },
-      { key: "ascPhoneNumber", isChecked: true, isFixed: false, order: 7 },
-      { key: "typeOfUsage", isChecked: true, isFixed: false, order: 8 },
-      { key: "faultCode", isChecked: true, isFixed: false, order: 9 },
-      { key: "exchangeReason", isChecked: true, isFixed: false, order: 10 },
-      { key: "customerType", isChecked: true, isFixed: false, order: 11 },
-      { key: "assetCategory", isChecked: true, isFixed: false, order: 12 },
-      { key: "internalReferenceNumber", isChecked: true, isFixed: false, order: 13 },
-    ]);
-
-    expect(mockPost).toHaveBeenCalledWith("/v1/profile/preferences/job", [
-      "jobId",
-      "toolModelName",
-      "jobStatus",
-      "createdAt",
-      "serialNumber",
-      "internalReferenceNumber",
+      "faultCode",
     ]);
   });
 

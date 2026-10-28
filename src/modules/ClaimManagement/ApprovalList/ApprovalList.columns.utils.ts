@@ -10,7 +10,6 @@ import { Job } from "modules/JobManagement/JobList/JobList.types";
 export type { ApprovalColumnConfiguration } from "./ApprovalListTable/ApprovalListColumns.config";
 
 export const MAX_CUSTOM_COLUMNS = 4;
-const COLUMN_STORAGE_KEY = "approvalList-visibleColumns";
 
 export const DEFAULT_COLUMN_CONFIGURATION: ApprovalColumnConfiguration[] = [
   { key: "jobId", isFixed: true, isChecked: true, order: 0 },
@@ -71,20 +70,7 @@ export function getDefaultFixedColumns(): ApprovalColumnConfiguration[] {
 export function getInitialApprovalColumnConfig(
   savedConfig?: Array<{ key?: string; isChecked?: boolean }>,
 ): ApprovalColumnConfiguration[] {
-  let savedColumnsByKey = new Map(savedConfig?.map((col) => [col.key, col]) ?? []);
-  try {
-    const storedKeys: unknown = JSON.parse(sessionStorage.getItem(COLUMN_STORAGE_KEY) ?? "null");
-    if (Array.isArray(storedKeys) && storedKeys.every((key) => typeof key === "string")) {
-      savedColumnsByKey = new Map(
-        DEFAULT_COLUMN_CONFIGURATION.map((col) => [
-          col.key,
-          { key: col.key, isChecked: storedKeys.includes(col.key) },
-        ]),
-      );
-    }
-  } catch {
-    sessionStorage.removeItem(COLUMN_STORAGE_KEY);
-  }
+  const savedColumnsByKey = new Map(savedConfig?.map((col) => [col.key, col]) ?? []);
 
   return DEFAULT_COLUMN_CONFIGURATION.map((defaultColumn) => {
     const savedColumn = savedColumnsByKey.get(defaultColumn.key);
@@ -99,10 +85,6 @@ export function getInitialApprovalColumnConfig(
 
 export async function saveVisibleColumns(config: ApprovalColumnConfiguration[]): Promise<void> {
   await saveApprovalListColumns(config);
-  sessionStorage.setItem(
-    COLUMN_STORAGE_KEY,
-    JSON.stringify(config.filter((col) => col.isChecked).map((col) => col.key)),
-  );
 }
 
 export function getApprovalListColumns(t: (key: string) => string): Column<Job>[] {

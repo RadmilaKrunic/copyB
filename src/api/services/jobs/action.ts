@@ -8,6 +8,7 @@ import {
   SummaryDetail,
 } from "modules/JobManagement/JobList/JobList.types";
 import { JobColumnConfiguration } from "modules/JobManagement/JobList/JobListTable/JobListColumns.config";
+import { saveColumnPreferences } from "api/services/header/action";
 import { AxiosResponse } from "axios";
 import { Attachment } from "components/ui/DocumentsModal/DocumentsModal";
 import { SpecialMaterial } from "modules/JobManagement/JobOverview/AddSpecialMaterialModal/SpecialMeterialItem/SpecialMaterialItem";
@@ -90,8 +91,7 @@ export const postMessage = async (messageData: {
 
 export const saveJobListColumns = async (columns: JobColumnConfiguration[]): Promise<void> => {
   try {
-    const selectedColumnKeys = columns.filter((col) => col.isChecked).map((col) => col.key);
-    await axiosClient.post(`/v1/profile/preferences/job`, selectedColumnKeys);
+    await saveColumnPreferences("job", columns);
   } catch (error) {
     console.error("Error saving job list columns:", error);
     throw error;

@@ -6,6 +6,7 @@ import {
   ClaimListResponse,
 } from "../../../modules/ClaimManagement/ClaimList/ClaimList.types";
 import { ClaimColumnConfiguration } from "modules/ClaimManagement/ClaimList/ClaimListTable/ClaimListColumns.config";
+import { saveColumnPreferences } from "api/services/header/action";
 
 export const fetchClaimById = async (claimId: string): Promise<ClaimItem> => {
   try {
@@ -113,8 +114,7 @@ export const patchClaimStatusPending = async (claimId: string, jobId?: string): 
 
 export const saveClaimListColumns = async (columns: ClaimColumnConfiguration[]): Promise<void> => {
   try {
-    const selectedColumnKeys = columns.filter((col) => col.isChecked).map((col) => col.key);
-    await axiosClient.post(`/v1/profile/preferences/claim`, selectedColumnKeys);
+    await saveColumnPreferences("claim", columns);
   } catch (error) {
     console.error("Error saving claim list columns:", error);
     throw error;

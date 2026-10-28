@@ -1,6 +1,7 @@
 import axiosClient from "../../axios-client/axiosClient";
 import { JobColumnConfiguration } from "../../../modules/JobManagement/JobList/JobListTable/JobListColumns.config";
 import { ClaimColumnConfiguration } from "../../../modules/ClaimManagement/ClaimList/ClaimListTable/ClaimListColumns.config";
+import { ApprovalColumnConfiguration } from "../../../modules/ClaimManagement/ApprovalList/ApprovalListTable/ApprovalListColumns.config";
 import { ConsentData } from "../consent/consent.types";
 
 export interface HeaderUserData {
@@ -22,6 +23,7 @@ export interface HeaderUserData {
   preferences?: {
     jobColumnView?: JobColumnConfiguration[];
     claimColumnView?: ClaimColumnConfiguration[];
+    approvalColumnView?: ApprovalColumnConfiguration[];
   };
 }
 
@@ -45,4 +47,12 @@ export const updateUserLanguagePreference = async (payload: {
     console.error("Error updating user language preference:", error);
     throw error;
   }
+};
+
+export const saveColumnPreferences = async (
+  list: "job" | "claim" | "approval",
+  columns: { key: string; isChecked: boolean }[],
+): Promise<void> => {
+  const selectedColumnKeys = columns.filter((col) => col.isChecked).map((col) => col.key);
+  await axiosClient.post(`/v1/profile/preferences/${list}`, selectedColumnKeys);
 };

@@ -75,7 +75,7 @@ function ApprovalList() {
     pageSize: Number(sessionStorage.getItem("approvalList-pageSize")) || 10,
   });
   const [columnConfig, setColumnConfig] = useState<ApprovalColumnConfiguration[]>(
-    getInitialApprovalColumnConfig(user?.preferences?.jobColumnView),
+    getInitialApprovalColumnConfig(user?.preferences?.approvalColumnView),
   );
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
   const { setMessages } = useContext(MessagesContext);

@@ -7,17 +7,14 @@ import {
   getInitialApprovalColumnConfig,
   DEFAULT_COLUMN_CONFIGURATION,
   MAX_CUSTOM_COLUMNS,
-  saveVisibleColumns,
 } from "./ApprovalList.columns.utils";
 import type { ApprovalColumnConfiguration } from "./ApprovalList.columns.utils";
-import { saveApprovalListColumns } from "api/services/approvals/action";
 
 vi.mock("api/services/approvals/action", () => ({
   saveApprovalListColumns: vi.fn().mockResolvedValue(undefined),
 }));
 
 beforeEach(() => {
-  sessionStorage.clear();
   vi.clearAllMocks();
 });
 
@@ -106,34 +103,6 @@ describe("getDefaultFixedColumns", () => {
 });
 
 describe("getInitialApprovalColumnConfig", () => {
-  it("restores Approval-only selections after save without forcing unchecked options", async () => {
-    const config = getDefaultFixedColumns().map((col) => ({
-      ...col,
-      isChecked: col.isFixed || col.key === "materialCost" || col.key === "ascPhoneNumber",
-    }));
-    await saveVisibleColumns(config);
-
-    expect(getInitialApprovalColumnConfig([{ key: "bareToolNumber", isChecked: true }])).toEqual(
-      config,
-    );
-    expect(saveApprovalListColumns).toHaveBeenCalledWith(config);
-  });
-
-  it("does not store failed saves", async () => {
-    vi.mocked(saveApprovalListColumns).mockRejectedValueOnce(new Error("save failed"));
-    await expect(saveVisibleColumns(getDefaultFixedColumns())).rejects.toThrow("save failed");
-    expect(sessionStorage.getItem("approvalList-visibleColumns")).toBeNull();
-  });
-
-  it("falls back to server preferences for corrupt session data", () => {
-    sessionStorage.setItem("approvalList-visibleColumns", "invalid json");
-    expect(
-      getInitialApprovalColumnConfig([{ key: "bareToolNumber", isChecked: true }]).find(
-        (col) => col.key === "bareToolNumber",
-      )?.isChecked,
-    ).toBe(true);
-  });
-
   it("preserves saved custom selections for approval columns", () => {
     const config = getInitialApprovalColumnConfig([
       { key: "bareToolNumber", isChecked: true },
