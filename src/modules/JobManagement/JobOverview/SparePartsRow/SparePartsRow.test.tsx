@@ -1277,6 +1277,12 @@ describe("SparePartsRow position field gating", () => {
 
     expect(screen.getByTestId("field-row0_position")).toBeEnabled();
   });
+
+  it("keeps the position field enabled while it is still Select, even with a part number", () => {
+    renderRow({ row0_position: "", row0_type: "WARRANTY", row0_partNumber: "12345" }, []);
+
+    expect(screen.getByTestId("field-row0_position")).toBeEnabled();
+  });
   const positionFieldWithOptions = (nameStartsWith: string, name: string): Field =>
     createField({
       name,

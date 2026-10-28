@@ -343,6 +343,12 @@ describe("ClaimSparePartsRow", () => {
       expect(capturedApplyFieldPermissions!(partNumberField).isDisabled).toBe(false);
     });
 
+    it("keeps the position of a new row selectable while it is still Select", () => {
+      renderRow({ initialValues: { [positionFieldName]: "", [partNumberFieldName]: "123" } });
+
+      expect(capturedApplyFieldPermissions!(positionField).isDisabled).toBe(false);
+    });
+
     it("disables all non-type fields for an existing (non-new) row", () => {
       mockUseClaimContext.mockReturnValue({
         ...baseClaimContext,

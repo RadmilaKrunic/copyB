@@ -172,7 +172,9 @@ function SparePartsRow({
   );
 
   const mappedPositionOptions: Record<string, boolean> = {
-    diagnosticPosition: Boolean((values[partNumberFieldName] as string) !== ""),
+    // Position locks once a part number is set, but only after a position was chosen:
+    // a row still on "Select" keeps the dropdown open so the user can pick one.
+    diagnosticPosition: partNumberValue !== "" && positionValue.trim() !== "",
     diagnosticQuantity: !canEditQuantity,
     diagnosticUnitPrice: true,
     diagnosticPartNumber: (isAutomaticRow || isPnRow) && hasHardcodedAutofill,

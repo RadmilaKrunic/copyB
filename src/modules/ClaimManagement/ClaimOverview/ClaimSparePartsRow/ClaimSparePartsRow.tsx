@@ -84,12 +84,12 @@ function ClaimSparePartsRow({
     (partNumberValue.trim().length === 0 ||
       sparePartNotBelongsToTool?.current[partNumberField?.name ?? ""] === true);
 
-  // Same locks as a job diagnostics row: the position is fixed once a part number is set,
-  // and the fixed part number / description of LA and FR cannot be changed.
+  // Same locks as a job diagnostics row: the position is fixed once both it and a part number
+  // are set (still "Select" -> stays selectable), and LA / FR part number & description are fixed.
   const hasFixedPartNumber =
     isProtectedPosition(positionValue) && Boolean(getPositionAutofill(t)[positionValue]);
   const lockedNewRowSubtypes: Record<string, boolean> = {
-    diagnosticPosition: partNumberValue !== "",
+    diagnosticPosition: partNumberValue !== "" && positionValue.trim() !== "",
     diagnosticPartNumber: hasFixedPartNumber,
     diagnosticDescription: hasFixedPartNumber,
   };
