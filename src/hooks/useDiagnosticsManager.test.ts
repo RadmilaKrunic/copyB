@@ -806,6 +806,41 @@ describe("buildMaterialsRowValues (LA quantity sync)", () => {
     expect(result["row0_quantity"]).toBe(99);
   });
 
+  describe("row status", () => {
+    const statusFields: Field[] = [
+      makeField("row0_position", "diagnosticPosition"),
+      makeField("row0_status", "diagnosticMaterialStatus"),
+    ];
+    const statusArea = makeArea("row0", statusFields);
+    const build = (status: string | null | undefined, formStatus: unknown) =>
+      buildMaterialsRowValues({
+        materials: [makeItem({ position: "SP", status: status as string | undefined })],
+        areas: [statusArea],
+        fields: statusFields,
+        formValues: { row0_position: "SP", row0_status: formStatus },
+        currentCount: 1,
+        forceRebuild: false,
+      });
+
+    it("shows PENDING when the backend sends status null for a reused row", () => {
+      expect(build(null, "PENDING")["row0_status"]).toBe("PENDING");
+      expect(build(null, null)["row0_status"]).toBe("PENDING");
+    });
+
+    it("applies the backend status when it is set", () => {
+      expect(build("APPROVED", "PENDING")["row0_status"]).toBe("APPROVED");
+    });
+
+    it("keeps the form status when the item has no status", () => {
+      expect(build(undefined, "REVISED")["row0_status"]).toBe("REVISED");
+    });
+
+    it("falls back to PENDING when the item has no status and the form status is empty", () => {
+      expect(build(undefined, null)["row0_status"]).toBe("PENDING");
+      expect(build(undefined, "")["row0_status"]).toBe("PENDING");
+    });
+  });
+
   it("backfills blank description from API when reusing existing row values", () => {
     const rowFields: Field[] = [
       makeField("row0_position", "diagnosticPosition"),
