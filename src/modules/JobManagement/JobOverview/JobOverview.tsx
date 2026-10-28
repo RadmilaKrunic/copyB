@@ -53,6 +53,9 @@ import {
   hasPriceSummary,
   hasServerMaterialPrices,
   extractDiagnosticFromValidateResponse,
+  getTotalSummaryTypeValues,
+  isPriceSummaryMissing,
+  withZeroPriceSummary,
   buildRecalculationChange,
   getRecalculationPayloadErrors,
   isRecalculationValueEmpty,
@@ -182,6 +185,8 @@ export default function JobOverview() {
   const [isDeletingFile, setIsDeletingFile] = useState(false);
   const { setMessages } = useContext(MessagesContext);
   const [arePricesValidated, setArePricesValidated] = useState(false);
+  // Last validate / save response had no price summary: show the total row with zeros.
+  const [isZeroSummaryShown, setIsZeroSummaryShown] = useState(false);
   const [jobFullData, setJobFullData] = useState<JobOverviewItem | undefined>(undefined);
   const [recalculatedPricesChanges, setRecalculatedPricesChanges] = useState<
     Record<string, unknown>[]
@@ -773,7 +778,12 @@ export default function JobOverview() {
 
   const validateAndSaveMutation = usePostValidateAndSave({
     onSuccess: async (data) => {
-      const validatedDiagnostic = getDiagnosticFromValidateResponse(data);
+      const responseDiagnostic = getDiagnosticFromValidateResponse(data);
+      // No summary in the response: the total row still shows, totalSummary selected, all 0.
+      const isSummaryMissing = isPriceSummaryMissing(responseDiagnostic?.priceSummaryDetailed);
+      setIsZeroSummaryShown(isSummaryMissing);
+      const validatedDiagnostic =
+        responseDiagnostic && withZeroPriceSummary(responseDiagnostic, "priceSummaryDetailed");
       if (validatedDiagnostic && jobId) {
         queryClient.setQueryData(["diagnostic", jobId], {
           ...validatedDiagnostic,
@@ -783,6 +793,20 @@ export default function JobOverview() {
           diagnostic: validatedDiagnostic,
         };
         syncData(updated, allFieldsRef.current ?? []);
+      } else if (jobId) {
+        // No diagnostic data at all: keep the loaded rows, zero the summary.
+        queryClient.setQueryData<JobDiagnostic>(["diagnostic", jobId], (prev) =>
+          prev
+            ? withZeroPriceSummary(
+                { ...prev, priceSummaryDetailed: undefined },
+                "priceSummaryDetailed",
+              )
+            : prev,
+        );
+      }
+      if (isSummaryMissing) {
+        const summaryTypeValues = getTotalSummaryTypeValues(allFieldsRef.current ?? []);
+        setInitialFormValues((prev) => ({ ...prev, ...summaryTypeValues }));
       }
       if (data.errorMessages && data.errorMessages.length > 0) {
         const uniqueErrorKeys = [
@@ -1925,18 +1949,19 @@ export default function JobOverview() {
 
   const showProductDetails = useCallback(() => !isRepairAnswerLocked, [isRepairAnswerLocked]);
   const showAddRow = useCallback(() => !isRepairAnswerLocked, [isRepairAnswerLocked]);
-  // The summary shows only when the latest server response has one: a failed validation
-  // returns priceSummaryDetailed null and hides it until a validation succeeds.
+  // The summary hides when a recalculation returns priceSummaryDetailed null. A validate / save
+  // response without one shows the total row with all amounts 0 (isZeroSummaryShown).
   const isPriceSummaryAvailable = hasPriceSummary(diagnosticData);
   const hasPricesPopulated = useMemo(
     () =>
       isPriceSummaryAvailable &&
-      (hasServerMaterialPrices(diagnosticData) ??
-        materials.some(
-          (m) =>
-            m.unitPrice !== 0 || m.netAmount !== 0 || m.grossAmount !== 0 || m.totalAmount !== 0,
-        )),
-    [materials, isPriceSummaryAvailable, diagnosticData],
+      (isZeroSummaryShown ||
+        (hasServerMaterialPrices(diagnosticData) ??
+          materials.some(
+            (m) =>
+              m.unitPrice !== 0 || m.netAmount !== 0 || m.grossAmount !== 0 || m.totalAmount !== 0,
+          ))),
+    [materials, isPriceSummaryAvailable, isZeroSummaryShown, diagnosticData],
   );
 
   const showStartRepair = useCallback(() => {

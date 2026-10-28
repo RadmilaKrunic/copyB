@@ -66,11 +66,15 @@ import {
   getRecalculationErrorKeys,
   hasRecalculationErrors,
   makeFieldGetter,
+  orderClaimAreasLikeDiagnostics,
 } from "./ClaimOverview.utils";
 import {
   buildRecalculationChange,
+  getTotalSummaryTypeValues,
+  isPriceSummaryMissing,
   isRecalculationValueEmpty,
   mergeRecalculationChanges,
+  withZeroPriceSummary,
 } from "modules/JobManagement/JobOverview/JobOverview.utils";
 import { useFetchDefaultQuantities } from "api/services/prices/hooks";
 import type { ResolveDefaultQuantities } from "api/services/prices/prices.types";
@@ -120,6 +124,8 @@ export default function ClaimOverview() {
   const [showAddSpecialMaterialModal, setShowAddSpecialMaterialModal] = useState(false);
   const [isExplosionDrawingModalOpen, setIsExplosionDrawingModalOpen] = useState(false);
   const [claimFullData, setClaimFullData] = useState<ClaimItem | null>(null);
+  // Last validate response had no price summary: show the total row with zeros.
+  const [isZeroSummaryShown, setIsZeroSummaryShown] = useState(false);
   const [existingPartNumbersForModal, setExistingPartNumbersForModal] = useState<Set<string>>(
     new Set(),
   );
@@ -128,11 +134,19 @@ export default function ClaimOverview() {
 
   const validateClaimPricesMutation = useUpdateClaimPrices({
     onSuccess: async (data) => {
-      const updated: ClaimItem = {
-        ...claimFullData,
-        ...data,
-      };
+      // No summary in the response: the total row still shows, totalSummary selected, all 0.
+      const isSummaryMissing = isPriceSummaryMissing(data?.claimPriceSummaryDetailed);
+      setIsZeroSummaryShown(isSummaryMissing);
+      // The summary comes from the response only, never from the claim loaded before.
+      const updated: ClaimItem = withZeroPriceSummary(
+        { ...claimFullData, ...data, claimPriceSummaryDetailed: data?.claimPriceSummaryDetailed },
+        "claimPriceSummaryDetailed",
+      );
       syncData(updated, allFields ?? []);
+      if (isSummaryMissing) {
+        const summaryTypeValues = getTotalSummaryTypeValues(allFields ?? []);
+        setInitialFormValues((prev) => ({ ...prev, ...summaryTypeValues }));
+      }
 
       suppressDirtyRef.current = true;
       markAllValidated();
@@ -1099,9 +1113,12 @@ export default function ClaimOverview() {
       getExistingPartNumbers,
       arePricesValidated,
       setArePricesValidated,
-      hasPricesPopulated: materials.some(
-        (m) => m.unitPrice !== 0 || m.netAmount !== 0 || m.grossAmount !== 0 || m.totalAmount !== 0,
-      ),
+      hasPricesPopulated:
+        isZeroSummaryShown ||
+        materials.some(
+          (m) =>
+            m.unitPrice !== 0 || m.netAmount !== 0 || m.grossAmount !== 0 || m.totalAmount !== 0,
+        ),
       markAllValidated,
       markRowDirty,
       summaryTypeOptions,
@@ -1130,6 +1147,7 @@ export default function ClaimOverview() {
       automaticRows,
       getExistingPartNumbers,
       arePricesValidated,
+      isZeroSummaryShown,
       markAllValidated,
       markRowDirty,
       summaryTypeOptions,
@@ -1279,7 +1297,7 @@ export default function ClaimOverview() {
               tabWithDisabledState = {
                 ...sectionWithFields,
                 isDisabled: false,
-                areas: finalAreas,
+                areas: orderClaimAreasLikeDiagnostics(finalAreas),
               };
             } else if (isFormReadOnly && !isNotesTab) {
               tabWithDisabledState = setSectionDisabledState(tab, true);

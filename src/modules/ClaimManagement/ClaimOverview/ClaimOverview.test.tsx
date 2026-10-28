@@ -1773,6 +1773,53 @@ describe("ClaimOverview claim context", () => {
     expect(h.captured.claim.hasPricesPopulated).toBe(true);
   });
 
+  it.each([
+    ["missing", {}],
+    ["null", { claimPriceSummaryDetailed: null }],
+  ])(
+    "shows a zero summary with totalSummary selected when the validate summary is %s",
+    async (_label, response) => {
+      h.mgr = makeManager({
+        materials: [{ unitPrice: 0, netAmount: 0, grossAmount: 0, totalAmount: 0 }],
+      });
+      renderClaim();
+      expect(h.captured.claim.hasPricesPopulated).toBe(false);
+      h.convertAPIDataToFormValues.mockClear();
+      h.setInitialFormValues.mockClear();
+
+      await act(async () => {
+        await h.updatePricesOptions.onSuccess(response);
+      });
+
+      expect(h.captured.claim.hasPricesPopulated).toBe(true);
+      expect(h.convertAPIDataToFormValues).toHaveBeenCalledWith(
+        expect.objectContaining({
+          claimPriceSummaryDetailed: {
+            total: expect.objectContaining({ totalAmount: 0, netAmount: 0, grossAmount: 0 }),
+            byJobType: [],
+          },
+        }),
+        expect.any(Array),
+        expect.any(Object),
+      );
+    },
+  );
+
+  it("keeps the summary hidden when validate returns a summary but no prices", async () => {
+    h.mgr = makeManager({
+      materials: [{ unitPrice: 0, netAmount: 0, grossAmount: 0, totalAmount: 0 }],
+    });
+    renderClaim();
+
+    await act(async () => {
+      await h.updatePricesOptions.onSuccess({
+        claimPriceSummaryDetailed: { total: { totalAmount: 0 }, byJobType: [] },
+      });
+    });
+
+    expect(h.captured.claim.hasPricesPopulated).toBe(false);
+  });
+
   it("auto-expands the archived section when archived materials exist", async () => {
     h.mgr = makeManager({ archivedMaterials: [{ partNumber: "ARCH-1" }] });
 

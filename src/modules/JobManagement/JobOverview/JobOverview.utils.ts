@@ -104,6 +104,33 @@ const zeroPrices = (keys: readonly string[], price: Record<string, unknown> = {}
   return zeroed;
 };
 
+/** A summary of all zeros, no job-type breakdown. */
+export const getZeroPriceSummaryDetailed = () => ({
+  total: zeroPrices(SUMMARY_PRICE_KEYS),
+  byJobType: [],
+});
+
+/** True when a validate / save response has no usable summary (missing or null). */
+export const isPriceSummaryMissing = (summary: unknown): boolean =>
+  summary === null || summary === undefined;
+
+/**
+ * Validate / save responses without a summary still show the total row with all amounts 0.
+ * `key` is `priceSummaryDetailed` (job diagnostic) or `claimPriceSummaryDetailed` (claim).
+ */
+export const withZeroPriceSummary = <T extends object>(data: T, key: string): T => {
+  if (!isPriceSummaryMissing((data as Record<string, unknown>)[key])) return data;
+  return { ...data, [key]: getZeroPriceSummaryDetailed() };
+};
+
+/** Form values that select "totalSummary" on every summary-type radio group. */
+export const getTotalSummaryTypeValues = (fields: Field[]): Record<string, string> =>
+  Object.fromEntries(
+    fields
+      .filter((f) => f.subtype === "diagnosticSummaryType")
+      .map((f) => [f.name, "totalSummary"]),
+  );
+
 /**
  * The form mapper keeps the old value when the API sends null. A null material id means a new
  * line (part number changed) and becomes "". Null prices (price not available, failed
@@ -123,17 +150,15 @@ export const clearNullMaterialValues = (job: JobOverviewItem): JobOverviewItem =
 
   const cleared = { ...diagnostic, materials: clearedMaterials } as JobDiagnostic;
   if (diagnostic.priceSummaryDetailed === null) {
-    (cleared as unknown as Record<string, unknown>).priceSummaryDetailed = {
-      total: zeroPrices(SUMMARY_PRICE_KEYS),
-      byJobType: [],
-    };
+    (cleared as unknown as Record<string, unknown>).priceSummaryDetailed =
+      getZeroPriceSummaryDetailed();
   }
   return { ...job, diagnostic: cleared };
 };
 
 /**
- * False when the server returned `priceSummaryDetailed: null` (failed validation, nothing
- * validated yet): the summary stays hidden until a validation succeeds.
+ * False when the server returned `priceSummaryDetailed: null` (recalculation without prices,
+ * nothing validated yet). Validate / save responses never hide it: see `withZeroPriceSummary`.
  */
 export const hasPriceSummary = (diagnostic?: JobDiagnostic): boolean =>
   (diagnostic as { priceSummaryDetailed?: unknown } | undefined)?.priceSummaryDetailed !== null;

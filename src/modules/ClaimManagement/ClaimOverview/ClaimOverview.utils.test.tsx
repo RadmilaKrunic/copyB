@@ -8,6 +8,7 @@ import {
   getRecalculationErrorKeys,
   hasRecalculationErrors,
   makeFieldGetter,
+  orderClaimAreasLikeDiagnostics,
 } from "./ClaimOverview.utils";
 
 describe("ClaimOverview utils", () => {
@@ -101,5 +102,39 @@ describe("claim recalculation utils", () => {
     expect(hasRecalculationErrors({ errorMessages: [{ key: "2004" }] })).toBe(true);
     expect(hasRecalculationErrors({ errorMessages: [] })).toBe(false);
     expect(hasRecalculationErrors({})).toBe(false);
+  });
+});
+
+describe("orderClaimAreasLikeDiagnostics", () => {
+  const area = (name: string, position: number) => ({ name, position, fields: [] }) as any;
+
+  it("moves archived rows after the summary, like job diagnostics", () => {
+    const areas = [
+      area("claimData", 1),
+      area("claimSpareParts", 2),
+      area("claimArchivedSpareParts", 3),
+      area("claimArchivedSpareParts#1", 3),
+      area("claimDiagnosticsSummary", 3),
+    ];
+    const ordered = orderClaimAreasLikeDiagnostics(areas)
+      .toSorted((a, b) => a.position - b.position)
+      .map((a) => a.name);
+    expect(ordered).toEqual([
+      "claimData",
+      "claimSpareParts",
+      "claimDiagnosticsSummary",
+      "claimArchivedSpareParts",
+      "claimArchivedSpareParts#1",
+    ]);
+  });
+
+  it("leaves areas unchanged when archived rows already come last or are absent", () => {
+    const withLastArchived = [
+      area("claimDiagnosticsSummary", 3),
+      area("claimArchivedSpareParts", 4),
+    ];
+    expect(orderClaimAreasLikeDiagnostics(withLastArchived)[1].position).toBe(4);
+    const noArchived = [area("claimSpareParts", 2)];
+    expect(orderClaimAreasLikeDiagnostics(noArchived)).toBe(noArchived);
   });
 });
