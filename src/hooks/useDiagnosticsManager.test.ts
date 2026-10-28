@@ -827,6 +827,11 @@ describe("buildMaterialsRowValues (LA quantity sync)", () => {
       expect(build(null, null)["row0_status"]).toBe("PENDING");
     });
 
+    it("resets to PENDING on status null even when the form holds an older status", () => {
+      expect(build(null, "APPROVED")["row0_status"]).toBe("PENDING");
+      expect(build(null, "REVISED")["row0_status"]).toBe("PENDING");
+    });
+
     it("applies the backend status when it is set", () => {
       expect(build("APPROVED", "PENDING")["row0_status"]).toBe("APPROVED");
     });
