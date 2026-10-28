@@ -48,6 +48,9 @@ const h = vi.hoisted(() => {
     setEditingSections: vi.fn(),
     editingSections: new Set<string>(),
     handleActionWithValidation: vi.fn(),
+    actionValidationParams: typed<{
+      validateByAction: (action: string, values: Record<string, unknown>) => unknown;
+    } | null>(null),
     validateByAction: vi.fn(),
     areAllActionsDisabled: vi.fn(),
     setSectionDisabledState: vi.fn(),
@@ -197,7 +200,10 @@ vi.mock("hooks/useFormInitialization", () => ({
   }),
 }));
 vi.mock("hooks/useActionWithValidation", () => ({
-  useActionWithValidation: () => h.handleActionWithValidation,
+  useActionWithValidation: (params: unknown) => {
+    h.actionValidationParams = params as typeof h.actionValidationParams;
+    return h.handleActionWithValidation;
+  },
 }));
 vi.mock("hooks/useSectionEditing", () => ({
   useSectionEditing: () => ({
@@ -912,7 +918,7 @@ describe("ClaimOverview re-pricing after a row delete or restore", () => {
       claimId: "C-1",
       payload: expect.objectContaining({ materials: expect.any(Array), changes: [] }),
     });
-    expect(h.validateByAction).toHaveBeenCalledWith("onValidate", {
+    expect(h.validateByAction).toHaveBeenCalledWith("validate", {
       claims_claimSpareParts_0_x: 1,
     });
     expect(h.updatePrices).not.toHaveBeenCalled();
@@ -972,6 +978,28 @@ describe("ClaimOverview onRecalculatePrices field action", () => {
   const recalc = (fieldName: string, value: unknown) =>
     act(() => h.captured.generic.actionCallbacks.onRecalculatePrices(fieldName, value));
 
+  it("runs Validate with the job diagnostics validate action, on claim rows only", async () => {
+    setup();
+
+    clickAction("onValidate");
+
+    await waitFor(() => expect(h.handleActionWithValidation).toHaveBeenCalled());
+    expect(h.handleActionWithValidation.mock.calls.at(-1)?.[0]).toBe("validate");
+
+    h.validateByAction.mockReturnValue({
+      [`${ROW}type`]: "typeRequired",
+      "diagnosticData_diagnosticsSpareParts#0_type": "typeRequired",
+      note: "noteRequired",
+    });
+    const validateByAction = (action: string) =>
+      h.actionValidationParams?.validateByAction(action, {});
+
+    expect(validateByAction("validate")).toEqual({ [`${ROW}type`]: "typeRequired" });
+    expect(validateByAction("onSaveNewNote")).toEqual(
+      expect.objectContaining({ note: "noteRequired" }),
+    );
+  });
+
   it("posts the claim payload with the row change", () => {
     setup();
 
@@ -1023,7 +1051,7 @@ describe("ClaimOverview onRecalculatePrices field action", () => {
 
     expect(h.recalculatePrices).not.toHaveBeenCalled();
     expect(h.validateByAction).toHaveBeenLastCalledWith(
-      "onValidate",
+      "validate",
       expect.objectContaining({ [`${ROW}type`]: "" }),
     );
     expect(h.captured.generic.actionCallbacks.enableRequestApproval()).toBe(false);
@@ -1050,7 +1078,7 @@ describe("ClaimOverview onRecalculatePrices field action", () => {
     recalc(`${ROW}quantity`, 2);
 
     expect(h.recalculatePrices).not.toHaveBeenCalled();
-    expect(h.validateByAction).toHaveBeenCalledWith("onValidate", expect.any(Object));
+    expect(h.validateByAction).toHaveBeenCalledWith("validate", expect.any(Object));
     expect(h.scrollToFirstError).toHaveBeenCalledWith([`${ROW}sparePartNumber`]);
   });
 

@@ -2,6 +2,7 @@ import Field from "components/generics/Field/GenericField.types";
 import Area from "components/generics/Area/GenericArea.types";
 import Section from "components/generics/Section/GenericSection.types";
 import type { ClaimItem } from "./Claims.types";
+import type { ActionMandatoryFields } from "components/generics/Form/GenericForm.types";
 
 export function makeFieldGetter(
   fields: Field[],
@@ -12,6 +13,30 @@ export function makeFieldGetter(
     return field ? formValues[field.name] : undefined;
   };
 }
+
+/**
+ * Claim Validate runs the field checks of job diagnostics Validate. Both use the UI config
+ * action named "validate" (mandatory-field keys are lowercased action names).
+ */
+export const CLAIM_VALIDATE_ACTION = "validate";
+
+/** Row fields the claim Validate payload needs, when the UI config lists none. */
+export const CLAIM_VALIDATE_MANDATORY_FIELDS = ["position", "sparePartNumber", "type", "quantity"];
+
+/**
+ * Mandatory fields per action, with the claim spare-part row fields for Validate when the
+ * UI config's claim "validate" action lists none. A non-empty config list wins.
+ */
+export const withClaimValidateMandatoryFields = (
+  mandatoryFields: Record<string, ActionMandatoryFields> | null,
+): Record<string, ActionMandatoryFields> => {
+  const configured = mandatoryFields?.[CLAIM_VALIDATE_ACTION];
+  if (configured?.fieldList?.length) return mandatoryFields ?? {};
+  return {
+    ...mandatoryFields,
+    [CLAIM_VALIDATE_ACTION]: { ...configured, fieldList: CLAIM_VALIDATE_MANDATORY_FIELDS },
+  };
+};
 
 /** Editable claim spare-parts row areas, in row order (same order as the manager's materials). */
 export const getClaimSparePartsAreas = (tabs: Section[]): Area[] =>
