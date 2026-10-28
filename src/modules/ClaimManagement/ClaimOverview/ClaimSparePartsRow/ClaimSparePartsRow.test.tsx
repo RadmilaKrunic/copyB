@@ -413,6 +413,21 @@ describe("ClaimSparePartsRow", () => {
         expect(capturedApplyFieldPermissions!(quantityField).isDisabled).toBe(false);
       });
 
+      it("disables quantity on an automatic country-config row even with the units permission", () => {
+        mockUseClaimContext.mockReturnValue({
+          ...baseClaimContext,
+          materials: [{ isNew: false }],
+          automaticRows: ["LA"],
+        } as never);
+        mockUseHasPermission.mockImplementation(() => true);
+        renderRow({
+          customFields: quantityFields,
+          initialValues: { [positionFieldName]: "LA", [statusFieldName]: "REVISED" },
+        });
+
+        expect(capturedApplyFieldPermissions!(quantityField).isDisabled).toBe(true);
+      });
+
       it("disables quantity on an approved row", () => {
         renderRow({
           customFields: quantityFields,
