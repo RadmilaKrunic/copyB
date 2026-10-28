@@ -377,6 +377,19 @@ const MANAGED_ROW_KEY_PREFIXES = [
   "claims_claimArchivedSpareParts",
 ];
 
+/**
+ * Status shown on a reused row. undefined = keep the row's current status;
+ * null = backend has not decided yet (new rows), so always PENDING, never the stale form value.
+ * Explicit checks on purpose: `??` would treat null like undefined.
+ */
+function resolveRowStatus(apiStatus: string | null | undefined, currentStatus: unknown): string {
+  if (apiStatus === undefined) {
+    return typeof currentStatus === "string" && currentStatus !== "" ? currentStatus : "PENDING";
+  }
+  if (apiStatus === null || apiStatus === "") return "PENDING";
+  return apiStatus;
+}
+
 /** Overlay status and type fields onto an existing values map from the current form state. */
 function applyStatusAndTypeOverrides(
   baseValues: Record<string, unknown>,
@@ -387,9 +400,7 @@ function applyStatusAndTypeOverrides(
   const result = { ...baseValues };
   const statusField = areaFields.find((f) => f.subtype === "diagnosticMaterialStatus");
   if (statusField) {
-    // undefined = keep the row's current status; null = backend has not decided yet (new rows).
-    const status = item.status ?? result[statusField.name];
-    result[statusField.name] = status || "PENDING";
+    result[statusField.name] = resolveRowStatus(item.status, result[statusField.name]);
   }
   const typeField = areaFields.find((f) => f.subtype === "diagnosticType");
   if (typeField && !faultCodeDropdown) {
