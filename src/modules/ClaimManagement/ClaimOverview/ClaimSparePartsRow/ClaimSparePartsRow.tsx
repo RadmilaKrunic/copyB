@@ -9,7 +9,10 @@ import {
   SparePartsCollapsedSection,
 } from "modules/JobManagement/JobOverview/SparePartsRow/SparePartsRow.components";
 import { PERMISSIONS } from "utils/Permissions";
-import { getQuantityEditPermission } from "modules/JobManagement/JobOverview/SparePartsRow/positionPermissions";
+import {
+  getQuantityEditPermission,
+  isAutomaticRowPosition,
+} from "modules/JobManagement/JobOverview/SparePartsRow/positionPermissions";
 import { isProtectedPosition } from "modules/JobManagement/JobOverview/SparePartsRow/materialPriceEditability";
 import { getPositionAutofill } from "hooks/useDiagnosticsManager";
 import { useClaimContext } from "../ClaimContext";
@@ -64,12 +67,15 @@ function ClaimSparePartsRow({
   const isNewRow = materials[areaIndex]?.isNew === true;
 
   // Quantity follows the job diagnostics rules: position-specific units permission,
-  // and never on an approved row.
+  // never on an approved row, and never on a row the country config adds automatically.
   const quantityPermission = getQuantityEditPermission(positionValue);
   const hasQuantityPermission = useHasPermission(quantityPermission ? [quantityPermission] : []);
   const statusField = fields.find((f) => f.subtype === "diagnosticMaterialStatus");
   const isApprovedRow = statusField ? values[statusField.name] === "APPROVED" : false;
-  const canEditQuantity = hasQuantityPermission && !isApprovedRow;
+  const canEditQuantity =
+    hasQuantityPermission &&
+    !isApprovedRow &&
+    !isAutomaticRowPosition(positionValue, automaticRows);
 
   const partNumberField = fields.find((f) => f.subtype === "diagnosticPartNumber");
   const partNumberValue = partNumberField ? ((values[partNumberField.name] as string) ?? "") : "";

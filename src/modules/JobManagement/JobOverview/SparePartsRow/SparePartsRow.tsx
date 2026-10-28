@@ -14,7 +14,7 @@ import Field from "components/generics/Field/GenericField.types";
 import type { GenericOptionProps } from "components/generics/Field/GenericField.types";
 import { SparePartsMainFields, SparePartsCollapsedSection } from "./SparePartsRow.components";
 import { getPriceFieldEditability } from "./materialPriceEditability";
-import { POSITION_PERMISSIONS } from "./positionPermissions";
+import { POSITION_PERMISSIONS, isAutomaticRowPosition } from "./positionPermissions";
 import { PERMISSIONS } from "utils/Permissions";
 import { useDiagnosticsContext } from "../DiagnosticsContext";
 import { GenericFormContext } from "components/generics/Form/GenericForm.context";
@@ -140,7 +140,9 @@ function SparePartsRow({
   const positionPerms =
     POSITION_PERMISSIONS[positionValue as keyof typeof POSITION_PERMISSIONS] ?? null;
   const canDeleteRow = positionPerms ? hasPermission(positionPerms.canDelete) : true;
-  const canEditQuantity = positionPerms ? hasPermission(positionPerms.canEditUnits) : true;
+  const isConfigAutomaticRow = isAutomaticRowPosition(positionValue, automaticRows);
+  const canEditQuantity =
+    !isConfigAutomaticRow && (positionPerms ? hasPermission(positionPerms.canEditUnits) : true);
 
   const isApproved = values[statusField?.name ?? ""] === "APPROVED";
   const isPending = values[statusField?.name ?? ""] === "PENDING";
