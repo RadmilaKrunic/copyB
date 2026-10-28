@@ -173,7 +173,7 @@ export default function ClaimOverview() {
       setMessages((prev) => [
         ...prev,
         {
-          text: t("claimPricesValidateError"),
+          text: getApiErrorMessage(error, t, "claimPricesValidateError"),
           type: "error",
           duration: 8000,
         },

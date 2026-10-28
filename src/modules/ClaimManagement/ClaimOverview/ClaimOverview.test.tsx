@@ -122,7 +122,12 @@ vi.mock("react-router-dom", async () => {
 });
 
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, string>) =>
+      key === "errorDiagnosticCannotHaveDuplicateItem"
+        ? `Duplicate material: ${options?.position} ${options?.partNumber} (${options?.jobType}).`
+        : key,
+  }),
 }));
 
 const ACTION_NAMES = [
@@ -1440,6 +1445,26 @@ describe("ClaimOverview validate action", () => {
     expect(h.trackActionFailed).toHaveBeenCalledWith(
       expect.objectContaining({ failedAction: "claim_prices_updated" }),
     );
+  });
+
+  it("shows the translated backend error with its params when the price update fails", async () => {
+    renderClaim();
+
+    const error = Object.assign(new Error("Request failed"), {
+      response: {
+        data: {
+          detail: "errorDiagnosticCannotHaveDuplicateItem",
+          params: { position: "LA", partNumber: "1600A00123", jobType: "WARRANTY" },
+        },
+      },
+    });
+    act(() => h.updatePricesOptions.onError(error));
+
+    expect(messagesFromSetMessages()).toContainEqual({
+      text: "Duplicate material: LA 1600A00123 (WARRANTY).",
+      type: "error",
+      duration: 8000,
+    });
   });
 
   it("does not send the request when validation rejects the form", async () => {
