@@ -388,6 +388,13 @@ export default function ClaimOverview() {
         claimData.claimPriceSummary = detailedTotal;
       }
     }
+    // Rows but no summary: show only the total row, all amounts 0.
+    const hasMaterials = (claimData.materials?.length ?? 0) > 0;
+    if (hasMaterials && isPriceSummaryMissing(claimData.claimPriceSummaryDetailed)) {
+      setIsZeroSummaryShown(true);
+      setClaimFullData(withZeroPriceSummary(claimData, "claimPriceSummaryDetailed"));
+      return;
+    }
     setClaimFullData(claimData);
   }, [claimData]);
 
@@ -1121,6 +1128,7 @@ export default function ClaimOverview() {
         ),
       markAllValidated,
       markRowDirty,
+      priceSummaryDetailedByJobType: claimFullData?.claimPriceSummaryDetailed?.byJobType ?? [],
       summaryTypeOptions,
       setSummaryTypeOptions,
       discountBase,
@@ -1148,6 +1156,7 @@ export default function ClaimOverview() {
       getExistingPartNumbers,
       arePricesValidated,
       isZeroSummaryShown,
+      claimFullData?.claimPriceSummaryDetailed?.byJobType,
       markAllValidated,
       markRowDirty,
       summaryTypeOptions,

@@ -424,6 +424,22 @@ export default function JobOverview() {
     tabs: tabs || [],
   });
 
+  // Loaded rows without a summary show only the total row, all amounts 0. A recalculation
+  // without one still hides it, so its cache write is flagged here.
+  const isRecalculationWriteRef = useRef(false);
+  useEffect(() => {
+    const isRecalculation = isRecalculationWriteRef.current;
+    isRecalculationWriteRef.current = false;
+    if (isRecalculation) {
+      setIsZeroSummaryShown(false);
+      return;
+    }
+    const hasMaterials = (diagnosticData?.materials?.length ?? 0) > 0;
+    if (hasMaterials && isPriceSummaryMissing(diagnosticData?.priceSummaryDetailed)) {
+      setIsZeroSummaryShown(true);
+    }
+  }, [diagnosticData]);
+
   const currentStatus = jobData?.job?.jobStatus || "";
   const isCustomerApprovalPendingStatus =
     currentStatus === "CUSTOMER_APPROVAL_PENDING" || currentStatus === "MULTIPLE_APPROVAL_PENDING";
@@ -856,6 +872,7 @@ export default function JobOverview() {
     onSuccess: (data) => {
       const validatedDiagnostic = getDiagnosticFromValidateResponse(data);
       if (validatedDiagnostic && jobId) {
+        isRecalculationWriteRef.current = true;
         queryClient.setQueryData(["diagnostic", jobId], {
           ...validatedDiagnostic,
         });
@@ -1950,12 +1967,13 @@ export default function JobOverview() {
   const showProductDetails = useCallback(() => !isRepairAnswerLocked, [isRepairAnswerLocked]);
   const showAddRow = useCallback(() => !isRepairAnswerLocked, [isRepairAnswerLocked]);
   // The summary hides when a recalculation returns priceSummaryDetailed null. A validate / save
-  // response without one shows the total row with all amounts 0 (isZeroSummaryShown).
+  // response, or a loaded diagnostic with rows, without one shows the total row with all
+  // amounts 0 (isZeroSummaryShown).
   const isPriceSummaryAvailable = hasPriceSummary(diagnosticData);
   const hasPricesPopulated = useMemo(
     () =>
-      isPriceSummaryAvailable &&
-      (isZeroSummaryShown ||
+      isZeroSummaryShown ||
+      (isPriceSummaryAvailable &&
         (hasServerMaterialPrices(diagnosticData) ??
           materials.some(
             (m) =>

@@ -279,11 +279,33 @@ describe("SummaryArea", () => {
       setSummaryTypeOptions: vi.fn(),
       discountBase: "GROSS_PRICE",
       isValidating: false,
+      priceSummaryDetailedByJobType: [{ jobType: "CHARGEABLE" }],
     } as never);
 
     const { setFieldValue } = renderSummary();
 
     expect(setFieldValue).not.toHaveBeenCalled();
+  });
+
+  it("offers only totalSummary when the summary has no byJobType breakdown", () => {
+    const setSummaryTypeOptions = vi.fn();
+    vi.mocked(useDiagnosticsContext).mockReturnValue({
+      hasPricesPopulated: true,
+      setSummaryTypeOptions,
+      discountBase: "GROSS_PRICE",
+      isValidating: false,
+      priceSummaryDetailedByJobType: [],
+    } as never);
+
+    const { setFieldValue } = renderSummary({
+      "diagnosticData_diagnosticsSpareParts#0_type": "CHARGEABLE",
+    });
+
+    expect(setSummaryTypeOptions).toHaveBeenLastCalledWith([
+      { value: "totalSummary", label: "totalSummary" },
+    ]);
+    // A job type selected before is no longer an option.
+    expect(setFieldValue).toHaveBeenCalledWith("summaryType", "totalSummary");
   });
 });
 

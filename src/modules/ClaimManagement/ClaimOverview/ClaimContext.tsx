@@ -7,6 +7,7 @@ import type {
 import type { GenericOptionProps } from "components/generics/Field/GenericField.types";
 import type { MaterialItem, ImportedMaterial } from "hooks/useDiagnosticsManager";
 import type { Material } from "./Claims.types";
+import type { SummaryDetail } from "modules/JobManagement/JobList/JobList.types";
 
 export interface ClaimContextValue {
   /** Source-of-truth list of claim spare-part rows */
@@ -42,6 +43,8 @@ export interface ClaimContextValue {
   markAllValidated: () => void;
   /** Marks a single row as dirty */
   markRowDirty: (areaIndex: number) => void;
+  /** Claim summary breakdown by job type; empty means only the total option */
+  priceSummaryDetailedByJobType: SummaryDetail[];
   /** Radio-button options computed inside ClaimSummaryArea */
   summaryTypeOptions: { label: string; value: string }[];
   setSummaryTypeOptions: Dispatch<SetStateAction<{ label: string; value: string }[]>>;
@@ -81,6 +84,7 @@ const defaultClaimContextValue: ClaimContextValue = {
   hasPricesPopulated: false,
   markAllValidated: noop,
   markRowDirty: noop,
+  priceSummaryDetailedByJobType: [],
   summaryTypeOptions: DEFAULT_SUMMARY_TYPE_OPTIONS,
   setSummaryTypeOptions: noop,
   discountBase: "GROSS_PRICE",

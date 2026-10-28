@@ -1805,6 +1805,25 @@ describe("ClaimOverview claim context", () => {
     },
   );
 
+  it("on load, rows without a summary show the zero total row", async () => {
+    setClaim(makeClaim({ claimPriceSummary: undefined, claimPriceSummaryDetailed: null }));
+    h.mgr = makeManager({
+      materials: [{ unitPrice: 0, netAmount: 0, grossAmount: 0, totalAmount: 0 }],
+    });
+    renderClaim();
+
+    await waitFor(() => expect(h.captured.claim.hasPricesPopulated).toBe(true));
+    expect(h.captured.claim.priceSummaryDetailedByJobType).toEqual([]);
+  });
+
+  it("passes the claim byJobType breakdown to the summary", () => {
+    const byJobType = [{ jobType: "WARRANTY", total: { totalAmount: 3 } }];
+    setClaim(makeClaim({ claimPriceSummaryDetailed: { total: { totalAmount: 3 }, byJobType } }));
+    renderClaim();
+
+    expect(h.captured.claim.priceSummaryDetailedByJobType).toEqual(byJobType);
+  });
+
   it("keeps the summary hidden when validate returns a summary but no prices", async () => {
     h.mgr = makeManager({
       materials: [{ unitPrice: 0, netAmount: 0, grossAmount: 0, totalAmount: 0 }],
