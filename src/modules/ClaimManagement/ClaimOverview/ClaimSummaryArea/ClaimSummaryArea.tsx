@@ -8,14 +8,20 @@ import {
 import { useClaimContext } from "../ClaimContext";
 
 function ClaimSummaryArea({ area }: Readonly<{ area: Area }>) {
-  const { hasPricesPopulated, setSummaryTypeOptions, discountBase, materials, setMaterials } =
-    useClaimContext();
+  const {
+    hasPricesPopulated,
+    setSummaryTypeOptions,
+    discountBase,
+    materials,
+    setMaterials,
+    priceSummaryDetailedByJobType,
+  } = useClaimContext();
 
   const bridgedContextValue = useMemo<DiagnosticsContextValue>(
     () => ({
       materials,
       setMaterials,
-      priceSummaryDetailedByJobType: [],
+      priceSummaryDetailedByJobType,
       setPriceSummaryDetailedByJobType: () => {},
       onAddRow: () => {},
       onAddMaterials: () => {},
@@ -43,7 +49,14 @@ function ClaimSummaryArea({ area }: Readonly<{ area: Area }>) {
       hasExistingDiagnostic: false,
       isValidating: false,
     }),
-    [materials, setMaterials, hasPricesPopulated, setSummaryTypeOptions, discountBase],
+    [
+      materials,
+      setMaterials,
+      hasPricesPopulated,
+      setSummaryTypeOptions,
+      discountBase,
+      priceSummaryDetailedByJobType,
+    ],
   );
 
   return (

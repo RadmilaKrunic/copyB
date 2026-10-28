@@ -3963,6 +3963,41 @@ describe("JobOverview validate-and-save and recalculate responses", () => {
     },
   );
 
+  it("on load, rows without a summary show the zero total row", async () => {
+    diagnosticDataMock.value = {
+      jobId: "J-1",
+      materials: [{ id: "M-1", price: null }],
+      priceSummaryDetailed: null,
+    };
+    renderWithMessages();
+
+    await waitFor(() => expect(diagnosticsCtx().hasPricesPopulated).toBe(true));
+  });
+
+  it("on load, no rows and no summary keeps the summary hidden", () => {
+    diagnosticDataMock.value = { jobId: "J-1", materials: [], priceSummaryDetailed: null };
+    renderWithMessages();
+
+    expect(diagnosticsCtx().hasPricesPopulated).toBe(false);
+  });
+
+  it("a recalculation without a summary still hides the zero total row", async () => {
+    diagnosticDataMock.value = {
+      jobId: "J-1",
+      materials: [{ id: "M-1", price: null }],
+      priceSummaryDetailed: null,
+    };
+    const { rerenderView } = renderWithMessages();
+    await waitFor(() => expect(diagnosticsCtx().hasPricesPopulated).toBe(true));
+
+    const recalculated = { jobId: "J-1", materials: [{ id: "M-1" }], priceSummaryDetailed: null };
+    await runOnSuccess("recalculate", { diagnostic: recalculated });
+    diagnosticDataMock.value = recalculated;
+    rerenderView();
+
+    await waitFor(() => expect(diagnosticsCtx().hasPricesPopulated).toBe(false));
+  });
+
   it("validateAndSave: lists unavailable price keys and skips the success flow", async () => {
     const { setMessagesMock } = renderWithMessages();
     setPricesValidated(true);

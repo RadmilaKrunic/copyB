@@ -19,8 +19,14 @@ function SummaryArea({ area }: Readonly<{ area: Area }>) {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
   const { allFields } = useContext(GenericFormContext);
   const { values, setFieldValue } = useFormikContext<Record<string, unknown>>();
-  const { hasPricesPopulated, setSummaryTypeOptions, discountBase, isValidating, jobStatus } =
-    useDiagnosticsContext();
+  const {
+    hasPricesPopulated,
+    setSummaryTypeOptions,
+    discountBase,
+    isValidating,
+    jobStatus,
+    priceSummaryDetailedByJobType,
+  } = useDiagnosticsContext();
   const hasPriceViewPermission = useHasPermission([PERMISSIONS.DIAGNOSTICS.CAN_VIEW_PRICES]);
   const canEditdiscount = useHasPermission([PERMISSIONS.DIAGNOSTICS.CAN_EDIT_TOTAL_DISCOUNT]);
   const canEditTotalAmount = useHasPermission([PERMISSIONS.DIAGNOSTICS.CAN_EDIT_TOTAL_AMOUNT]);
@@ -108,7 +114,11 @@ function SummaryArea({ area }: Readonly<{ area: Area }>) {
   const jobTypeFieldValue = jobTypeField ? (values[jobTypeField.name] as string) : "";
   const rowJobType = jobTypeField ? toCamelCase(String(jobTypeFieldValue)) : "";
 
+  // Job-type options exist only when the server returned a byJobType breakdown.
+  const hasByJobType = (priceSummaryDetailedByJobType?.length ?? 0) > 0;
   const summaryTypeOptions = useMemo(() => {
+    const totalOption = { value: "totalSummary", label: "totalSummary" };
+    if (!hasByJobType) return [totalOption];
     const seen = new Map<string, { label: string; value: string }>();
     const templateTypeField = scopedFields.find((f) => f.subtype === "diagnosticType");
     const typeFieldOptions = templateTypeField?.options ?? [];
@@ -123,8 +133,8 @@ function SummaryArea({ area }: Readonly<{ area: Area }>) {
         if (!seen.has(summaryValue))
           seen.set(summaryValue, { value: summaryValue, label: option.name });
       });
-    return [{ value: "totalSummary", label: "totalSummary" }, ...seen.values()];
-  }, [scopedFields, values]);
+    return [totalOption, ...seen.values()];
+  }, [hasByJobType, scopedFields, values]);
 
   useEffect(() => {
     if (!summaryTypeField) return;
