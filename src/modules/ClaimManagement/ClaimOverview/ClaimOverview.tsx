@@ -137,11 +137,13 @@ export default function ClaimOverview() {
   const validateClaimPricesMutation = useUpdateClaimPrices({
     onSuccess: async (data) => {
       // No summary in the response: the total row still shows, totalSummary selected, all 0.
-      const isSummaryMissing = isPriceSummaryMissing(data?.claimPriceSummaryDetailed);
+      const claimPriceSummaryDetailed =
+        data?.claimPriceSummaryDetailed as ClaimItem["claimPriceSummaryDetailed"];
+      const isSummaryMissing = isPriceSummaryMissing(claimPriceSummaryDetailed);
       setIsZeroSummaryShown(isSummaryMissing);
       // The summary comes from the response only, never from the claim loaded before.
       const updated: ClaimItem = withZeroPriceSummary(
-        { ...claimFullData, ...data, claimPriceSummaryDetailed: data?.claimPriceSummaryDetailed },
+        { ...claimFullData, ...data, claimPriceSummaryDetailed },
         "claimPriceSummaryDetailed",
       );
       syncData(updated, allFields ?? []);

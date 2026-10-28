@@ -47,7 +47,7 @@ const makeBareToolOption = (overrides: Partial<BareToolOption> = {}): BareToolOp
     tradeName: "Trade",
     voltage: "230V",
     ...overrides,
-  }) as BareToolOption;
+  });
 
 const makeCustomer = (overrides: Partial<Customer> = {}): Customer =>
   ({
@@ -90,7 +90,7 @@ const makeCustomer = (overrides: Partial<Customer> = {}): Customer =>
     },
     useBillingAddressForDelivery: true,
     ...overrides,
-  }) as Customer;
+  });
 
 const makeField = (name: string, overrides: Partial<Field> = {}): Field =>
   ({
@@ -106,7 +106,7 @@ const makeField = (name: string, overrides: Partial<Field> = {}): Field =>
       nameStartsWith: "",
     },
     ...overrides,
-  }) as unknown as Field;
+  });
 
 describe("getValueByPath", () => {
   it("returns top-level value when map key exists directly on obj", () => {
@@ -582,7 +582,6 @@ describe("getSparePartCompatibilityMessage", () => {
       "row1_sparePartNumber",
       { row1_rowType: "WARRANTY" },
       [rowTypeField()],
-      undefined,
     );
     expect(result).toBe("");
   });
