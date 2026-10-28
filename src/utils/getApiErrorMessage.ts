@@ -5,12 +5,14 @@ interface ApiErrorBody {
   params?: Record<string, ApiErrorParam>;
 }
 
-type ApiErrorParam = string | string[] | Record<string, unknown>;
+type ApiErrorParam = string | number | boolean | string[] | Record<string, unknown>;
 
 function parseParamValue(value: ApiErrorParam): string {
   // Separate null check: under the non-strict root tsconfig, `typeof x === "object" && x !== null`
   // does not narrow the object type out of the fall-through
-  if (value === null) return "";
+  if (value === null || value === undefined) return "";
+  // Numbers and booleans as plain text; only strings go through the parsing below
+  if (typeof value !== "string" && typeof value !== "object") return String(value);
   // Arrays first: they are objects too, so the object branch would swallow them
   if (Array.isArray(value)) {
     return value.join(", ");

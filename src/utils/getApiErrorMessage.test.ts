@@ -109,4 +109,14 @@ describe("getApiErrorMessage", () => {
 
     expect(t).toHaveBeenCalledWith("errorDetail", { metadata: '{"code":"06010000"}' });
   });
+
+  it("formats number, boolean and null params as text", () => {
+    const error = {
+      response: {
+        data: { detail: "errorDetail", params: { qty: 2, flag: true, missing: null } },
+      },
+    };
+    getApiErrorMessage(error, t as never, "genericError");
+    expect(t).toHaveBeenCalledWith("errorDetail", { qty: "2", flag: "true", missing: "" });
+  });
 });
