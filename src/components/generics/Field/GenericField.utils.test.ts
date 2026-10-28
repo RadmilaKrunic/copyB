@@ -5,6 +5,7 @@ import {
   handleFaultCodeSelection,
   resolveIsRequired,
   applyPositionRules,
+  refreshProtectedRowQuantities,
 } from "./GenericField.utils";
 import type { FormikContextType } from "formik";
 import type { TFunction } from "i18next";
@@ -584,6 +585,76 @@ describe("handleFaultCodeSelection", () => {
       );
       expect(resolve).not.toHaveBeenCalled();
     });
+  });
+});
+
+// ── refreshProtectedRowQuantities ────────────────────────────────────────────
+
+describe("refreshProtectedRowQuantities", () => {
+  const row = (index: number) => {
+    const fieldMapping = (originalName: string) => ({
+      originalName,
+      map: originalName,
+      parentMap: [],
+      prefixes: [],
+      nameStartsWith: `row${index}_`,
+    });
+    return [
+      makeField(`row${index}_position`, "diagnosticPosition", {
+        fieldMapping: fieldMapping("position"),
+      }),
+      makeField(`row${index}_quantity`, "diagnosticQuantity", {
+        fieldMapping: fieldMapping("quantity"),
+      }),
+    ];
+  };
+
+  it("calls the API with the current values and updates the LA row already shown", async () => {
+    const setFieldValue = vi.fn().mockResolvedValue(undefined);
+    const resolve = vi.fn().mockResolvedValue({ LA: 4, FR: 2 });
+    const formValues = {
+      actionType: "NEW_TOOL_EXCHANGE",
+      exchangeReason: "BROKEN",
+      row0_position: "LA",
+      row0_quantity: 1,
+      row1_position: "FR",
+      row1_quantity: 2,
+      row2_position: "SP",
+      row2_quantity: 1,
+    };
+    const changed = await refreshProtectedRowQuantities({
+      allFields: [...row(0), ...row(1), ...row(2)],
+      formValues,
+      setFieldValue,
+      resolveDefaultQuantities: resolve,
+    });
+    expect(resolve).toHaveBeenCalledWith(formValues);
+    expect(setFieldValue).toHaveBeenCalledTimes(1);
+    expect(setFieldValue).toHaveBeenCalledWith("row0_quantity", 4);
+    expect(changed.map(({ field, value }) => [field.name, value])).toEqual([["row0_quantity", 4]]);
+  });
+
+  it("keeps the quantities when the API gives none", async () => {
+    const setFieldValue = vi.fn().mockResolvedValue(undefined);
+    const changed = await refreshProtectedRowQuantities({
+      allFields: row(0),
+      formValues: { row0_position: "LA", row0_quantity: 1 },
+      setFieldValue,
+      resolveDefaultQuantities: vi.fn().mockResolvedValue(null),
+    });
+    expect(setFieldValue).not.toHaveBeenCalled();
+    expect(changed).toEqual([]);
+  });
+
+  it("does not call the API when there is no protected row", async () => {
+    const resolve = vi.fn();
+    await refreshProtectedRowQuantities({
+      allFields: row(0),
+      formValues: { row0_position: "SP" },
+      setFieldValue: vi.fn(),
+      resolveDefaultQuantities: resolve,
+    });
+    expect(resolve).not.toHaveBeenCalled();
   });
 });
 

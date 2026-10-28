@@ -13,9 +13,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   applyPositionRules,
   handleFaultCodeSelection,
+  refreshProtectedRowQuantities,
   updateDependentFields,
 } from "./GenericField.utils";
 import type { AllowedPosition } from "api/services/countryConfiguration/countryConfiguration";
+import type { ResolveDefaultQuantities } from "api/services/prices/prices.types";
 import {
   handleAutoCompleteSelect,
   handleResetAutoCompleteFields,
@@ -444,6 +446,8 @@ vi.mock("./GenericField.utils", () => ({
   handleFaultCodeSelection: vi.fn(),
   resolveIsRequired: vi.fn((field: { isRequired?: boolean }) => field.isRequired),
   applyPositionRules: vi.fn(() => Promise.resolve(true)),
+  refreshProtectedRowQuantities: vi.fn(() => Promise.resolve([])),
+  DEFAULT_PARAMETER_DROPDOWN_FIELDS: new Set(["exchangeReason"]),
 }));
 
 vi.mock("../../ui/AutoComplete/AutoComplete.helper", () => ({
@@ -471,6 +475,7 @@ describe("GenericField", () => {
       | { isIneligible?: boolean; hasPurchaseDate?: boolean; supportedWarrantyType: string }
       | undefined,
     allowedPositions: undefined as AllowedPosition[] | undefined,
+    resolveDefaultQuantities: undefined as ResolveDefaultQuantities | undefined,
   };
 
   const mockInitialValues = {
@@ -921,6 +926,70 @@ describe("GenericField", () => {
       await waitFor(() => expect(handleFaultCodeSelection).toHaveBeenCalled());
       await new Promise((resolve) => setTimeout(resolve, 0));
       expect(onRecalculatePrices).not.toHaveBeenCalled();
+    });
+
+    it("refreshes protected-row quantities with the new exchange reason and recalculates them", async () => {
+      const user = userEvent.setup();
+      const calls: unknown[][] = [];
+      const onRecalculatePrices = (name: unknown, value: unknown) => {
+        calls.push([name, value]);
+      };
+      const resolveDefaultQuantities = vi.fn().mockResolvedValue({ LA: 4 });
+      const qtyField = {
+        name: "row0_quantity",
+        label: "Quantity",
+        type: "number",
+        subtype: "diagnosticQuantity",
+        isRequired: false,
+        onBlur: "onRecalculatePrices",
+        fieldMapping: { originalName: "quantity" },
+      } as Field;
+      vi.mocked(refreshProtectedRowQuantities).mockResolvedValueOnce([
+        { field: qtyField, value: 4 },
+      ]);
+
+      renderWithContext(
+        {
+          name: "exchangeReason",
+          label: "Exchange reason",
+          type: "dropdown",
+          isRequired: false,
+          options: [{ value: "BROKEN", label: "Broken" }],
+          fieldMapping: { originalName: "exchangeReason" },
+        },
+        { actionCallbacks: { onRecalculatePrices }, resolveDefaultQuantities },
+      );
+
+      await user.selectOptions(screen.getByTestId("dropdown-exchangeReason"), "BROKEN");
+
+      await waitFor(() => expect(calls).toEqual([["row0_quantity", 4]]));
+      expect(refreshProtectedRowQuantities).toHaveBeenCalledWith(
+        expect.objectContaining({
+          formValues: expect.objectContaining({ exchangeReason: "BROKEN" }),
+          resolveDefaultQuantities,
+        }),
+      );
+    });
+
+    it("does not refresh quantities when a non default-parameter dropdown changes", async () => {
+      const user = userEvent.setup();
+      vi.mocked(refreshProtectedRowQuantities).mockClear();
+
+      renderWithContext(
+        {
+          name: "testDropdown",
+          label: "Test",
+          type: "dropdown",
+          isRequired: false,
+          options: [{ value: "A", label: "A" }],
+          fieldMapping: { originalName: "testDropdown" },
+        },
+        { resolveDefaultQuantities: vi.fn() },
+      );
+
+      await user.selectOptions(screen.getByTestId("dropdown-testDropdown"), "A");
+
+      expect(refreshProtectedRowQuantities).not.toHaveBeenCalled();
     });
 
     it("disables warranty-ineligible job types when the tool is warranty-ineligible", () => {
