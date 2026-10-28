@@ -97,6 +97,13 @@ export const getAutoCompleteValue = (
   return "";
 };
 
+/**
+ * The spare-parts search can answer "no results" with a body that is not a list (empty object,
+ * empty string, null); callers read the result as a list, so anything else is no options.
+ */
+const toOptionList = <T>(result: T[] | null | undefined): T[] =>
+  Array.isArray(result) ? result : [];
+
 export const getAutocompleteOptions = async (
   name: string,
   newValue: string,
@@ -140,7 +147,7 @@ export const getAutocompleteOptions = async (
       bareTool,
       position,
     });
-    return spareParts || [];
+    return toOptionList(spareParts);
   }
 
   if (name?.toLowerCase().includes("sparepartnumber")) {
@@ -159,7 +166,7 @@ export const getAutocompleteOptions = async (
       bareTool,
       position,
     });
-    return spareParts || [];
+    return toOptionList(spareParts);
   }
 
   if (name?.toLowerCase().includes("toolmodelname") && newValue.length >= 5) {
@@ -176,7 +183,7 @@ export const getAutocompleteOptions = async (
       bareTool,
       position,
     });
-    return spareParts || [];
+    return toOptionList(spareParts);
   }
 
   const getCustomersOptions = getCustomers(name);
