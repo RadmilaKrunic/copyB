@@ -59,6 +59,7 @@ import { MessagesContext } from "contexts/messagescontext";
 import { ClaimItem } from "./Claims.types";
 import {
   applyClaimRecalculation,
+  CLAIM_VALIDATE_ACTION,
   findClaimRowIndex,
   getClaimFieldOriginalName,
   getClaimRecalculationPayloadErrors,
@@ -67,6 +68,7 @@ import {
   hasRecalculationErrors,
   makeFieldGetter,
   orderClaimAreasLikeDiagnostics,
+  withClaimValidateMandatoryFields,
 } from "./ClaimOverview.utils";
 import {
   buildRecalculationChange,
@@ -429,10 +431,15 @@ export default function ClaimOverview() {
     readOnly: true,
   });
 
+  const claimMandatoryFields = useMemo(
+    () => withClaimValidateMandatoryFields(mandatoryFields),
+    [mandatoryFields],
+  );
+
   const { validate, validateByAction, startValidation, stopValidation, setCurrentAction } =
     useFormValidation({
       allFields,
-      mandatoryFieldsMap: mandatoryFields,
+      mandatoryFieldsMap: claimMandatoryFields,
       sparePartNotBelongsToToolRef,
     });
 
@@ -556,9 +563,20 @@ export default function ClaimOverview() {
     [setEditingSections],
   );
 
+  // Validate sends only the spare-parts rows from the form, so it checks only those rows.
+  // The read-only diagnosticData tab has fields with the same names (position, type, ...).
+  const validateClaimByAction = useCallback(
+    (actionName: string, values: Record<string, unknown>) => {
+      const errors = validateByAction(actionName, values);
+      if (actionName !== CLAIM_VALIDATE_ACTION) return errors;
+      return getClaimRecalculationPayloadErrors(getClaimSparePartsAreas(tabs), errors);
+    },
+    [validateByAction, tabs],
+  );
+
   const handleActionWithValidation = useActionWithValidation({
     allFields,
-    validateByAction,
+    validateByAction: validateClaimByAction,
     startValidation,
     stopValidation,
     setCurrentAction,
@@ -612,7 +630,7 @@ export default function ClaimOverview() {
 
       claimHasSyncedRef.current = false;
       if (helpers) {
-        await handleActionWithValidation("onValidate", formValues, helpers, () =>
+        await handleActionWithValidation(CLAIM_VALIDATE_ACTION, formValues, helpers, () =>
           validateClaimPricesMutation.mutate({ claimId, payload }),
         );
       } else {
@@ -673,7 +691,7 @@ export default function ClaimOverview() {
       hasClaimChangesRef.current = true;
       setArePricesValidated(false);
       if (isRecalculationValueEmpty(value)) {
-        const fieldError = validateByAction("onValidate", {
+        const fieldError = validateByAction(CLAIM_VALIDATE_ACTION, {
           ...formValuesRef.current,
           [fieldName]: value,
         })[fieldName];
@@ -690,7 +708,7 @@ export default function ClaimOverview() {
       const formValues = formValuesRef.current;
       const payloadErrors = getClaimRecalculationPayloadErrors(
         sparePartsAreas,
-        validateByAction("onValidate", formValues),
+        validateByAction(CLAIM_VALIDATE_ACTION, formValues),
       );
       if (Object.keys(payloadErrors).length > 0) {
         showFieldErrorsRef.current?.(payloadErrors);
@@ -722,7 +740,7 @@ export default function ClaimOverview() {
       if (!allFields || !claimData || isClaimPricingPending) return;
       const payloadErrors = getClaimRecalculationPayloadErrors(
         getClaimSparePartsAreas(tabs),
-        validateByAction("onValidate", formValues),
+        validateByAction(CLAIM_VALIDATE_ACTION, formValues),
       );
       if (Object.keys(payloadErrors).length > 0) return;
       recalculateClaimPrices(formValues, []);

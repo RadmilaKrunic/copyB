@@ -9,6 +9,7 @@ import {
   hasRecalculationErrors,
   makeFieldGetter,
   orderClaimAreasLikeDiagnostics,
+  withClaimValidateMandatoryFields,
 } from "./ClaimOverview.utils";
 
 describe("ClaimOverview utils", () => {
@@ -136,5 +137,22 @@ describe("orderClaimAreasLikeDiagnostics", () => {
     expect(orderClaimAreasLikeDiagnostics(withLastArchived)[1].position).toBe(4);
     const noArchived = [area("claimSpareParts", 2)];
     expect(orderClaimAreasLikeDiagnostics(noArchived)).toBe(noArchived);
+  });
+});
+
+describe("withClaimValidateMandatoryFields", () => {
+  const rowFields = ["position", "sparePartNumber", "type", "quantity"];
+
+  it("requires the claim row fields on validate when the UI config lists none", () => {
+    expect(withClaimValidateMandatoryFields(null)).toEqual({ validate: { fieldList: rowFields } });
+    const note = { fieldList: ["note"] };
+    expect(
+      withClaimValidateMandatoryFields({ validate: { fieldList: [] }, savechanges: note }),
+    ).toEqual({ validate: { fieldList: rowFields }, savechanges: note });
+  });
+
+  it("keeps a non-empty UI config list", () => {
+    const config = { validate: { fieldList: ["sparePartNumber"] } };
+    expect(withClaimValidateMandatoryFields(config)).toBe(config);
   });
 });
