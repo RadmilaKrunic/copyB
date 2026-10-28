@@ -477,14 +477,29 @@ function renderDropdownField(ctx: FieldRenderCtx): ReactElement {
         onRawOptionSelect={
           subtype === "diagnosticFaultCode"
             ? (rawItem) => {
-                void handleFaultCodeSelection(
-                  rawItem,
-                  setFieldValue,
-                  allFields,
-                  values,
-                  allowedPositions,
-                  resolveDefaultQuantities,
-                );
+                void (async () => {
+                  const changedQuantities = await handleFaultCodeSelection(
+                    rawItem,
+                    setFieldValue,
+                    allFields,
+                    values,
+                    allowedPositions,
+                    resolveDefaultQuantities,
+                  );
+                  if (!changedQuantities?.length) return;
+                  // The quantity was set without a blur: run its action (recalculate) as for a
+                  // user edit, once Formik has the new values.
+                  await waitForFormCommit();
+                  for (const { field: qtyField, value: qty } of changedQuantities) {
+                    invokeFieldAction(
+                      actionCallbacks,
+                      "onBlur",
+                      qtyField.onBlur,
+                      qtyField.name,
+                      qty,
+                    );
+                  }
+                })();
               }
             : undefined
         }
