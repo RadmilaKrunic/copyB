@@ -814,7 +814,7 @@ describe("buildMaterialsRowValues (LA quantity sync)", () => {
     const statusArea = makeArea("row0", statusFields);
     const build = (status: string | null | undefined, formStatus: unknown) =>
       buildMaterialsRowValues({
-        materials: [makeItem({ position: "SP", status: status as string | undefined })],
+        materials: [makeItem({ position: "SP", status })],
         areas: [statusArea],
         fields: statusFields,
         formValues: { row0_position: "SP", row0_status: formStatus },
