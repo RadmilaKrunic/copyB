@@ -296,6 +296,13 @@ describe("getAutocompleteOptions", () => {
     expect(byModel).toEqual(sparePartOptions);
   });
 
+  it("returns no options when the spare-parts search answers with a non-list body", async () => {
+    for (const body of [{}, "", null, { content: [] }]) {
+      vi.mocked(getSparePartsSearch).mockResolvedValueOnce(body as never);
+      await expect(getAutocompleteOptions("sparePartNumber", "99999", "ASC")).resolves.toEqual([]);
+    }
+  });
+
   it("returns customer options by field name and empty array for unknown", async () => {
     vi.mocked(getCustomerByFirstName).mockResolvedValueOnce([makeCustomer({ firstName: "John" })]);
     vi.mocked(getCustomerByLastName).mockResolvedValueOnce([makeCustomer({ lastName: "Doe" })]);
