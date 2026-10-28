@@ -545,6 +545,32 @@ describe("handleFaultCodeSelection", () => {
       expect(setAfterFailure).not.toHaveBeenCalledWith("row1_quantity", expect.anything());
     });
 
+    it("returns the quantity fields it changed, so the caller can recalculate", async () => {
+      const changed = await handleFaultCodeSelection(
+        rawItem,
+        vi.fn().mockResolvedValue(undefined),
+        laRow(),
+        { row0_position: "LA", row0_quantity: 1 },
+        defaultSourceLa,
+        vi.fn().mockResolvedValue({ LA: 5 }),
+      );
+      expect(changed.map(({ field, value }) => [field.name, value])).toEqual([
+        ["row0_quantity", 5],
+      ]);
+    });
+
+    it("returns nothing when the new quantity equals the current one", async () => {
+      const changed = await handleFaultCodeSelection(
+        rawItem,
+        vi.fn().mockResolvedValue(undefined),
+        laRow(),
+        { row0_position: "LA", row0_quantity: "5" },
+        defaultSourceLa,
+        vi.fn().mockResolvedValue({ LA: 5 }),
+      );
+      expect(changed).toEqual([]);
+    });
+
     it("does not call the API when there is no protected row", async () => {
       const setFieldValue = vi.fn().mockResolvedValue(undefined);
       const resolve = vi.fn();

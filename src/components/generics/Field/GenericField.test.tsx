@@ -865,6 +865,64 @@ describe("GenericField", () => {
       );
     });
 
+    it("runs the quantity field's blur action for each quantity the fault code changed", async () => {
+      const user = userEvent.setup();
+      const calls: unknown[][] = [];
+      const onRecalculatePrices = (name: unknown, value: unknown) => {
+        calls.push([name, value]);
+      };
+      const qtyField = {
+        name: "row0_quantity",
+        label: "Quantity",
+        type: "number",
+        subtype: "diagnosticQuantity",
+        isRequired: false,
+        onBlur: "onRecalculatePrices",
+        fieldMapping: { originalName: "quantity" },
+      } as Field;
+      vi.mocked(handleFaultCodeSelection).mockResolvedValueOnce([{ field: qtyField, value: 5 }]);
+
+      renderWithContext(
+        {
+          name: "faultCodeDropdown",
+          label: "Fault Code",
+          type: "dropdown",
+          subtype: "diagnosticFaultCode",
+          isRequired: false,
+          fieldMapping: { originalName: "faultCodeDropdown" },
+        },
+        { actionCallbacks: { onRecalculatePrices } },
+      );
+
+      await user.click(screen.getByTestId("raw-option-select-faultCodeDropdown"));
+
+      await waitFor(() => expect(calls).toEqual([["row0_quantity", 5]]));
+    });
+
+    it("runs no field action when the fault code changed no quantity", async () => {
+      const user = userEvent.setup();
+      const onRecalculatePrices = vi.fn();
+      vi.mocked(handleFaultCodeSelection).mockResolvedValueOnce([]);
+
+      renderWithContext(
+        {
+          name: "faultCodeDropdown",
+          label: "Fault Code",
+          type: "dropdown",
+          subtype: "diagnosticFaultCode",
+          isRequired: false,
+          fieldMapping: { originalName: "faultCodeDropdown" },
+        },
+        { actionCallbacks: { onRecalculatePrices } },
+      );
+
+      await user.click(screen.getByTestId("raw-option-select-faultCodeDropdown"));
+
+      await waitFor(() => expect(handleFaultCodeSelection).toHaveBeenCalled());
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(onRecalculatePrices).not.toHaveBeenCalled();
+    });
+
     it("disables warranty-ineligible job types when the tool is warranty-ineligible", () => {
       const field: Field = {
         name: "jobType",
