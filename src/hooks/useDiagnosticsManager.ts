@@ -387,7 +387,8 @@ function applyStatusAndTypeOverrides(
   const result = { ...baseValues };
   const statusField = areaFields.find((f) => f.subtype === "diagnosticMaterialStatus");
   if (statusField && item.status !== undefined) {
-    result[statusField.name] = item.status;
+    // Backend sends status null for rows it has not decided yet (e.g. new rows after validate).
+    result[statusField.name] = item.status ?? "PENDING";
   }
   const typeField = areaFields.find((f) => f.subtype === "diagnosticType");
   if (typeField && !faultCodeDropdown) {
