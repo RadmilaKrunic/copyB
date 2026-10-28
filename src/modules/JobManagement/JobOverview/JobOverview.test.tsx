@@ -220,7 +220,16 @@ const warrantyMutateMock = vi.hoisted(() => vi.fn());
 const addSpecialMaterialsAllowedMock = vi.hoisted(() => ({ value: false }));
 const warrantyCheckDataMock = vi.hoisted((): { value: unknown } => ({ value: null }));
 const diagnosticDataMock = vi.hoisted(
-  (): { value?: { customerAnswer?: string; actionType?: string; jobType?: string } } => ({
+  (): {
+    value?: {
+      customerAnswer?: string;
+      actionType?: string;
+      jobType?: string;
+      jobId?: string;
+      materials?: Array<{ id: string; price?: unknown }>;
+      priceSummaryDetailed?: unknown;
+    };
+  } => ({
     value: undefined,
   }),
 );
