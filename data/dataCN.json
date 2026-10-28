@@ -6381,7 +6381,7 @@
             {
               "name": "claimArchivedSpareParts",
               "label": "archivedSparePartMaterials",
-              "position": 3,
+              "position": 4,
               "fields": [
                 {
                   "name": "archivedPosition",

@@ -5,7 +5,10 @@ import { JobOverviewItem } from "../JobList/JobList.types";
 import {
   buildJobOverviewWarrantyCheckPayload,
   clearNullMaterialValues,
+  getTotalSummaryTypeValues,
   hasPriceSummary,
+  isPriceSummaryMissing,
+  withZeroPriceSummary,
   hasServerMaterialPrices,
   updateJobOverviewWarrantyTabs,
   getRecalculationPayloadErrors,
@@ -183,6 +186,52 @@ describe("hasPriceSummary", () => {
     expect(hasPriceSummary(withSummary({ total: {}, byJobType: [] }))).toBe(true);
     expect(hasPriceSummary(withSummary(undefined))).toBe(true);
     expect(hasPriceSummary(undefined)).toBe(true);
+  });
+});
+
+describe("withZeroPriceSummary", () => {
+  it("adds an all-zero summary when the response has none or null", () => {
+    [undefined, null].forEach((priceSummaryDetailed) => {
+      const result = withZeroPriceSummary(
+        { materials: [], priceSummaryDetailed },
+        "priceSummaryDetailed",
+      ) as { priceSummaryDetailed: { total: Record<string, number>; byJobType: unknown[] } };
+      expect(result.priceSummaryDetailed.total).toMatchObject({
+        suggestedNetPrice: 0,
+        netAmount: 0,
+        taxAmount: 0,
+        grossAmount: 0,
+        discount: 0,
+        discountAmount: 0,
+        totalAmount: 0,
+      });
+      expect(result.priceSummaryDetailed.byJobType).toEqual([]);
+    });
+  });
+
+  it("keeps a summary the response has (claim key)", () => {
+    const claim = { claimPriceSummaryDetailed: { total: { totalAmount: 5 }, byJobType: [] } };
+    expect(withZeroPriceSummary(claim, "claimPriceSummaryDetailed")).toBe(claim);
+  });
+
+  it("isPriceSummaryMissing is true only for null or undefined", () => {
+    expect(isPriceSummaryMissing(null)).toBe(true);
+    expect(isPriceSummaryMissing(undefined)).toBe(true);
+    expect(isPriceSummaryMissing({ total: {} })).toBe(false);
+  });
+});
+
+describe("getTotalSummaryTypeValues", () => {
+  it("selects totalSummary on every summary-type radio", () => {
+    const fields = [
+      { name: "summaryType", subtype: "diagnosticSummaryType" },
+      { name: "claimsSummaryType", subtype: "diagnosticSummaryType" },
+      { name: "summaryTotalTotalAmount", subtype: "diagnosticSummaryTotalAmount" },
+    ] as Field[];
+    expect(getTotalSummaryTypeValues(fields)).toEqual({
+      summaryType: "totalSummary",
+      claimsSummaryType: "totalSummary",
+    });
   });
 });
 

@@ -2219,7 +2219,11 @@ describe("JobOverview mutation callbacks", () => {
 
       await runOnSuccess("validateAndSave", { errorMessages: [{ key: "2004" }] });
 
-      expect(queryClientMock.setQueryData).not.toHaveBeenCalled();
+      // No diagnostic data: only the cached summary is zeroed.
+      expect(queryClientMock.setQueryData).toHaveBeenCalledWith(
+        ["diagnostic", "J-1"],
+        expect.any(Function),
+      );
       expect(collectMessages(setMessagesMock)).toContainEqual({
         text: "orderSimulationFailed",
         type: "error",
@@ -2227,12 +2231,29 @@ describe("JobOverview mutation callbacks", () => {
       });
     });
 
-    it("skips cache update when response carries no diagnostic data", async () => {
+    it("keeps cached rows and zeroes the summary when the response carries no diagnostic data", async () => {
       renderWithMessages();
 
       await runOnSuccess("validateAndSave", {});
 
-      expect(queryClientMock.setQueryData).not.toHaveBeenCalled();
+      expect(queryClientMock.setQueryData).toHaveBeenCalledTimes(1);
+      const [key, updater] = queryClientMock.setQueryData.mock.calls[0] as [
+        unknown,
+        (prev: unknown) => unknown,
+      ];
+      expect(key).toEqual(["diagnostic", "J-1"]);
+      expect(updater(undefined)).toBeUndefined();
+      const cached = {
+        materials: [{ id: "M-1" }],
+        priceSummaryDetailed: { total: { totalAmount: 9 }, byJobType: [{ jobType: "REPAIR" }] },
+      };
+      expect(updater(cached)).toEqual({
+        materials: [{ id: "M-1" }],
+        priceSummaryDetailed: {
+          total: expect.objectContaining({ totalAmount: 0, netAmount: 0, discount: 0 }),
+          byJobType: [],
+        },
+      });
       expect(markAllValidatedMock).toHaveBeenCalled();
     });
 
@@ -3881,10 +3902,14 @@ describe("JobOverview validate-and-save and recalculate responses", () => {
 
     await runOnSuccess("validateAndSave", diagnosticResponse);
 
-    expect(queryClientMock.setQueryData).toHaveBeenCalledWith(
-      ["diagnostic", "J-1"],
-      diagnosticResponse.diagnostic,
-    );
+    // The response has no priceSummaryDetailed: the summary is stored as all zeros.
+    expect(queryClientMock.setQueryData).toHaveBeenCalledWith(["diagnostic", "J-1"], {
+      ...diagnosticResponse.diagnostic,
+      priceSummaryDetailed: {
+        total: expect.objectContaining({ totalAmount: 0, grossAmount: 0, netAmount: 0 }),
+        byJobType: [],
+      },
+    });
     // Null ids/prices are cleared before the form sync, so the row cannot keep stale values.
     expect(convertAPIDataToFormValues).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -3910,6 +3935,33 @@ describe("JobOverview validate-and-save and recalculate responses", () => {
       duration: 3000,
     });
   });
+
+  it.each([
+    ["missing", undefined],
+    ["null", null],
+  ])(
+    "validateAndSave: summary %s shows the zero total row with totalSummary selected",
+    async (_label, priceSummaryDetailed) => {
+      allFieldsMock.value = [
+        { name: "summaryType", subtype: "diagnosticSummaryType", type: "radiogroup" } as Field,
+      ];
+      renderWithMessages();
+      setInitialFormValuesMock.mockClear();
+
+      await runOnSuccess("validateAndSave", {
+        diagnostic: { ...diagnosticResponse.diagnostic, priceSummaryDetailed },
+        errorMessages: [{ key: "PN-1" }],
+      });
+
+      const values = setInitialFormValuesMock.mock.calls.reduce(
+        (acc, [arg]) =>
+          typeof arg === "function" ? (arg as (p: object) => object)(acc) : { ...acc, ...arg },
+        {} as Record<string, unknown>,
+      );
+      expect(values.summaryType).toBe("totalSummary");
+      await waitFor(() => expect(diagnosticsCtx().hasPricesPopulated).toBe(true));
+    },
+  );
 
   it("validateAndSave: lists unavailable price keys and skips the success flow", async () => {
     const { setMessagesMock } = renderWithMessages();

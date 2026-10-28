@@ -22,6 +22,22 @@ export const getClaimSparePartsAreas = (tabs: Section[]): Area[] =>
       !a.name.includes("claimArchivedSpareParts"),
   );
 
+/**
+ * Claim areas in job diagnostics order: rows, summary, then archived rows. The UI config gives
+ * archived rows and the summary the same position, so archived rows move after every other area.
+ */
+export const orderClaimAreasLikeDiagnostics = (areas: Area[]): Area[] => {
+  const isArchived = (a: Area) => a.name.includes("claimArchivedSpareParts");
+  if (!areas.some(isArchived)) return areas;
+  const lastPosition = Math.max(
+    0,
+    ...areas.filter((a) => !isArchived(a)).map((a) => a.position ?? 0),
+  );
+  return areas.map((a) =>
+    isArchived(a) && (a.position ?? 0) <= lastPosition ? { ...a, position: lastPosition + 1 } : a,
+  );
+};
+
 /** Row index of the spare-parts area that holds `fieldName`, or -1. */
 export const findClaimRowIndex = (areas: Area[], fieldName: string): number =>
   areas.findIndex((a) => a.fields.some((f) => f.name === fieldName));
