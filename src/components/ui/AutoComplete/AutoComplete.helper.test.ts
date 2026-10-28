@@ -33,80 +33,77 @@ import type { AutoCompleteOption } from "./OptionItem/OptionItem";
 import type { Customer } from "../../../api/services/customers/customers.types";
 import type { BareToolOption } from "../../../api/services/orders/orders.types";
 
-const makeBareToolOption = (overrides: Partial<BareToolOption> = {}): BareToolOption =>
-  ({
-    applicationScope: "GLOBAL",
-    brand: "BOSCH",
-    businessSegment: "TOOLS",
-    businessSegmentId: "1",
-    country: "ZA",
-    description: "Spare part",
-    group: "SPARE_PARTS",
-    groupId: "SP",
-    partNumber: "SP-1",
-    tradeName: "Trade",
-    voltage: "230V",
-    ...overrides,
-  });
+const makeBareToolOption = (overrides: Partial<BareToolOption> = {}): BareToolOption => ({
+  applicationScope: "GLOBAL",
+  brand: "BOSCH",
+  businessSegment: "TOOLS",
+  businessSegmentId: "1",
+  country: "ZA",
+  description: "Spare part",
+  group: "SPARE_PARTS",
+  groupId: "SP",
+  partNumber: "SP-1",
+  tradeName: "Trade",
+  voltage: "230V",
+  ...overrides,
+});
 
-const makeCustomer = (overrides: Partial<Customer> = {}): Customer =>
-  ({
-    customerId: "C1",
-    customerTitle: "Mr",
-    ascId: "ASC",
-    customerType: "PRIVATE",
-    firstName: "John",
-    lastName: "Doe",
-    primaryEmail: "john@example.com",
-    phoneNumber: "1",
-    mobileNumber: "2",
-    companyName: "Acme",
-    dealershipName: "Dealer",
-    typeOfIndustry: "Tools",
-    boschCustomerNumber: "B1",
-    vatNumber: "V1",
-    communicationMedium: "EMAIL",
-    deliveryAddress: {
-      street: "s",
-      houseNumber: "1",
-      additionalDetails: "",
-      neighborhood: "",
-      district: "",
-      city: "c",
-      stateProvinceRegion: "sp",
-      postalCode: "1",
-      countryCode: "ZA",
-    },
-    billingAddress: {
-      street: "s",
-      houseNumber: "1",
-      additionalDetails: "",
-      neighborhood: "",
-      district: "",
-      city: "c",
-      stateProvinceRegion: "sp",
-      postalCode: "1",
-      countryCode: "ZA",
-    },
-    useBillingAddressForDelivery: true,
-    ...overrides,
-  });
+const makeCustomer = (overrides: Partial<Customer> = {}): Customer => ({
+  customerId: "C1",
+  customerTitle: "Mr",
+  ascId: "ASC",
+  customerType: "PRIVATE",
+  firstName: "John",
+  lastName: "Doe",
+  primaryEmail: "john@example.com",
+  phoneNumber: "1",
+  mobileNumber: "2",
+  companyName: "Acme",
+  dealershipName: "Dealer",
+  typeOfIndustry: "Tools",
+  boschCustomerNumber: "B1",
+  vatNumber: "V1",
+  communicationMedium: "EMAIL",
+  deliveryAddress: {
+    street: "s",
+    houseNumber: "1",
+    additionalDetails: "",
+    neighborhood: "",
+    district: "",
+    city: "c",
+    stateProvinceRegion: "sp",
+    postalCode: "1",
+    countryCode: "ZA",
+  },
+  billingAddress: {
+    street: "s",
+    houseNumber: "1",
+    additionalDetails: "",
+    neighborhood: "",
+    district: "",
+    city: "c",
+    stateProvinceRegion: "sp",
+    postalCode: "1",
+    countryCode: "ZA",
+  },
+  useBillingAddressForDelivery: true,
+  ...overrides,
+});
 
-const makeField = (name: string, overrides: Partial<Field> = {}): Field =>
-  ({
-    name,
-    label: name,
-    type: "autocomplete",
-    isDisabled: false,
-    fieldMapping: {
-      originalName: name,
-      map: name,
-      parentMap: [],
-      prefixes: [],
-      nameStartsWith: "",
-    },
-    ...overrides,
-  });
+const makeField = (name: string, overrides: Partial<Field> = {}): Field => ({
+  name,
+  label: name,
+  type: "autocomplete",
+  isDisabled: false,
+  fieldMapping: {
+    originalName: name,
+    map: name,
+    parentMap: [],
+    prefixes: [],
+    nameStartsWith: "",
+  },
+  ...overrides,
+});
 
 describe("getValueByPath", () => {
   it("returns top-level value when map key exists directly on obj", () => {

@@ -388,7 +388,7 @@ function applyStatusAndTypeOverrides(
   const statusField = areaFields.find((f) => f.subtype === "diagnosticMaterialStatus");
   if (statusField) {
     // undefined = keep the row's current status; null = backend has not decided yet (new rows).
-    const status = item.status === undefined ? result[statusField.name] : item.status;
+    const status = item.status ?? result[statusField.name];
     result[statusField.name] = status || "PENDING";
   }
   const typeField = areaFields.find((f) => f.subtype === "diagnosticType");
