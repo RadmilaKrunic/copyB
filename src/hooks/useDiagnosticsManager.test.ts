@@ -834,6 +834,11 @@ describe("buildMaterialsRowValues (LA quantity sync)", () => {
     it("keeps the form status when the item has no status", () => {
       expect(build(undefined, "REVISED")["row0_status"]).toBe("REVISED");
     });
+
+    it("falls back to PENDING when the item has no status and the form status is empty", () => {
+      expect(build(undefined, null)["row0_status"]).toBe("PENDING");
+      expect(build(undefined, "")["row0_status"]).toBe("PENDING");
+    });
   });
 
   it("backfills blank description from API when reusing existing row values", () => {
