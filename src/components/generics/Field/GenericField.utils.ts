@@ -220,6 +220,58 @@ export const handleFaultCodeSelection = async (
 };
 
 /**
+ * Form fields that feed the default-parameter request and are changed through a plain dropdown.
+ * actionType / jobType changes rebuild the job's rows (useDiagnosticsManager Effect 2), which
+ * loads the API quantities itself; the fault code has its own handler (handleFaultCodeSelection).
+ */
+export const DEFAULT_PARAMETER_DROPDOWN_FIELDS = new Set(["exchangeReason"]);
+
+/**
+ * Re-reads the default-parameter API quantities after one of its inputs changed (e.g. the
+ * exchange reason) and writes them onto the protected rows (LA, FR, PC) already shown.
+ * Rows the API gives no quantity for keep theirs. Returns the quantity fields whose value
+ * actually changed, so the caller can run their field action (recalculate) as for a user edit.
+ */
+export const refreshProtectedRowQuantities = async ({
+  allFields,
+  formValues,
+  setFieldValue,
+  resolveDefaultQuantities,
+}: {
+  allFields: Field[] | null;
+  formValues: Record<string, unknown>;
+  setFieldValue: (field: string, value: unknown) => Promise<void | FormikErrors<unknown>>;
+  resolveDefaultQuantities?: ResolveDefaultQuantities;
+}): Promise<ChangedQuantityField[]> => {
+  const changedQuantities: ChangedQuantityField[] = [];
+  if (!allFields || !resolveDefaultQuantities) return changedQuantities;
+
+  const protectedPositions = allFields.filter(
+    (f) =>
+      f.subtype === "diagnosticPosition" && isProtectedPosition(toFieldString(formValues[f.name])),
+  );
+  if (protectedPositions.length === 0) return changedQuantities;
+
+  const serverQuantities = await resolveDefaultQuantities(formValues);
+  if (!serverQuantities) return changedQuantities;
+
+  for (const positionField of protectedPositions) {
+    const position = toFieldString(formValues[positionField.name]).toUpperCase();
+    const quantity = serverQuantities[position];
+    const qtyField = allFields.find(
+      (f) =>
+        f.subtype === "diagnosticQuantity" &&
+        f.fieldMapping?.nameStartsWith === positionField.fieldMapping?.nameStartsWith,
+    );
+    if (quantity === undefined || !qtyField) continue;
+    if (Number(formValues[qtyField.name]) === Number(quantity)) continue;
+    await setFieldValue(qtyField.name, quantity);
+    changedQuantities.push({ field: qtyField, value: quantity });
+  }
+  return changedQuantities;
+};
+
+/**
  * True when the rule's `maxCount` for this position is already used up by the other rows
  * of the same list. The claim page also holds the job's read-only rows, so rows are counted
  * per list prefix (`...#N_` -> `...#`), never across the whole form.

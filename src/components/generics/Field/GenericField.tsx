@@ -21,6 +21,9 @@ import {
   handleFaultCodeSelection,
   resolveIsRequired,
   applyPositionRules,
+  refreshProtectedRowQuantities,
+  DEFAULT_PARAMETER_DROPDOWN_FIELDS,
+  type ChangedQuantityField,
 } from "./GenericField.utils";
 import { useContext, useState } from "react";
 import useFieldVisibilityReset from "./useFieldVisibilityReset";
@@ -403,6 +406,21 @@ function renderDatepickerField(ctx: FieldRenderCtx): ReactElement {
   );
 }
 
+/**
+ * Runs the action (recalculate) of protected-row quantities that were set programmatically,
+ * as for a user edit (a programmatic set fires no blur), once Formik has the new values.
+ */
+async function runChangedQuantityActions(
+  changedQuantities: ChangedQuantityField[] | undefined,
+  actionCallbacks: FieldRenderCtx["actionCallbacks"],
+): Promise<void> {
+  if (!changedQuantities?.length) return;
+  await waitForFormCommit();
+  for (const { field: qtyField, value: qty } of changedQuantities) {
+    invokeFieldAction(actionCallbacks, "onBlur", qtyField.onBlur, qtyField.name, qty);
+  }
+}
+
 function renderDropdownField(ctx: FieldRenderCtx): ReactElement {
   const {
     field,
@@ -473,6 +491,19 @@ function renderDropdownField(ctx: FieldRenderCtx): ReactElement {
           if (typeof value === "string")
             updateDependentFields(field, formikContext, allFields, t, value);
           handleChange(name, value);
+          // An input of the default-parameter request changed: refresh the protected rows'
+          // quantities (LA, FR, PC) already shown, then recalculate the ones that changed.
+          if (DEFAULT_PARAMETER_DROPDOWN_FIELDS.has(name) && resolveDefaultQuantities) {
+            void (async () => {
+              const changedQuantities = await refreshProtectedRowQuantities({
+                allFields,
+                formValues: { ...values, [name]: value },
+                setFieldValue,
+                resolveDefaultQuantities,
+              });
+              await runChangedQuantityActions(changedQuantities, actionCallbacks);
+            })();
+          }
         }}
         onRawOptionSelect={
           subtype === "diagnosticFaultCode"
@@ -486,19 +517,7 @@ function renderDropdownField(ctx: FieldRenderCtx): ReactElement {
                     allowedPositions,
                     resolveDefaultQuantities,
                   );
-                  if (!changedQuantities?.length) return;
-                  // The quantity was set without a blur: run its action (recalculate) as for a
-                  // user edit, once Formik has the new values.
-                  await waitForFormCommit();
-                  for (const { field: qtyField, value: qty } of changedQuantities) {
-                    invokeFieldAction(
-                      actionCallbacks,
-                      "onBlur",
-                      qtyField.onBlur,
-                      qtyField.name,
-                      qty,
-                    );
-                  }
+                  await runChangedQuantityActions(changedQuantities, actionCallbacks);
                 })();
               }
             : undefined
