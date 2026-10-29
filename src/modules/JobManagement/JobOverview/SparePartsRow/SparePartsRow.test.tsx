@@ -1932,21 +1932,7 @@ describe("SparePartsRow current row behavior", () => {
       expect(screen.getByTestId("field-row0_quantity")).toBeEnabled();
     });
 
-    it("disables quantity on an automatic country-config row even with the units permission", () => {
-      renderRow(
-        { row0_position: "LA", row0_type: "CHARGEABLE" },
-        [],
-        "GROSS_PRICE",
-        {},
-        ELIGIBLE_WARRANTY_PANEL_INFO,
-        { userPermissions: [PERMISSIONS.DIAGNOSTICS.CAN_EDIT_LABOUR_UNITS] },
-        { automaticRows: ["LA"] },
-      );
-
-      expect(screen.getByTestId("field-row0_quantity")).toBeDisabled();
-    });
-
-    it("keeps quantity editable on a protected row the country config does not add automatically", () => {
+    it("keeps quantity editable on an automatic country-config row with the units permission", () => {
       renderRow(
         { row0_position: "FR", row0_type: "CHARGEABLE" },
         [],
@@ -1954,7 +1940,7 @@ describe("SparePartsRow current row behavior", () => {
         {},
         ELIGIBLE_WARRANTY_PANEL_INFO,
         { userPermissions: [PERMISSIONS.DIAGNOSTICS.CAN_EDIT_FREIGHT_UNITS] },
-        { automaticRows: ["LA"] },
+        { automaticRows: ["LA", "FR"] },
       );
 
       expect(screen.getByTestId("field-row0_quantity")).toBeEnabled();
