@@ -163,24 +163,31 @@ export const clearNullMaterialValues = (job: JobOverviewItem): JobOverviewItem =
 export const hasPriceSummary = (diagnostic?: JobDiagnostic): boolean =>
   (diagnostic as { priceSummaryDetailed?: unknown } | undefined)?.priceSummaryDetailed !== null;
 
-const hasNonZeroPrice = (price: unknown): boolean => {
+const PRICE_AMOUNT_KEYS = ["unitPrice", "netAmount", "grossAmount", "totalAmount"];
+
+const isPriceAmount = (value: unknown): boolean =>
+  (typeof value === "number" && Number.isFinite(value)) ||
+  (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value)));
+
+/** A priced material has at least one amount from the server. 0 counts: free rows are priced. */
+const hasServerPrice = (price: unknown): boolean => {
   if (!price || typeof price !== "object") return false;
   const p = price as Record<string, unknown>;
-  return ["unitPrice", "netAmount", "grossAmount", "totalAmount"].some(
-    (key) => Number(p[key]) !== 0 && Number.isFinite(Number(p[key])),
-  );
+  return PRICE_AMOUNT_KEYS.some((key) => isPriceAmount(p[key]));
 };
 
 /**
- * True when the latest server response has a material with a price. Read from the response,
+ * True when the latest server response has a priced material. Read from the response,
  * not from the manager's materials[]: that list syncs from the API only once, so after a failed
  * first validation (null prices) it would keep zeros and hide the summary for good.
+ * Amounts of 0 count as priced (e.g. a warranty accessory exchange where every row is free),
+ * only null / missing prices mean the server did not price the rows.
  * Undefined when the response has no materials (caller falls back to its own rows).
  */
 export const hasServerMaterialPrices = (diagnostic?: JobDiagnostic): boolean | undefined => {
   const materials = diagnostic?.materials;
   if (!Array.isArray(materials) || materials.length === 0) return undefined;
-  return materials.some((m) => hasNonZeroPrice(m?.price));
+  return materials.some((m) => hasServerPrice(m?.price));
 };
 
 /** Root of the diagnostic payload in `mapValuesToAPI` output; recalculation sends only this part. */
