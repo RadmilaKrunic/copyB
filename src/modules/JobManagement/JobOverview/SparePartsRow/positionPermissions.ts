@@ -50,16 +50,3 @@ export const POSITION_PERMISSIONS = {
 /** Permission needed to edit a row's quantity; null = no position-specific rule (editable). */
 export const getQuantityEditPermission = (position: string): string | null =>
   POSITION_PERMISSIONS[position as keyof typeof POSITION_PERMISSIONS]?.canEditUnits ?? null;
-
-/**
- * Rows the country config adds automatically (matched rule's `automaticRows`) get their
- * quantity from the backend / config, so the user cannot edit it.
- */
-export const isAutomaticRowPosition = (
-  position: string,
-  automaticRows: readonly string[] | undefined,
-): boolean => {
-  const normalized = (position ?? "").toUpperCase();
-  if (!normalized) return false;
-  return (automaticRows ?? []).some((row) => row.toUpperCase() === normalized);
-};
