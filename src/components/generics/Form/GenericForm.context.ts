@@ -50,6 +50,11 @@ export interface GenericFormContextType {
   onAreaValueChange?: (areaName: string, formValues?: Record<string, unknown>) => void;
   autocompleteValidation?: React.RefObject<Record<string, boolean>>;
   sparePartNotBelongsToTool?: React.RefObject<Record<string, boolean>>;
+  /**
+   * Shown disabled state per field name. GenericField writes it; the form's validator reads it
+   * so a disabled field gets no pattern / length / min-max errors.
+   */
+  disabledFields?: React.RefObject<Record<string, boolean>>;
   warrantyPanelInfo?: WarrantyPanelInfo;
   isRepairAnswerLocked?: boolean;
   /** Default quantity of protected spare-parts rows from the backend (job & claim). */
@@ -72,6 +77,7 @@ export const GenericFormContext = createContext<GenericFormContextType>({
   onAreaValueChange: undefined,
   autocompleteValidation: undefined,
   sparePartNotBelongsToTool: undefined,
+  disabledFields: undefined,
   warrantyPanelInfo: undefined,
   isRepairAnswerLocked: undefined,
   resolveDefaultQuantities: undefined,

@@ -470,6 +470,7 @@ describe("GenericField", () => {
     onDeleteEnd: undefined as (() => void) | undefined,
     autocompleteValidation: undefined as { current: Record<string, boolean> } | undefined,
     sparePartNotBelongsToTool: undefined as { current: Record<string, boolean> } | undefined,
+    disabledFields: undefined as { current: Record<string, boolean> } | undefined,
     radioSourceCallbacks: undefined as Record<string, RadioSourceCallback> | undefined,
     warrantyPanelInfo: undefined as
       | { isIneligible?: boolean; hasPurchaseDate?: boolean; supportedWarrantyType: string }
@@ -528,6 +529,34 @@ describe("GenericField", () => {
     renderWithContext(field);
 
     expect(screen.getByTestId("text-field-testField")).toBeDisabled();
+  });
+
+  it("registers its shown disabled state for the form validator", () => {
+    mockUseDiagnosticsContext.mockReturnValue({
+      allowedPositions: [],
+      jobStatus: "IN_DIAGNOSTICS",
+    });
+    const disabledFields = { current: {} as Record<string, boolean> };
+    const statusDisabledField: Field = {
+      name: "testField",
+      label: "Test Field",
+      type: "text",
+      isRequired: false,
+      disabledForStatuses: ["IN_DIAGNOSTICS"],
+      fieldMapping: { originalName: "testField" },
+    };
+    const enabledField: Field = {
+      name: "otherField",
+      label: "Other Field",
+      type: "text",
+      isRequired: false,
+      fieldMapping: { originalName: "otherField" },
+    };
+
+    renderWithContext(statusDisabledField, { disabledFields });
+    renderWithContext(enabledField, { disabledFields });
+
+    expect(disabledFields.current).toEqual({ testField: true, otherField: false });
   });
 
   describe("Text Field", () => {

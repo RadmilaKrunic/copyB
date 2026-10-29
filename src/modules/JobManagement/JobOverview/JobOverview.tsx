@@ -955,6 +955,7 @@ export default function JobOverview() {
   const hashTabAppliedRef = useRef(false);
   const autocompleteValidationRef = useRef<Record<string, boolean>>({});
   const sparePartNotBelongsToToolRef = useRef<Record<string, boolean>>({});
+  const disabledFieldsRef = useRef<Record<string, boolean>>({});
 
   const { validate, validateByAction, startValidation, stopValidation, setCurrentAction } =
     useFormValidation({
@@ -962,6 +963,7 @@ export default function JobOverview() {
       mandatoryFieldsMap: mandatoryFields,
       autocompleteValidationRef,
       sparePartNotBelongsToToolRef,
+      disabledFieldsRef,
     });
 
   const visibleTabs = useMemo(() => {
@@ -2219,6 +2221,7 @@ export default function JobOverview() {
       onDeleteEnd: () => setIsDeletingFile(false),
       autocompleteValidation: autocompleteValidationRef,
       sparePartNotBelongsToTool: sparePartNotBelongsToToolRef,
+      disabledFields: disabledFieldsRef,
       warrantyPanelInfo,
       isRepairAnswerLocked,
       resolveDefaultQuantities,

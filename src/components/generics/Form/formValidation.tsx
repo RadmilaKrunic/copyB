@@ -252,6 +252,25 @@ function validatePattern(
   }
 }
 
+/** minValue 0 and maxValue 0 together mean the field has no min/max limit. */
+const hasValueRange = (field: Field): boolean => Boolean(field.minValue || field.maxValue);
+
+/**
+ * A field the user cannot edit gets no value-format errors (pattern, length, min/max): the user
+ * could not fix them. The shown disabled state (registered by GenericField, with row and summary
+ * overrides) wins; a field not rendered yet falls back to the UI config. Without a registry the
+ * form keeps validating every field.
+ */
+export const isFieldDisabledForValidation = (
+  field: Field,
+  disabledFieldsRef: RefObject<Record<string, boolean>> | undefined,
+): boolean => {
+  if (!disabledFieldsRef) return false;
+  const shownDisabled = disabledFieldsRef.current;
+  if (field.name in shownDisabled) return shownDisabled[field.name];
+  return Boolean(field.isDisabled || field.alwaysDisabled);
+};
+
 function validateLengthAndRange(
   field: Field,
   errors: Record<string, string>,
@@ -268,6 +287,7 @@ function validateLengthAndRange(
     errors[fieldName] = `${t("valueIsShorterThanMinLength")} ${field.minLength}`;
     return;
   }
+  if (!hasValueRange(field)) return;
   if (field.minValue !== undefined && typeof value === "number" && value < field.minValue) {
     errors[fieldName] = `${t("valueIsLessThanMinValue")} ${field.minValue}`;
     return;
@@ -536,6 +556,7 @@ interface ValidateSingleFieldParams {
   t: (key: string) => string;
   autocompleteValidationRef?: RefObject<Record<string, boolean>>;
   sparePartNotBelongsToToolRef?: RefObject<Record<string, boolean>>;
+  disabledFieldsRef?: RefObject<Record<string, boolean>>;
 }
 
 function validateSingleField({
@@ -549,6 +570,7 @@ function validateSingleField({
   t,
   autocompleteValidationRef,
   sparePartNotBelongsToToolRef,
+  disabledFieldsRef,
 }: ValidateSingleFieldParams): void {
   const fieldName = field.name;
   const originalName = field.fieldMapping?.originalName;
@@ -615,8 +637,10 @@ function validateSingleField({
     return;
   }
 
-  validatePattern(field, errors, fieldName, value, hasValue, t);
-  validateLengthAndRange(field, errors, fieldName, value, hasValue, t);
+  if (!isFieldDisabledForValidation(field, disabledFieldsRef)) {
+    validatePattern(field, errors, fieldName, value, hasValue, t);
+    validateLengthAndRange(field, errors, fieldName, value, hasValue, t);
+  }
   validateManufacturedBeforePurchaseDate({
     field,
     errors,
@@ -672,6 +696,7 @@ export const validateByAction = ({
   t,
   autocompleteValidationRef,
   sparePartNotBelongsToToolRef,
+  disabledFieldsRef,
 }: {
   errors: Record<string, string>;
   mandatoryFields: string[];
@@ -682,6 +707,7 @@ export const validateByAction = ({
   t: (key: string) => string;
   autocompleteValidationRef?: RefObject<Record<string, boolean>>;
   sparePartNotBelongsToToolRef?: RefObject<Record<string, boolean>>;
+  disabledFieldsRef?: RefObject<Record<string, boolean>>;
 }): ValidationErrors => {
   fields.forEach((field) => {
     validateSingleField({
@@ -695,6 +721,7 @@ export const validateByAction = ({
       t,
       autocompleteValidationRef,
       sparePartNotBelongsToToolRef,
+      disabledFieldsRef,
     });
   });
   return errors;
@@ -709,6 +736,7 @@ export const useValidator = () => {
     touchedFields = {},
     autocompleteValidationRef,
     sparePartNotBelongsToToolRef,
+    disabledFieldsRef,
   }: {
     fields: Field[];
     values: Record<string, unknown>;
@@ -717,6 +745,7 @@ export const useValidator = () => {
     touchedFields?: Record<string, boolean>;
     autocompleteValidationRef?: RefObject<Record<string, boolean>>;
     sparePartNotBelongsToToolRef?: RefObject<Record<string, boolean>>;
+    disabledFieldsRef?: RefObject<Record<string, boolean>>;
   }): ValidationErrors => {
     const errors: ValidationErrors = {};
 
@@ -730,6 +759,7 @@ export const useValidator = () => {
       t,
       autocompleteValidationRef,
       sparePartNotBelongsToToolRef,
+      disabledFieldsRef,
     });
 
     return errors;
