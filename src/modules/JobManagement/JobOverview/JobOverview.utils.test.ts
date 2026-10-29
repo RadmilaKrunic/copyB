@@ -15,6 +15,8 @@ import {
   isRecalculationValueEmpty,
   mergeRecalculationChanges,
   buildRecalculationChange,
+  dropRejectedRecalculationChange,
+  isRecalculationValueRejected,
 } from "./JobOverview.utils";
 
 vi.mock("../CreateJob/CreateJob.warranty.utils", () => ({
@@ -339,5 +341,59 @@ describe("buildRecalculationChange", () => {
       value: 5,
       scope: { positions: ["SP", "PN", "AC"], jobTypes: ["CHARGEABLE"] },
     });
+  });
+});
+
+describe("isRecalculationValueRejected", () => {
+  it("is true when the response returns another number than was sent", () => {
+    expect(isRecalculationValueRejected("99999", 1250)).toBe(true);
+    expect(isRecalculationValueRejected(3, "2")).toBe(true);
+  });
+
+  it("is false when the response keeps the sent number, rounding to cents included", () => {
+    expect(isRecalculationValueRejected("1250", 1250)).toBe(false);
+    expect(isRecalculationValueRejected("10.00", 10)).toBe(false);
+    expect(isRecalculationValueRejected("12.345", 12.35)).toBe(false);
+    expect(isRecalculationValueRejected(0, "0")).toBe(false);
+  });
+
+  it("is false for non-numeric or missing values", () => {
+    expect(isRecalculationValueRejected("LA", "PN")).toBe(false);
+    expect(isRecalculationValueRejected("5", undefined)).toBe(false);
+    expect(isRecalculationValueRejected("5", "")).toBe(false);
+    expect(isRecalculationValueRejected("", 5)).toBe(false);
+  });
+});
+
+describe("dropRejectedRecalculationChange", () => {
+  const totalChange = buildRecalculationChange("summaryTotalAmountMaterial", "", "99999");
+  const quantityChange = buildRecalculationChange("quantity", "L1", "2");
+  const pending = [quantityChange, totalChange];
+  const sentTotal = { fieldName: "summaryTotalAmountMaterial", change: totalChange };
+
+  it("removes the sent change when the response returns the previous value", () => {
+    expect(
+      dropRejectedRecalculationChange(pending, sentTotal, { summaryTotalAmountMaterial: 1250 }),
+    ).toEqual([quantityChange]);
+  });
+
+  it("keeps the changes when the response accepts the sent value", () => {
+    expect(
+      dropRejectedRecalculationChange(pending, sentTotal, { summaryTotalAmountMaterial: 99999 }),
+    ).toBe(pending);
+  });
+
+  it("keeps the changes when nothing was sent or the field is not in the response", () => {
+    expect(dropRejectedRecalculationChange(pending, null, {})).toBe(pending);
+    expect(dropRejectedRecalculationChange(pending, sentTotal, {})).toBe(pending);
+  });
+
+  it("keeps a later change of the same field that replaced the sent one", () => {
+    const laterTotal = buildRecalculationChange("summaryTotalAmountMaterial", "", "1300");
+    expect(
+      dropRejectedRecalculationChange([quantityChange, laterTotal], sentTotal, {
+        summaryTotalAmountMaterial: 1250,
+      }),
+    ).toEqual([quantityChange, laterTotal]);
   });
 });

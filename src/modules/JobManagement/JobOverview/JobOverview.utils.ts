@@ -269,3 +269,47 @@ export const mergeRecalculationChanges = (
     const key = getRecalculationChangeKey(change);
     return [...acc.filter((c) => getRecalculationChangeKey(c) !== key), change];
   }, previous);
+
+/** The field and change last sent to recalculate, checked against its response. */
+export interface SentRecalculationChange {
+  fieldName: string;
+  change: Record<string, unknown>;
+}
+
+/** Price values compare in cents, so a backend rounding (12.345 -> 12.35) is not a rejection. */
+const toRecalculationCents = (value: unknown): number | null => {
+  if (typeof value !== "number" && typeof value !== "string") return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.round(numeric * 100) : null;
+};
+
+/**
+ * True when recalculate came back with another number for the edited field than was sent:
+ * the backend rejected the edit (e.g. a total above the allowed amount) and kept its own value.
+ * Non-numeric or missing values are never treated as rejected.
+ */
+export const isRecalculationValueRejected = (
+  sentValue: unknown,
+  responseValue: unknown,
+): boolean => {
+  const sent = toRecalculationCents(sentValue);
+  const returned = toRecalculationCents(responseValue);
+  return sent !== null && returned !== null && sent !== returned;
+};
+
+/**
+ * Removes the sent change from the changes kept for validate-and-save when the recalculate
+ * response rejected it, so validate does not send the rejected value again.
+ * `responseValues` are the response mapped to form values (field name -> value).
+ */
+export const dropRejectedRecalculationChange = (
+  pending: Record<string, unknown>[],
+  sent: SentRecalculationChange | null,
+  responseValues: Record<string, unknown>,
+): Record<string, unknown>[] => {
+  if (!sent || !isRecalculationValueRejected(sent.change.value, responseValues[sent.fieldName])) {
+    return pending;
+  }
+  return pending.filter((change) => change !== sent.change);
+};
