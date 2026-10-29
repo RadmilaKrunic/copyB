@@ -49,7 +49,8 @@ export interface MaterialItem {
   taxAmount: number;
   totalAmount: number;
   suggestedNetPrice?: number;
-  status?: string;
+  /** null = backend has not decided the row status yet (shown as PENDING). */
+  status?: string | null;
   materialId?: string;
   origin?: "specialMaterial" | "explosionDrawing";
   isValidated?: boolean;
