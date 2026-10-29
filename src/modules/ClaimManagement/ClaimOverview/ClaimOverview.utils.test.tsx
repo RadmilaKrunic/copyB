@@ -9,8 +9,12 @@ import {
   hasRecalculationErrors,
   makeFieldGetter,
   orderClaimAreasLikeDiagnostics,
+  withClaimRecalculateActions,
   withClaimValidateMandatoryFields,
 } from "./ClaimOverview.utils";
+import type GenericForm from "components/generics/Form/GenericForm.types";
+import type Area from "components/generics/Area/GenericArea.types";
+import type Field from "components/generics/Field/GenericField.types";
 
 describe("ClaimOverview utils", () => {
   it("makeFieldGetter returns form value by subtype mapping", () => {
@@ -151,8 +155,97 @@ describe("withClaimValidateMandatoryFields", () => {
     ).toEqual({ validate: { fieldList: rowFields }, savechanges: note });
   });
 
-  it("keeps a non-empty UI config list", () => {
-    const config = { validate: { fieldList: ["sparePartNumber"] } };
+  it("adds the claim row fields a non-empty UI config list misses", () => {
+    const config = { validate: { fieldList: ["sparePartNumber", "note"] } };
+    expect(withClaimValidateMandatoryFields(config)).toEqual({
+      validate: { fieldList: ["sparePartNumber", "note", "position", "type", "quantity"] },
+    });
+  });
+
+  it("keeps a UI config list that already has every claim row field", () => {
+    const config = { validate: { fieldList: ["Position", "sparePartNumber", "type", "quantity"] } };
     expect(withClaimValidateMandatoryFields(config)).toBe(config);
+  });
+});
+
+describe("withClaimRecalculateActions", () => {
+  const field = (name: string, actions: Partial<Field> = {}): Field => ({
+    name,
+    label: name,
+    type: "text",
+    ...actions,
+  });
+  const area = (name: string, fields: Field[]): Area => ({
+    name,
+    label: "",
+    position: 1,
+    fields,
+    dependFieldCondition: "",
+    dependentFields: [],
+    actions: null,
+    isSubArea: false,
+  });
+  const form = (areas: Area[]): GenericForm => ({
+    name: "ClaimOverview",
+    formGroup: "",
+    position: 1,
+    actions: null,
+    sections: [
+      {
+        name: "claims",
+        isHidden: false,
+        label: "",
+        dependFieldCondition: "",
+        position: 1,
+        areas,
+        actions: null,
+        isSubSection: false,
+        isAccordion: false,
+        isTab: true,
+      },
+    ],
+  });
+  const fieldsOf = (result: GenericForm | null, areaName: string): Field[] =>
+    result?.sections[0].areas.find((a) => a.name === areaName)?.fields ?? [];
+
+  it("adds the job row recalculate actions to claim row fields without actions", () => {
+    const result = withClaimRecalculateActions(
+      form([
+        area("claimSpareParts", [
+          field("type"),
+          field("position"),
+          field("quantity"),
+          field("sparePartNumber"),
+          field("description"),
+        ]),
+      ]),
+    );
+    const [type, position, quantity, sparePartNumber, description] = fieldsOf(
+      result,
+      "claimSpareParts",
+    );
+    expect(type.onValueChange).toBe("onRecalculatePrices");
+    expect(position.onValueChange).toBe("onRecalculatePrices");
+    expect(quantity.onBlur).toBe("onRecalculatePrices");
+    expect(sparePartNumber.onBlur).toBe("onRecalculatePrices");
+    expect(description.onBlur).toBeUndefined();
+    expect(description.onValueChange).toBeUndefined();
+  });
+
+  it("keeps configured actions and leaves other areas alone", () => {
+    const result = withClaimRecalculateActions(
+      form([
+        area("claimSpareParts", [field("quantity", { onValueChange: "custom" })]),
+        area("claimArchivedSpareParts", [field("type")]),
+      ]),
+    );
+    const [quantity] = fieldsOf(result, "claimSpareParts");
+    expect(quantity.onValueChange).toBe("custom");
+    expect(quantity.onBlur).toBeUndefined();
+    expect(fieldsOf(result, "claimArchivedSpareParts")[0].onValueChange).toBeUndefined();
+  });
+
+  it("returns null without a form", () => {
+    expect(withClaimRecalculateActions(null)).toBeNull();
   });
 });

@@ -15,6 +15,7 @@ import { setDuplicatedArea, mapFieldToFieldMapping } from "components/generics/u
 import {
   type MaterialItem,
   type ImportedMaterial,
+  ARCHIVED_STATUS,
   buildRowValues,
   buildMaterialsRowValues,
   getPositionAutofill,
@@ -65,6 +66,10 @@ const normalizeMaterialOrders = (items: MaterialItem[]): MaterialItem[] =>
 
 const sortMaterialsByOrder = (items: MaterialItem[]): MaterialItem[] =>
   [...normalizeMaterialOrders(items)].sort((a, b) => getOrderValue(a, 0) - getOrderValue(b, 0));
+
+/** An active claim row is never archived: a row back from the archive is pending again. */
+const toActiveRowStatus = (item: MaterialItem): MaterialItem =>
+  item.status === ARCHIVED_STATUS ? { ...item, status: "PENDING" } : item;
 
 const materialItemToMaterial = (item: MaterialItem): Material => ({
   // Keep the API fields this row came from (the explicit fields below still win).
@@ -329,7 +334,7 @@ export const useClaimMaterialsManager = ({
   discountBaseValueRef.current = discountBaseValue;
   const forceRebuildRef = useRef(false);
   const archivedForceRebuildRef = useRef(false);
-  /** Set by onRestoreRow; Effect 2 bumps rowsChangedVersion once the restored row is built. */
+  /** Set by onDeleteRow / onRestoreRow; Effect 2 bumps rowsChangedVersion once rows are built. */
   const notifyAfterRowsRebuildRef = useRef(false);
   const [rowsChangedVersion, setRowsChangedVersion] = useState(0);
   // Tracks the last claimMaterials reference we synced into `materials` state.
@@ -372,7 +377,7 @@ export const useClaimMaterialsManager = ({
     if (hasSyncedRef.current && lastSyncedMaterialsRef.current === claimMaterials) return;
     hasSyncedRef.current = true;
     lastSyncedMaterialsRef.current = claimMaterials;
-    const items = claimMaterials.map((m) => claimMaterialToMaterialItem(m));
+    const items = claimMaterials.map((m) => toActiveRowStatus(claimMaterialToMaterialItem(m)));
     forceRebuildRef.current = true;
     setMaterials(sortMaterialsByOrder(items));
     setArePricesValidated(claimMaterials.every((m) => m.isValidated === true));
@@ -733,8 +738,16 @@ export const useClaimMaterialsManager = ({
       const materialItem = materialsRef.current[areaIndex];
       if (materialItem?.sourceMaterial) {
         archivedForceRebuildRef.current = true;
-        setArchivedMaterials((prev) => [...prev, materialItemToMaterial(materialItem)]);
+        setArchivedMaterials((prev) => [
+          ...prev,
+          { ...materialItemToMaterial(materialItem), status: ARCHIVED_STATUS },
+        ]);
       }
+      // Re-price the remaining rows through recalculate once they are rebuilt (as job
+      // diagnostics do). A new row without a part number never had a price.
+      const partNumberField = areaToRemove.fields.find((f) => f.subtype === "diagnosticPartNumber");
+      const formPartNumber = partNumberField ? formValuesRef.current[partNumberField.name] : "";
+      if (formPartNumber || materialItem?.partNumber) notifyAfterRowsRebuildRef.current = true;
 
       const updatedValues = { ...formValuesRef.current };
       fieldNamesToRemove.forEach((name) => {
@@ -751,7 +764,6 @@ export const useClaimMaterialsManager = ({
       setTabs(currentTabs);
       setMaterials((prev) => normalizeMaterialOrders(prev.filter((_, i) => i !== areaIndex)));
       setArePricesValidated(false);
-      // A claim row delete does not re-price (only restore does); prices refresh on Validate.
     },
     [
       setInitialFormValues,
@@ -846,7 +858,10 @@ export const useClaimMaterialsManager = ({
       const materialToRestore = archivedMaterialsRef.current[areaIndex];
       if (!materialToRestore) return;
 
-      const restoredItem = claimMaterialToMaterialItem(materialToRestore);
+      const restoredItem: MaterialItem = {
+        ...toActiveRowStatus(claimMaterialToMaterialItem(materialToRestore)),
+        isValidated: false,
+      };
       forceRebuildRef.current = true;
       notifyAfterRowsRebuildRef.current = true;
       setMaterials((prev) => [...prev, restoredItem]);

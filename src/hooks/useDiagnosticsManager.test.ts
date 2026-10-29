@@ -2455,6 +2455,25 @@ describe("useDiagnosticsManager effects", () => {
       expect(result.current.enableValidate()).toBe(false);
     });
 
+    it("shows an archived row as ARCHIVED, not the status it had while active", () => {
+      const { props, mocks } = threeRowSetup();
+      const { result } = renderManager(props);
+      act(() => {
+        result.current.setMaterials([
+          makeItem({ partNumber: "x0", materialId: "M-0", status: "PENDING" }),
+          makeItem({ partNumber: "x1" }),
+        ]);
+      });
+
+      act(() => {
+        result.current.onDeleteRow(`${SPARE}#0`);
+      });
+
+      expect(mergedInitialValues(mocks.setInitialFormValues)[`${ARCHIVED}#0_status`]).toBe(
+        "ARCHIVED",
+      );
+    });
+
     it("bumps rowsChangedVersion once after an archived row is rebuilt", () => {
       const { props } = threeRowSetup();
       const { result } = renderManager(props);
