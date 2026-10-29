@@ -13,6 +13,8 @@ interface UseFormValidationProps {
   mandatoryFieldsMap: Record<string, ActionMandatoryFields> | null;
   autocompleteValidationRef?: React.RefObject<Record<string, boolean>>;
   sparePartNotBelongsToToolRef?: React.RefObject<Record<string, boolean>>;
+  /** Shown disabled state per field name (GenericField registers it); disabled fields skip format checks. */
+  disabledFieldsRef?: React.RefObject<Record<string, boolean>>;
 }
 
 interface UseFormValidationReturn {
@@ -29,6 +31,7 @@ export const useFormValidation = ({
   mandatoryFieldsMap,
   autocompleteValidationRef,
   sparePartNotBelongsToToolRef,
+  disabledFieldsRef,
 }: UseFormValidationProps): UseFormValidationReturn => {
   const validateFormByAction = useValidator();
   const [validationState, setValidationState] = useState<ValidationState>({
@@ -60,6 +63,7 @@ export const useFormValidation = ({
         mandatoryFields: getMandatoryFieldsList(actionName),
         autocompleteValidationRef,
         sparePartNotBelongsToToolRef,
+        disabledFieldsRef,
       });
     },
     [
@@ -68,6 +72,7 @@ export const useFormValidation = ({
       getMandatoryFieldsList,
       autocompleteValidationRef,
       sparePartNotBelongsToToolRef,
+      disabledFieldsRef,
     ],
   );
 
@@ -102,6 +107,7 @@ export const useFormValidation = ({
           mandatoryFields: alwaysValidatedFields,
           autocompleteValidationRef,
           sparePartNotBelongsToToolRef,
+          disabledFieldsRef,
         });
 
         // Filter to only include autocomplete, serial number and spare-part compatibility errors
@@ -134,6 +140,7 @@ export const useFormValidation = ({
       validateFormByAction,
       autocompleteValidationRef,
       sparePartNotBelongsToToolRef,
+      disabledFieldsRef,
     ],
   );
 

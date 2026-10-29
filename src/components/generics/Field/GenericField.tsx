@@ -25,7 +25,7 @@ import {
   DEFAULT_PARAMETER_DROPDOWN_FIELDS,
   type ChangedQuantityField,
 } from "./GenericField.utils";
-import { useContext, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import useFieldVisibilityReset from "./useFieldVisibilityReset";
 import { GenericFormContext, type ActionCallback } from "../Form/GenericForm.context";
 import { useDiagnosticsContext } from "modules/JobManagement/JobOverview/DiagnosticsContext";
@@ -893,6 +893,7 @@ function GenericField({ field, className, ...restProps }: Readonly<GenericFieldP
     warrantyPanelInfo,
     resolveDefaultQuantities,
     allowedPositions: formAllowedPositions,
+    disabledFields,
   } = useContext(GenericFormContext);
   const { allowedPositions: diagnosticsAllowedPositions, jobStatus } = useDiagnosticsContext();
   // Claim rows follow the claim's own rule; job rows the diagnostics rule.
@@ -903,6 +904,10 @@ function GenericField({ field, className, ...restProps }: Readonly<GenericFieldP
   const status = jobStatus || (formValues["jobStatus"] as string);
   const isStatusDisabled = disabledForStatuses && status && disabledForStatuses.includes(status);
   const effectiveIsDisabled = isDisabled || !!isStatusDisabled;
+  // The validator skips format checks (pattern, length, min/max) on fields shown disabled.
+  useEffect(() => {
+    if (disabledFields) disabledFields.current[name] = Boolean(effectiveIsDisabled);
+  }, [disabledFields, name, effectiveIsDisabled]);
   const [isPriceFocused, setIsPriceFocused] = useState(false);
   const [isPriceFocusedZero, setIsPriceFocusedZero] = useState(false);
 

@@ -344,6 +344,7 @@ export default function ClaimOverview() {
   // JobOverview's sparePartNotBelongsToToolRef so ClaimSparePartsRow can restrict
   // WARRANTY/SERVICE_OFFERING type options the same way jobs do.
   const sparePartNotBelongsToToolRef = useRef<Record<string, boolean>>({});
+  const disabledFieldsRef = useRef<Record<string, boolean>>({});
 
   const tabsReady = tabs.length > 0;
 
@@ -470,6 +471,7 @@ export default function ClaimOverview() {
       allFields,
       mandatoryFieldsMap: claimMandatoryFields,
       sparePartNotBelongsToToolRef,
+      disabledFieldsRef,
     });
 
   const visibleTabs = useMemo(() => {
@@ -1065,6 +1067,7 @@ export default function ClaimOverview() {
         getRadioButtonsForSummaryType: () => summaryTypeOptions,
       },
       sparePartNotBelongsToTool: sparePartNotBelongsToToolRef,
+      disabledFields: disabledFieldsRef,
       onDeleteStart: () => setIsDeletingFile(true),
       onDeleteEnd: () => setIsDeletingFile(false),
       resolveDefaultQuantities,

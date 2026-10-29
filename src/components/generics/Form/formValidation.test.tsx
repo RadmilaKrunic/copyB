@@ -530,6 +530,163 @@ describe("formValidation", () => {
       expect(errors.age).toBe("Value exceeds maximum value 100");
     });
 
+    it("skips the min/max check when minValue and maxValue are both 0", () => {
+      const fields = [
+        createMockField({
+          name: "summaryTotalSubtotal",
+          type: "price",
+          minValue: 0,
+          maxValue: 0,
+          fieldMapping: { originalName: "summaryTotalSubtotal" },
+        }),
+      ];
+      const errors: ValidationErrors = {};
+
+      validateByAction({
+        errors,
+        mandatoryFields: [],
+        values: { summaryTotalSubtotal: -5 },
+        fields,
+        t: mockT,
+      });
+
+      expect(errors.summaryTotalSubtotal).toBeUndefined();
+    });
+
+    it("keeps the min check when only maxValue is 0", () => {
+      const fields = [
+        createMockField({
+          name: "accessoryQuantity",
+          minValue: 1,
+          maxValue: 0,
+          fieldMapping: { originalName: "accessoryQuantity" },
+        }),
+      ];
+      const errors: ValidationErrors = {};
+
+      validateByAction({
+        errors,
+        mandatoryFields: [],
+        values: { accessoryQuantity: 0 },
+        fields,
+        t: mockT,
+      });
+
+      expect(errors.accessoryQuantity).toBe("Value is less than minimum value 1");
+    });
+
+    describe("disabled fields", () => {
+      const discountField = (overrides: Partial<Field> = {}): Field =>
+        createMockField({
+          name: "summaryTotalDiscountNet",
+          type: "price",
+          minValue: 0,
+          maxValue: 100,
+          isDisabled: true,
+          fieldMapping: { originalName: "summaryTotalDiscountNet" },
+          ...overrides,
+        });
+      const values = { summaryTotalDiscountNet: 250 };
+
+      it("skips min/max on a config-disabled field not rendered yet", () => {
+        const errors: ValidationErrors = {};
+
+        validateByAction({
+          errors,
+          mandatoryFields: [],
+          values,
+          fields: [discountField()],
+          t: mockT,
+          disabledFieldsRef: { current: {} },
+        });
+
+        expect(errors.summaryTotalDiscountNet).toBeUndefined();
+      });
+
+      it("skips min/max on a field shown disabled", () => {
+        const errors: ValidationErrors = {};
+
+        validateByAction({
+          errors,
+          mandatoryFields: [],
+          values,
+          fields: [discountField({ isDisabled: false })],
+          t: mockT,
+          disabledFieldsRef: { current: { summaryTotalDiscountNet: true } },
+        });
+
+        expect(errors.summaryTotalDiscountNet).toBeUndefined();
+      });
+
+      it("validates a config-disabled field the screen shows enabled", () => {
+        const errors: ValidationErrors = {};
+
+        validateByAction({
+          errors,
+          mandatoryFields: [],
+          values,
+          fields: [discountField()],
+          t: mockT,
+          disabledFieldsRef: { current: { summaryTotalDiscountNet: false } },
+        });
+
+        expect(errors.summaryTotalDiscountNet).toBe("Value exceeds maximum value 100");
+      });
+
+      it("skips pattern and length checks on a disabled field", () => {
+        const errors: ValidationErrors = {};
+        const fields = [
+          createMockField({
+            name: "email",
+            pattern: btoa("^\\S+@\\S+$"),
+            maxLength: 3,
+            isDisabled: true,
+            fieldMapping: { originalName: "email" },
+          }),
+        ];
+
+        validateByAction({
+          errors,
+          mandatoryFields: [],
+          values: { email: "not-an-email" },
+          fields,
+          t: mockT,
+          disabledFieldsRef: { current: {} },
+        });
+
+        expect(errors.email).toBeUndefined();
+      });
+
+      it("still reports a required disabled field that is empty", () => {
+        const errors: ValidationErrors = {};
+
+        validateByAction({
+          errors,
+          mandatoryFields: ["summaryTotalDiscountNet"],
+          values: { summaryTotalDiscountNet: "" },
+          fields: [discountField({ label: "Discount" })],
+          t: mockT,
+          disabledFieldsRef: { current: {} },
+        });
+
+        expect(errors.summaryTotalDiscountNet).toBe("Discount is required");
+      });
+
+      it("validates disabled fields when the form has no disabled-field registry", () => {
+        const errors: ValidationErrors = {};
+
+        validateByAction({
+          errors,
+          mandatoryFields: [],
+          values,
+          fields: [discountField()],
+          t: mockT,
+        });
+
+        expect(errors.summaryTotalDiscountNet).toBe("Value exceeds maximum value 100");
+      });
+    });
+
     it("validates field with requiredDependentFields - AND condition", () => {
       const fields = [
         createMockField({
