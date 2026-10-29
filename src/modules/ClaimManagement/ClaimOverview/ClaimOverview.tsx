@@ -73,10 +73,12 @@ import {
 } from "./ClaimOverview.utils";
 import {
   buildRecalculationChange,
+  dropRejectedRecalculationChange,
   getTotalSummaryTypeValues,
   isPriceSummaryMissing,
   isRecalculationValueEmpty,
   mergeRecalculationChanges,
+  type SentRecalculationChange,
   withZeroPriceSummary,
 } from "modules/JobManagement/JobOverview/JobOverview.utils";
 import { useFetchDefaultQuantities } from "api/services/prices/hooks";
@@ -205,6 +207,21 @@ export default function ClaimOverview() {
           prev ? applyClaimRecalculation(prev, data) : prev,
         );
       }
+      // The backend may reject an edit (e.g. a too-large total) and return the previous value:
+      // that change must not be sent again with validate. Fields missing from the response map
+      // to their current form value, so they never count as rejected.
+      const sentChange = sentRecalculationChangeRef.current;
+      sentRecalculationChangeRef.current = null;
+      if (sentChange) {
+        const responseValues = convertAPIDataToFormValues(
+          data,
+          allFields ?? [],
+          formValuesRef.current,
+        );
+        setRecalculatedPricesChanges((prev) =>
+          dropRejectedRecalculationChange(prev, sentChange, responseValues),
+        );
+      }
       arePricesValidatedRef.current = false;
       hasClaimChangesRef.current = true;
       setArePricesValidated(false);
@@ -228,6 +245,7 @@ export default function ClaimOverview() {
           duration: 8000,
         },
       ]);
+      sentRecalculationChangeRef.current = null;
       arePricesValidatedRef.current = false;
       setArePricesValidated(false);
       scrollToTop();
@@ -305,6 +323,8 @@ export default function ClaimOverview() {
   const [recalculatedPricesChanges, setRecalculatedPricesChanges] = useState<
     Record<string, unknown>[]
   >([]);
+  // The row edit last sent to recalculate; its response may reject it (see onSuccess).
+  const sentRecalculationChangeRef = useRef<SentRecalculationChange | null>(null);
   // Marks recalculation errors on the row fields from outside the Formik render.
   const showFieldErrorsRef = useRef<((errors: Record<string, string>) => void) | null>(null);
   // summaryTypeOptions is owned here so genericFormContextValue can expose it to radioSourceCallbacks
@@ -726,6 +746,7 @@ export default function ClaimOverview() {
       }
       const changes = [buildRecalculationChange(originalName, lineId, value)];
       setRecalculatedPricesChanges((prev) => mergeRecalculationChanges(prev, changes));
+      sentRecalculationChangeRef.current = { fieldName, change: changes[0] };
       recalculateClaimPrices(formValues, changes);
     },
     [
@@ -752,6 +773,7 @@ export default function ClaimOverview() {
         validateByAction(CLAIM_VALIDATE_ACTION, formValues),
       );
       if (Object.keys(payloadErrors).length > 0) return;
+      sentRecalculationChangeRef.current = null;
       recalculateClaimPrices(formValues, []);
     },
     [allFields, claimData, isClaimPricingPending, tabs, validateByAction, recalculateClaimPrices],

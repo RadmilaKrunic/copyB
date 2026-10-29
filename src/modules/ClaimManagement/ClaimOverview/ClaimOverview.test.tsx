@@ -1117,6 +1117,21 @@ describe("ClaimOverview onRecalculatePrices field action", () => {
     expect(h.updatePrices.mock.calls[1][0].payload.changes).toEqual([]);
   });
 
+  it("does not send a change with validate when recalculate returns the previous value", async () => {
+    setup();
+
+    recalc(`${ROW}position`, "LA");
+    recalc(`${ROW}quantity`, 50);
+    // The backend rejects the quantity and returns the previous one.
+    h.convertAPIDataToFormValues.mockReturnValueOnce({ [`${ROW}quantity`]: 1 });
+    act(() => h.recalculatePricesOptions.onSuccess({ materials: [{ id: "SP_1_WARRANTY" }] }));
+
+    await validateSuccessfully();
+    expect(h.updatePrices.mock.calls[0][0].payload.changes).toEqual([
+      { type: "position", lineId: "SP_1_WARRANTY", value: "LA", scope: null },
+    ]);
+  });
+
   it("applies the re-priced materials and summary to the cached claim", () => {
     setup();
     recalc(`${ROW}quantity`, 2);

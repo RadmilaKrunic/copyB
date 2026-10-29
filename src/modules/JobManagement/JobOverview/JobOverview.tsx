@@ -60,6 +60,8 @@ import {
   getRecalculationPayloadErrors,
   isRecalculationValueEmpty,
   mergeRecalculationChanges,
+  dropRejectedRecalculationChange,
+  type SentRecalculationChange,
 } from "./JobOverview.utils";
 import {
   getAllowedWarrantyTypes,
@@ -191,6 +193,8 @@ export default function JobOverview() {
   const [recalculatedPricesChanges, setRecalculatedPricesChanges] = useState<
     Record<string, unknown>[]
   >([]);
+  // The edit last sent to recalculate; its response may reject it (see onSuccess).
+  const sentRecalculationChangeRef = useRef<SentRecalculationChange | null>(null);
   const [summaryTypeOptions, setSummaryTypeOptions] = useState<{ label: string; value: string }[]>([
     { value: "totalSummary", label: "totalSummary" },
   ]);
@@ -881,7 +885,14 @@ export default function JobOverview() {
         ...jobFullData,
         diagnostic: validatedDiagnostic,
       };
-      syncData(updated, allFieldsRef.current ?? []);
+      const responseValues = syncData(updated, allFieldsRef.current ?? []);
+      // The backend may reject an edit (e.g. a too-large total) and return the previous value:
+      // that change must not be sent again with validate-and-save.
+      const sentChange = sentRecalculationChangeRef.current;
+      sentRecalculationChangeRef.current = null;
+      setRecalculatedPricesChanges((prev) =>
+        dropRejectedRecalculationChange(prev, sentChange, responseValues),
+      );
 
       if (data.errorMessages && data.errorMessages.length > 0) {
         const uniqueErrorKeys = [
@@ -908,6 +919,7 @@ export default function JobOverview() {
           duration: 8000,
         },
       ]);
+      sentRecalculationChangeRef.current = null;
       setArePricesValidated(false);
       scrollToTop();
       trackJobFlowFailure(AnalyticsEventName.PRICES_RECALCULATED, error);
@@ -1648,6 +1660,7 @@ export default function JobOverview() {
         ),
       ];
       setRecalculatedPricesChanges((prev) => mergeRecalculationChanges(prev, changes));
+      sentRecalculationChangeRef.current = { fieldName, change: changes[0] };
       payload.changes = changes;
       recalculatePricesMutation.mutate(payload);
     },
@@ -1676,6 +1689,7 @@ export default function JobOverview() {
       payload.countryCode = jobData?.order?.countryCode;
       payload.materials ??= [];
       payload.changes = [];
+      sentRecalculationChangeRef.current = null;
       recalculatePricesMutation.mutate(payload);
     },
     [
@@ -2363,6 +2377,7 @@ export default function JobOverview() {
         ...prev,
         ...dataMapped,
       }));
+      return dataMapped;
     },
     [discountBase, setInitialFormValues, buildFaultCodeDropdowns],
   );

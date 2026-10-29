@@ -3786,6 +3786,38 @@ describe("JobOverview onRecalculatePrices", () => {
     const { payload } = validateAndSaveMutateMock.mock.calls[0][0] as { payload: AnyRecord };
     expect(payload.changes).toEqual([expect.objectContaining({ type: "unitPrice", value: 7 })]);
   });
+
+  it("drops a change from validate-and-save when recalculate returns the previous value", async () => {
+    mockDiagnosticMaterials([{ id: "M-1", order: 1, partNumber: "PN-1" }]);
+    renderWithMessages();
+
+    recalculate("row0_unitPrice", 7);
+    recalculate("summaryTotalAmountMaterial", "99999");
+    // The backend rejects the too-large total and returns the previous one.
+    vi.mocked(convertAPIDataToFormValues).mockReturnValueOnce({ summaryTotalAmountMaterial: 1250 });
+    await runOnSuccess("recalculate", { diagnostic: { jobId: "J-1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Validate" }));
+
+    await waitFor(() => expect(validateAndSaveMutateMock).toHaveBeenCalledTimes(1));
+    const { payload } = validateAndSaveMutateMock.mock.calls[0][0] as { payload: AnyRecord };
+    expect(payload.changes).toEqual([expect.objectContaining({ type: "unitPrice", value: 7 })]);
+  });
+
+  it("keeps a recalculated change for validate-and-save when the response accepts it", async () => {
+    mockDiagnosticMaterials([{ id: "M-1", order: 1, partNumber: "PN-1" }]);
+    renderWithMessages();
+
+    recalculate("summaryTotalAmountMaterial", "1300");
+    vi.mocked(convertAPIDataToFormValues).mockReturnValueOnce({ summaryTotalAmountMaterial: 1300 });
+    await runOnSuccess("recalculate", { diagnostic: { jobId: "J-1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Validate" }));
+
+    await waitFor(() => expect(validateAndSaveMutateMock).toHaveBeenCalledTimes(1));
+    const { payload } = validateAndSaveMutateMock.mock.calls[0][0] as { payload: AnyRecord };
+    expect(payload.changes).toEqual([
+      expect.objectContaining({ type: "summaryTotalAmount", value: "1300" }),
+    ]);
+  });
 });
 
 describe("JobOverview job flow mutation success and error messages", () => {
