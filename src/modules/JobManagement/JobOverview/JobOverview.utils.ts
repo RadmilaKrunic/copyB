@@ -216,6 +216,7 @@ const RECALCULATION_CHANGE_TYPES: Record<string, string> = {
   summaryTotalAmountMaterial: "summaryTotalAmount",
   summaryDiscountNetMaterial: "summaryDiscount",
   summaryDiscountMaterial: "summaryDiscount",
+  discountNet: "discount",
 };
 
 /** Summary "Material" fields re-price the chargeable spare parts, not one line. */
