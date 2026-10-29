@@ -247,10 +247,23 @@ describe("hasServerMaterialPrices", () => {
     ).toBe(true);
   });
 
-  it("is false when every returned price is null or 0", () => {
+  it("is false when every returned price is null or has no amounts", () => {
     expect(
-      hasServerMaterialPrices(diagnosticWith([{ price: null }, { price: { unitPrice: 0 } }])),
+      hasServerMaterialPrices(
+        diagnosticWith([{ price: null }, { price: { unitPrice: null, totalAmount: "" } }]),
+      ),
     ).toBe(false);
+  });
+
+  it("is true when every returned amount is 0 (free rows, e.g. accessory exchange)", () => {
+    expect(
+      hasServerMaterialPrices(
+        diagnosticWith([
+          { price: { unitPrice: 0, netAmount: 0, grossAmount: 0, totalAmount: 0 } },
+          { price: { unitPrice: "0", totalAmount: "0" } },
+        ]),
+      ),
+    ).toBe(true);
   });
 
   it("is undefined when the response has no materials", () => {

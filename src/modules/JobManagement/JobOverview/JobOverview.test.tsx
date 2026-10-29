@@ -4085,6 +4085,23 @@ describe("JobOverview validate-and-save and recalculate responses", () => {
     expect(diagnosticsCtx().hasPricesPopulated).toBe(true);
   });
 
+  it("shows the summary for an accessory exchange whose rows are all priced 0", () => {
+    materialsMock.value = [{ unitPrice: 0, netAmount: 0, grossAmount: 0, totalAmount: 0 }];
+    const zeroPrice = { unitPrice: 0, netAmount: 0, grossAmount: 0, totalAmount: 0 };
+    diagnosticDataMock.value = {
+      actionType: "ACCESSORIES_EXCHANGE",
+      jobType: "WARRANTY",
+      materials: [
+        { id: "M-1", price: zeroPrice },
+        { id: "M-2", price: zeroPrice },
+      ],
+      priceSummaryDetailed: { total: zeroPrice, byJobType: [] },
+    };
+    renderWithMessages();
+
+    expect(diagnosticsCtx().hasPricesPopulated).toBe(true);
+  });
+
   it("recalculate: stores the returned diagnostic and re-syncs the form", async () => {
     renderWithMessages();
 
