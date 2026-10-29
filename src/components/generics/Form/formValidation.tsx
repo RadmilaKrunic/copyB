@@ -545,6 +545,26 @@ function validateSparePartCompatibility({
   }
 }
 
+/**
+ * Upload fields with required documents are validated by their documents only.
+ * Returns true when the field is fully handled (error set, or nothing else to check).
+ */
+function handleUploadFieldCheck(
+  field: Field,
+  errors: Record<string, string>,
+  values: Record<string, unknown>,
+  shouldCheckRequired: boolean,
+  t: (key: string) => string,
+): boolean {
+  const uploadErrors = shouldCheckRequired ? getUploadFieldErrors(field, values) : [];
+  if (uploadErrors.length > 0) {
+    const translated = uploadErrors.map((key) => t(key));
+    errors[field.name] = translated.length === 1 ? translated[0] : JSON.stringify(translated);
+    return true;
+  }
+  return field.type === "upload" && Boolean(field.requiredDocuments?.length);
+}
+
 interface ValidateSingleFieldParams {
   field: Field;
   errors: Record<string, string>;
@@ -597,16 +617,7 @@ function validateSingleField({
     byValueConditionMet = checkDependencyCondition(field, values).isMet;
   }
 
-  const uploadErrors = shouldCheckRequired ? getUploadFieldErrors(field, values) : [];
-  if (uploadErrors.length > 0) {
-    const translated = uploadErrors.map((key) => t(key));
-    errors[fieldName] = translated.length === 1 ? translated[0] : JSON.stringify(translated);
-    return;
-  }
-
-  if (field.type === "upload" && field.requiredDocuments && field.requiredDocuments.length > 0) {
-    return;
-  }
+  if (handleUploadFieldCheck(field, errors, values, shouldCheckRequired, t)) return;
 
   if (shouldCheckRequired && hasByValueCondition && byValueConditionMet && isCurrentFieldEmpty) {
     const errorMessagesDep = field.requiredDependentFields?.errorMessageByValue;
