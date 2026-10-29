@@ -67,6 +67,9 @@ export interface MaterialItem {
   sourceMaterial?: Material;
 }
 
+/** Status of a spare-part row in the archive. */
+export const ARCHIVED_STATUS = "ARCHIVED";
+
 const ZERO_SUMMARY_PRICE: SummaryPrice = {
   discount: 0,
   grossAmount: 0,
@@ -310,7 +313,7 @@ export const buildRowValues = (
     diagnosticTotalAmount: item.totalAmount ?? 0,
     archivedTotalAmount: item.totalAmount ?? 0,
     diagnosticMaterialStatus: item.status ?? "PENDING",
-    archivedMaterialStatus: item.status ?? "ARCHIVED",
+    archivedMaterialStatus: item.status ?? ARCHIVED_STATUS,
     diagnosticMaterialId: item.materialId ?? "",
     notBelongsToTool: item.notBelongsToTool ?? "",
   };
@@ -1729,7 +1732,8 @@ export const useDiagnosticsManager = ({
         pendingArchivedDeletionsRef.current += 1;
         notifyAfterArchiveRebuildRef.current = true;
         isArchived = true;
-        setArchivedMaterials((prev) => [...prev, deletedMaterial]);
+        // The archived row shows ARCHIVED, not the status it had while active.
+        setArchivedMaterials((prev) => [...prev, { ...deletedMaterial, status: ARCHIVED_STATUS }]);
       }
 
       const areaToRemove = sparePartsAreas[areaIndex];

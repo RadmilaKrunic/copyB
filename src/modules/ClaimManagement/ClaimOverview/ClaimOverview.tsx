@@ -68,6 +68,7 @@ import {
   hasRecalculationErrors,
   makeFieldGetter,
   orderClaimAreasLikeDiagnostics,
+  withClaimRecalculateActions,
   withClaimValidateMandatoryFields,
 } from "./ClaimOverview.utils";
 import {
@@ -116,8 +117,14 @@ export default function ClaimOverview() {
     isLoading: isLoadingUIConfig,
     isError: isUIConfigError,
   } = useResourceUIConfiguration(claimData?.countryCode);
-  const claimOverviewForm =
-    uiConfiguration?.forms.find((form) => form.name === "ClaimOverview") ?? null;
+  // Claim row edits re-price the claim even when the UI config names no field actions for them.
+  const claimOverviewForm = useMemo(
+    () =>
+      withClaimRecalculateActions(
+        uiConfiguration?.forms.find((form) => form.name === "ClaimOverview") ?? null,
+      ),
+    [uiConfiguration],
+  );
   const analytics = useAnalytics();
   const [isDeletingFile, setIsDeletingFile] = useState(false);
   const [isClaimNoteModalOpen, setIsClaimNoteModalOpen] = useState(false);
@@ -733,9 +740,9 @@ export default function ClaimOverview() {
     ],
   );
 
-  // Restoring a claim spare-parts row from archived re-prices the claim through recalculate
-  // with an empty `changes` list (as job diagnostics do), on the settled rows
-  // (rowsChangedVersion bumps once they settle). A row delete does not bump it.
+  // Deleting a claim spare-parts row or restoring one from archived re-prices the claim through
+  // recalculate with an empty `changes` list (as job diagnostics do), never through the prices
+  // (validate) PUT. It runs on the settled rows (rowsChangedVersion bumps once they settle).
   // An invalid row payload is skipped without showing errors; Validate reports them.
   const onRecalculateClaimPricesAfterRowsChange = useCallback(
     (formValues: Record<string, unknown>) => {
