@@ -10,7 +10,7 @@ export interface FileUploadProps {
   fileTypeOptions: GenericOptionProps[];
   isDisabled?: boolean;
   initialFiles?: Attachments[];
-  existingFiles?: { name: string; type?: string }[];
+  existingFiles?: Attachments[];
   onDeleteStart?: () => void;
   onDeleteEnd?: () => void;
   updateEntityAttachments?: (attachments: Attachments[]) => void;

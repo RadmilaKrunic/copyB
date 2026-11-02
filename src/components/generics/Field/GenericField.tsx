@@ -566,7 +566,7 @@ function renderUploadField(ctx: FieldRenderCtx): ReactElement {
         fileTypeOptions={Array.isArray(field.options) ? field.options : []}
         initialFiles={currentFiles}
         onDeleteStart={onDeleteStart}
-        existingFiles={(field.existingFiles as { name: string }[]) || []}
+        existingFiles={(field.existingFiles as Attachments[]) || []}
         onDeleteEnd={onDeleteEnd}
         allowedFormats={field?.allowedFormats || []}
         maxFilesAllowed={field?.maxFilesAllowed}

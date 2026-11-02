@@ -38,7 +38,7 @@ export default function DocumentTabArea({
   const queryClient = useQueryClient();
   const { onDeleteStart, onDeleteEnd, actionCallbacks } = useContext(GenericFormContext);
   const { setMessages } = useContext(MessagesContext);
-  const { values } = useFormikContext<Record<string, unknown>>();
+  const { values, setFieldValue } = useFormikContext<Record<string, unknown>>();
   const analytics = useAnalytics();
 
   const entityId = entityType === "claim" ? claimId : jobId;
@@ -100,6 +100,7 @@ export default function DocumentTabArea({
   const attachments = data?.job?.asset?.attachments || [];
 
   const handleDeleteSuccess = (updatedAttachments: Attachment[]) => {
+    setFieldValue("upload", []);
     if (updatedAttachments !== undefined) {
       queryClient.setQueryData<WithJobAssetAttachments>(queryKey, (oldData) => {
         if (!oldData) return oldData;
@@ -152,7 +153,9 @@ export default function DocumentTabArea({
           field={{
             ...uploadField,
             isDisabled: isOnHold,
-            existingFiles: attachments,
+            existingFiles: attachments.filter(
+              (attachment) => attachment.type !== "SYSTEM_GENERATED_RECEIPT",
+            ),
             updateEntityAttachments,
           }}
         />

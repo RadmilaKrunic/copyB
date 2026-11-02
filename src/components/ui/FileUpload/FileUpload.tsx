@@ -26,8 +26,6 @@ import {
   DocumentAction,
 } from "@/analytics";
 
-const isCountableFile = (f: { type?: string }) => f.type !== "SYSTEM_GENERATED_RECEIPT";
-
 export default function FileUpload({
   name,
   onFilesSelected,
@@ -51,6 +49,10 @@ export default function FileUpload({
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [errorMessages, setErrorMessages] = useState<string[]>([]);
   const MAX_FILE_SIZE = maxFileSizeInMb * 1024 * 1024;
+  const uniqueFiles = new Set([
+    ...files.map((f) => f.attachmentId),
+    ...existingFiles.map((f) => f.attachmentId),
+  ]);
 
   useEffect(() => {
     setFiles(initialFiles);
@@ -149,10 +151,8 @@ export default function FileUpload({
   const filterNewValidFiles = (incoming: File[]) => {
     const filtered: File[] = [];
     const errors: string[] = [];
-    const availableSlots =
-      maxFilesAllowed -
-      files.filter(isCountableFile).length -
-      existingFiles.filter(isCountableFile).length;
+
+    const availableSlots = maxFilesAllowed - uniqueFiles.size;
 
     for (const file of incoming) {
       if (filtered.length >= availableSlots) {
@@ -258,10 +258,7 @@ export default function FileUpload({
     },
   });
 
-  const isMaxReached =
-    files?.filter(isCountableFile).length + existingFiles.filter(isCountableFile).length >=
-    maxFilesAllowed;
-
+  const isMaxReached = uniqueFiles.size >= maxFilesAllowed;
   const isUploadAllowed = isDisabled || isMaxReached;
 
   return (
