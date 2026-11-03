@@ -44,6 +44,33 @@ export const withClaimValidateMandatoryFields = (
   };
 };
 
+/**
+ * The ClaimOverview form as a copy. The form setup renames sections, areas and fields in place,
+ * and the UI configuration is cached for the whole session.
+ */
+export const getClaimOverviewForm = (
+  uiConfiguration: { forms: GenericForm[] } | undefined,
+): GenericForm | null => {
+  const form = uiConfiguration?.forms.find((f) => f.name === "ClaimOverview");
+  return form ? structuredClone(form) : null;
+};
+
+/**
+ * The claim with claimPriceSummary and claimPriceSummaryDetailed.total filled from each other.
+ * Returns a copy, so the cached claim stays as the API sent it.
+ */
+export const withClaimPriceSummaries = (claim: ClaimItem): ClaimItem => {
+  const updated: ClaimItem = { ...claim };
+  if (!updated.claimPriceSummaryDetailed && updated.claimPriceSummary) {
+    updated.claimPriceSummaryDetailed = { total: updated.claimPriceSummary };
+  }
+  const detailedTotal = updated.claimPriceSummaryDetailed?.total;
+  if (!updated.claimPriceSummary && detailedTotal !== undefined) {
+    updated.claimPriceSummary = detailedTotal;
+  }
+  return updated;
+};
+
 const CLAIM_RECALCULATE_ACTION = "onRecalculatePrices";
 
 /** Claim spare-part row fields that re-price the claim, and their trigger (as on job rows). */

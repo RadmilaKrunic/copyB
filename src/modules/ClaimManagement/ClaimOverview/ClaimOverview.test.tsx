@@ -619,6 +619,12 @@ describe("ClaimOverview basics", () => {
     expect(screen.queryByText("claim-overview-header")).not.toBeInTheDocument();
   });
 
+  it("loads the claim fresh on every open instead of reusing an earlier visit's cache", () => {
+    renderClaim();
+
+    expect(h.useClaimById).toHaveBeenCalledWith("C-1", { gcTime: 0 });
+  });
+
   it("resolves the UI configuration with the country of the claim", () => {
     setClaim(makeClaim({ countryCode: "TR" }));
 
