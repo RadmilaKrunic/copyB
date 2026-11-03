@@ -3,18 +3,22 @@ import {
   applyClaimRecalculation,
   findClaimRowIndex,
   getClaimFieldOriginalName,
+  getClaimOverviewForm,
   getClaimRecalculationPayloadErrors,
   getClaimSparePartsAreas,
   getRecalculationErrorKeys,
   hasRecalculationErrors,
   makeFieldGetter,
   orderClaimAreasLikeDiagnostics,
+  withClaimPriceSummaries,
   withClaimRecalculateActions,
   withClaimValidateMandatoryFields,
 } from "./ClaimOverview.utils";
 import type GenericForm from "components/generics/Form/GenericForm.types";
 import type Area from "components/generics/Area/GenericArea.types";
 import type Field from "components/generics/Field/GenericField.types";
+import type { ClaimItem } from "./Claims.types";
+import type { SummaryPrice } from "modules/JobManagement/JobList/JobList.types";
 
 describe("ClaimOverview utils", () => {
   it("makeFieldGetter returns form value by subtype mapping", () => {
@@ -247,5 +251,62 @@ describe("withClaimRecalculateActions", () => {
 
   it("returns null without a form", () => {
     expect(withClaimRecalculateActions(null)).toBeNull();
+  });
+
+  it("getClaimOverviewForm returns a copy, so the cached configuration is never changed", () => {
+    const claimForm = () => form([area("claimSpareParts", [field("netAmount")])]);
+    const cached = { forms: [{ ...form([]), name: "JobOverview" }, claimForm()] };
+
+    const result = getClaimOverviewForm(cached);
+
+    expect(result).toEqual(claimForm());
+    expect(result).not.toBe(cached.forms[1]);
+    result?.sections[0].areas.forEach((a) => {
+      a.name = "claims_claimSpareParts#0";
+      a.fields[0].name = "claims_claimSpareParts#0_netAmount";
+    });
+    expect(cached.forms[1]).toEqual(claimForm());
+  });
+
+  it("getClaimOverviewForm returns null without the form or the configuration", () => {
+    expect(getClaimOverviewForm({ forms: [] })).toBeNull();
+    expect(getClaimOverviewForm(undefined)).toBeNull();
+  });
+});
+
+describe("withClaimPriceSummaries", () => {
+  const total: SummaryPrice = {
+    discount: 0,
+    grossAmount: 96,
+    netAmount: 80,
+    suggestedNetPrice: 0,
+    taxAmount: 16,
+    totalAmount: 96,
+    discountAmount: 0,
+  };
+
+  it("fills the detailed summary from claimPriceSummary on a copy", () => {
+    const claim: ClaimItem = { claimPriceSummary: total };
+
+    const result = withClaimPriceSummaries(claim);
+
+    expect(result.claimPriceSummaryDetailed).toEqual({ total });
+    expect(result).not.toBe(claim);
+    expect(claim.claimPriceSummaryDetailed).toBeUndefined();
+  });
+
+  it("fills claimPriceSummary from the detailed total on a copy", () => {
+    const claim: ClaimItem = { claimPriceSummaryDetailed: { total } };
+
+    const result = withClaimPriceSummaries(claim);
+
+    expect(result.claimPriceSummary).toBe(total);
+    expect(claim.claimPriceSummary).toBeUndefined();
+  });
+
+  it("keeps a claim without summaries as it is", () => {
+    expect(withClaimPriceSummaries({ claimPriceSummaryDetailed: { byJobType: [] } })).toEqual({
+      claimPriceSummaryDetailed: { byJobType: [] },
+    });
   });
 });

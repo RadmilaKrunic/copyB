@@ -62,12 +62,14 @@ import {
   CLAIM_VALIDATE_ACTION,
   findClaimRowIndex,
   getClaimFieldOriginalName,
+  getClaimOverviewForm,
   getClaimRecalculationPayloadErrors,
   getClaimSparePartsAreas,
   getRecalculationErrorKeys,
   hasRecalculationErrors,
   makeFieldGetter,
   orderClaimAreasLikeDiagnostics,
+  withClaimPriceSummaries,
   withClaimRecalculateActions,
   withClaimValidateMandatoryFields,
 } from "./ClaimOverview.utils";
@@ -111,7 +113,13 @@ export default function ClaimOverview() {
   const queryClient = useQueryClient();
   const userData = queryClient.getQueryData<User>(["user"]);
   const { claimId } = useParams<{ claimId: string }>();
-  const { data: claimData, isLoading: loading, error } = useClaimById(claimId || "");
+  // Every open loads the claim fresh, so a reopened claim builds its rows and prices exactly
+  // like the first open instead of starting from the claim cached by an earlier visit.
+  const {
+    data: claimData,
+    isLoading: loading,
+    error,
+  } = useClaimById(claimId || "", { gcTime: 0 });
   // The claim's own countryCode determines which UI configuration to use, not the
   // user's currently selected/default country (a user can have claims across
   // multiple accessible countries).
@@ -121,11 +129,10 @@ export default function ClaimOverview() {
     isError: isUIConfigError,
   } = useResourceUIConfiguration(claimData?.countryCode);
   // Claim row edits re-price the claim even when the UI config names no field actions for them.
+  // The form setup renames sections, areas and fields in place: each open works on its own
+  // copy, so the cached UI configuration stays as loaded.
   const claimOverviewForm = useMemo(
-    () =>
-      withClaimRecalculateActions(
-        uiConfiguration?.forms.find((form) => form.name === "ClaimOverview") ?? null,
-      ),
+    () => withClaimRecalculateActions(getClaimOverviewForm(uiConfiguration)),
     [uiConfiguration],
   );
   const analytics = useAnalytics();
@@ -415,25 +422,16 @@ export default function ClaimOverview() {
 
   useEffect(() => {
     if (!claimData) return;
-    if (!claimData.claimPriceSummaryDetailed && claimData.claimPriceSummary) {
-      claimData.claimPriceSummaryDetailed = {
-        total: claimData.claimPriceSummary,
-      };
-    }
-    if (!claimData.claimPriceSummary && claimData.claimPriceSummaryDetailed) {
-      const detailedTotal = claimData.claimPriceSummaryDetailed.total;
-      if (detailedTotal !== undefined) {
-        claimData.claimPriceSummary = detailedTotal;
-      }
-    }
+    // A copy: the cached claim is never changed.
+    const claim = withClaimPriceSummaries(claimData);
     // Rows but no summary: show only the total row, all amounts 0.
-    const hasMaterials = (claimData.materials?.length ?? 0) > 0;
-    if (hasMaterials && isPriceSummaryMissing(claimData.claimPriceSummaryDetailed)) {
+    const hasMaterials = (claim.materials?.length ?? 0) > 0;
+    if (hasMaterials && isPriceSummaryMissing(claim.claimPriceSummaryDetailed)) {
       setIsZeroSummaryShown(true);
-      setClaimFullData(withZeroPriceSummary(claimData, "claimPriceSummaryDetailed"));
+      setClaimFullData(withZeroPriceSummary(claim, "claimPriceSummaryDetailed"));
       return;
     }
-    setClaimFullData(claimData);
+    setClaimFullData(claim);
   }, [claimData]);
 
   // Wrap markRowDirty to also flag that user has unsaved changes
