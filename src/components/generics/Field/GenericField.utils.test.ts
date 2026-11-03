@@ -646,6 +646,41 @@ describe("refreshProtectedRowQuantities", () => {
     expect(changed).toEqual([]);
   });
 
+  it("with rowPrefix refreshes only that row", async () => {
+    const setFieldValue = vi.fn().mockResolvedValue(undefined);
+    const resolve = vi.fn().mockResolvedValue({ LA: 4, FR: 3 });
+    const formValues = {
+      jobType: "CHARGEABLE",
+      row0_position: "LA",
+      row0_quantity: 1,
+      row1_position: "FR",
+      row1_quantity: 1,
+    };
+    const changed = await refreshProtectedRowQuantities({
+      allFields: [...row(0), ...row(1)],
+      formValues,
+      setFieldValue,
+      resolveDefaultQuantities: resolve,
+      rowPrefix: "row1_",
+    });
+    expect(resolve).toHaveBeenCalledWith(formValues);
+    expect(setFieldValue).toHaveBeenCalledTimes(1);
+    expect(setFieldValue).toHaveBeenCalledWith("row1_quantity", 3);
+    expect(changed.map(({ field, value }) => [field.name, value])).toEqual([["row1_quantity", 3]]);
+  });
+
+  it("with rowPrefix does not call the API when that row is not protected", async () => {
+    const resolve = vi.fn();
+    await refreshProtectedRowQuantities({
+      allFields: [...row(0), ...row(1)],
+      formValues: { row0_position: "LA", row1_position: "SP" },
+      setFieldValue: vi.fn(),
+      resolveDefaultQuantities: resolve,
+      rowPrefix: "row1_",
+    });
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
   it("does not call the API when there is no protected row", async () => {
     const resolve = vi.fn();
     await refreshProtectedRowQuantities({

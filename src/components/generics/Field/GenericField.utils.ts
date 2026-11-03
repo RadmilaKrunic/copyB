@@ -222,13 +222,15 @@ export const handleFaultCodeSelection = async (
 /**
  * Form fields that feed the default-parameter request and are changed through a plain dropdown.
  * actionType / jobType changes rebuild the job's rows (useDiagnosticsManager Effect 2), which
- * loads the API quantities itself; the fault code has its own handler (handleFaultCodeSelection).
+ * loads the API quantities itself; the fault code has its own handler (handleFaultCodeSelection),
+ * and a spare-parts row's type refreshes only its own row (GenericField, `rowPrefix`).
  */
 export const DEFAULT_PARAMETER_DROPDOWN_FIELDS = new Set(["exchangeReason"]);
 
 /**
  * Re-reads the default-parameter API quantities after one of its inputs changed (e.g. the
- * exchange reason) and writes them onto the protected rows (LA, FR, PC) already shown.
+ * exchange reason, or a row's job type) and writes them onto the protected rows (LA, FR, PC)
+ * already shown. With `rowPrefix`, only that row (`fieldMapping.nameStartsWith`) is refreshed.
  * Rows the API gives no quantity for keep theirs. Returns the quantity fields whose value
  * actually changed, so the caller can run their field action (recalculate) as for a user edit.
  */
@@ -237,18 +239,22 @@ export const refreshProtectedRowQuantities = async ({
   formValues,
   setFieldValue,
   resolveDefaultQuantities,
+  rowPrefix,
 }: {
   allFields: Field[] | null;
   formValues: Record<string, unknown>;
   setFieldValue: (field: string, value: unknown) => Promise<void | FormikErrors<unknown>>;
   resolveDefaultQuantities?: ResolveDefaultQuantities;
+  rowPrefix?: string;
 }): Promise<ChangedQuantityField[]> => {
   const changedQuantities: ChangedQuantityField[] = [];
   if (!allFields || !resolveDefaultQuantities) return changedQuantities;
 
   const protectedPositions = allFields.filter(
     (f) =>
-      f.subtype === "diagnosticPosition" && isProtectedPosition(toFieldString(formValues[f.name])),
+      f.subtype === "diagnosticPosition" &&
+      (rowPrefix === undefined || f.fieldMapping?.nameStartsWith === rowPrefix) &&
+      isProtectedPosition(toFieldString(formValues[f.name])),
   );
   if (protectedPositions.length === 0) return changedQuantities;
 

@@ -421,6 +421,53 @@ async function runChangedQuantityActions(
   }
 }
 
+/**
+ * A spare-parts row's job type is a default-parameter input. A chosen type (not "Select") on a
+ * row of a form with the default-parameter API refreshes that row's quantity (LA, FR, PC only).
+ */
+function isRowTypeQuantityRefresh(ctx: FieldRenderCtx, value: unknown): value is string {
+  const { field, resolveDefaultQuantities } = ctx;
+  return (
+    field.subtype === "diagnosticType" &&
+    typeof value === "string" &&
+    value !== "" &&
+    Boolean(field.fieldMapping?.nameStartsWith) &&
+    Boolean(resolveDefaultQuantities)
+  );
+}
+
+/**
+ * Sets the row type, refreshes the row's quantity from the default-parameter API with that
+ * type, then runs one price action: the type's own action (its payload carries the new
+ * quantity), or the quantity's action when the type has none.
+ */
+async function changeRowTypeWithQuantityRefresh(ctx: FieldRenderCtx, value: string): Promise<void> {
+  const {
+    field,
+    values,
+    setFieldValue,
+    allFields,
+    formikContext,
+    actionCallbacks,
+    resolveDefaultQuantities,
+  } = ctx;
+  const { name } = field;
+  await fieldValueChanged(name, value, setFieldValue, allFields, field, formikContext);
+  const changedQuantities = await refreshProtectedRowQuantities({
+    allFields,
+    formValues: { ...values, [name]: value, jobType: value },
+    setFieldValue,
+    resolveDefaultQuantities,
+    rowPrefix: field.fieldMapping?.nameStartsWith,
+  });
+  if (field.onValueChange) {
+    await waitForFormCommit();
+    invokeFieldAction(actionCallbacks, "onValueChange", field.onValueChange, name, value);
+    return;
+  }
+  await runChangedQuantityActions(changedQuantities, actionCallbacks);
+}
+
 function renderDropdownField(ctx: FieldRenderCtx): ReactElement {
   const {
     field,
@@ -490,6 +537,10 @@ function renderDropdownField(ctx: FieldRenderCtx): ReactElement {
           }
           if (typeof value === "string")
             updateDependentFields(field, formikContext, allFields, t, value);
+          if (isRowTypeQuantityRefresh(ctx, value)) {
+            void changeRowTypeWithQuantityRefresh(ctx, value);
+            return;
+          }
           handleChange(name, value);
           // An input of the default-parameter request changed: refresh the protected rows'
           // quantities (LA, FR, PC) already shown, then recalculate the ones that changed.
