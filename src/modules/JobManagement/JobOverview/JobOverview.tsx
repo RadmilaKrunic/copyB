@@ -854,6 +854,13 @@ export default function JobOverview() {
         return;
       }
       markAllValidated();
+      // Set here too: the cache-write effect can miss this write (e.g. after a recalculation
+      // write that changed nothing), and the FR / PC total must unlock after validate.
+      if (validatedDiagnostic) {
+        setValidatedUnitPriceMaterialIds(
+          getValidatedUnitPriceMaterialIds(validatedDiagnostic.materials),
+        );
+      }
       setMessages((prev) => [
         ...prev,
         {

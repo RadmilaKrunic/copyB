@@ -660,6 +660,69 @@ describe("formValidation", () => {
         expect(validate(10)).toBeUndefined();
       });
 
+      it("requires a row price or quantity field the screen shows enabled (0 is a value)", () => {
+        const rowField = (name: string, subtype: string) =>
+          createMockField({ name, subtype, label: name, fieldMapping: { originalName: name } });
+        const fields = [
+          rowField("row0_quantity", "diagnosticQuantity"),
+          rowField("row0_unitPrice", "diagnosticUnitPrice"),
+          rowField("row0_discount", "diagnosticDiscount"),
+          rowField("row0_totalAmount", "diagnosticTotalAmount"),
+          rowField("row0_netAmount", "diagnosticNetAmount"),
+        ];
+        const errors: ValidationErrors = {};
+
+        validateByAction({
+          errors,
+          mandatoryFields: [],
+          values: {
+            row0_quantity: "",
+            row0_unitPrice: 0,
+            row0_discount: null,
+            row0_totalAmount: "",
+            row0_netAmount: "",
+          },
+          fields,
+          t: mockT,
+          disabledFieldsRef: {
+            current: {
+              row0_quantity: false,
+              row0_unitPrice: false,
+              row0_discount: false,
+              row0_totalAmount: false,
+              row0_netAmount: true,
+            },
+          },
+        });
+
+        expect(Object.keys(errors).sort()).toEqual([
+          "row0_discount",
+          "row0_quantity",
+          "row0_totalAmount",
+        ]);
+      });
+
+      it("does not require an empty row price field that is not rendered", () => {
+        const errors: ValidationErrors = {};
+
+        validateByAction({
+          errors,
+          mandatoryFields: [],
+          values: { row0_unitPrice: "" },
+          fields: [
+            createMockField({
+              name: "row0_unitPrice",
+              subtype: "diagnosticUnitPrice",
+              fieldMapping: { originalName: "unitPrice" },
+            }),
+          ],
+          t: mockT,
+          disabledFieldsRef: { current: {} },
+        });
+
+        expect(errors.row0_unitPrice).toBeUndefined();
+      });
+
       it("skips pattern and length checks on a disabled field", () => {
         const errors: ValidationErrors = {};
         const fields = [

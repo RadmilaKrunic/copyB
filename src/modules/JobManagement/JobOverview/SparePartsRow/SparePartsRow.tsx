@@ -185,7 +185,9 @@ function SparePartsRow({
     {
       ...defaultParameterJobSource,
       actionType: values["actionType"],
-      jobType: values["jobType"],
+      // The row's own type is the request's job type (chargeable rows get 0 / 0), as for the
+      // row-type quantity refresh, so both share one cached call.
+      jobType: rowTypeValue || values["jobType"],
       faultCode: values["faultCode"],
       faultCodeLabourQuantity: values["faultCodeLabourQuantity"],
       exchangeReason: values["exchangeReason"],
@@ -198,7 +200,6 @@ function SparePartsRow({
     ? getUserUnitPriceEditability(
         Boolean(materialId),
         Boolean(materialId && validatedUnitPriceMaterialIds?.has(materialId)),
-        basePriceFieldEditability,
         effectiveDiscountBase,
       )
     : null;
