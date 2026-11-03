@@ -16,6 +16,7 @@ import {
   mergeRecalculationChanges,
   buildRecalculationChange,
   dropRejectedRecalculationChange,
+  getSummaryChangeServerValue,
   isRecalculationValueRejected,
 } from "./JobOverview.utils";
 
@@ -378,35 +379,119 @@ describe("isRecalculationValueRejected", () => {
   });
 });
 
+const chargeableSummary = (materialRelated: Record<string, number>) => ({
+  byJobType: [
+    { jobType: "WARRANTY", materialRelated: { totalAmount: 5, netAmount: 4, discount: 0 } },
+    { jobType: "CHARGEABLE", materialRelated },
+  ],
+});
+
+describe("getSummaryChangeServerValue", () => {
+  it("reads the chargeable entry by job type for each summary change type", () => {
+    const summary = chargeableSummary({ totalAmount: 120, netAmount: 100, discount: 10 });
+    const value = (originalName: string) =>
+      getSummaryChangeServerValue(buildRecalculationChange(originalName, "", "1"), summary);
+    expect(value("summaryTotalAmountMaterial")).toBe(120);
+    expect(value("summarySubtotalMaterial")).toBe(100);
+    expect(value("summaryDiscountMaterial")).toBe(10);
+    expect(value("summaryDiscountNetMaterial")).toBe(10);
+  });
+
+  it("is undefined for row changes or a missing chargeable entry", () => {
+    const summary = chargeableSummary({ totalAmount: 120 });
+    const totalChange = buildRecalculationChange("summaryTotalAmountMaterial", "", "1");
+    expect(
+      getSummaryChangeServerValue(buildRecalculationChange("quantity", "L1", "2"), summary),
+    ).toBeUndefined();
+    expect(getSummaryChangeServerValue(totalChange, null)).toBeUndefined();
+    expect(getSummaryChangeServerValue(totalChange, { byJobType: [] })).toBeUndefined();
+  });
+});
+
 describe("dropRejectedRecalculationChange", () => {
   const totalChange = buildRecalculationChange("summaryTotalAmountMaterial", "", "99999");
   const quantityChange = buildRecalculationChange("quantity", "L1", "2");
   const pending = [quantityChange, totalChange];
-  const sentTotal = { fieldName: "summaryTotalAmountMaterial", change: totalChange };
+  const sentTotal = {
+    fieldName: "summaryTotalAmountMaterial",
+    change: totalChange,
+    previousValue: 1250,
+  };
+  const sentQuantity = { fieldName: "row0_quantity", change: quantityChange };
 
-  it("removes the sent change when the response returns the previous value", () => {
+  it("removes a summary change when the chargeable entry returns the previous value", () => {
     expect(
-      dropRejectedRecalculationChange(pending, sentTotal, { summaryTotalAmountMaterial: 1250 }),
+      dropRejectedRecalculationChange(
+        pending,
+        sentTotal,
+        {},
+        chargeableSummary({ totalAmount: 1250 }),
+      ),
     ).toEqual([quantityChange]);
   });
 
-  it("keeps the changes when the response accepts the sent value", () => {
+  it("removes a summary change that came back different when the previous value is unknown", () => {
+    const sent = { fieldName: "summaryTotalAmountMaterial", change: totalChange };
     expect(
-      dropRejectedRecalculationChange(pending, sentTotal, { summaryTotalAmountMaterial: 99999 }),
+      dropRejectedRecalculationChange(pending, sent, {}, chargeableSummary({ totalAmount: 1250 })),
+    ).toEqual([quantityChange]);
+  });
+
+  it("keeps a summary change the backend accepted, rounded or spread over the rows", () => {
+    expect(
+      dropRejectedRecalculationChange(
+        pending,
+        sentTotal,
+        {},
+        chargeableSummary({ totalAmount: 99999 }),
+      ),
+    ).toBe(pending);
+    expect(
+      dropRejectedRecalculationChange(
+        pending,
+        sentTotal,
+        {},
+        chargeableSummary({ totalAmount: 99998.97 }),
+      ),
     ).toBe(pending);
   });
 
-  it("keeps the changes when nothing was sent or the field is not in the response", () => {
-    expect(dropRejectedRecalculationChange(pending, null, {})).toBe(pending);
-    expect(dropRejectedRecalculationChange(pending, sentTotal, {})).toBe(pending);
+  it("checks a summary change on the chargeable entry, not on the form field mapped by index", () => {
+    // byJobType order changed: the edited field name now maps to the warranty entry.
+    expect(
+      dropRejectedRecalculationChange(
+        pending,
+        sentTotal,
+        { summaryTotalAmountMaterial: 5 },
+        chargeableSummary({ totalAmount: 99999 }),
+      ),
+    ).toBe(pending);
+  });
+
+  it("removes a row change when the response maps the field to another number", () => {
+    expect(
+      dropRejectedRecalculationChange(pending, sentQuantity, { row0_quantity: 1 }, null),
+    ).toEqual([totalChange]);
+    expect(dropRejectedRecalculationChange(pending, sentQuantity, { row0_quantity: 2 }, null)).toBe(
+      pending,
+    );
+  });
+
+  it("keeps the changes when nothing was sent or the value is not in the response", () => {
+    expect(dropRejectedRecalculationChange(pending, null, {}, null)).toBe(pending);
+    expect(dropRejectedRecalculationChange(pending, sentTotal, {}, null)).toBe(pending);
+    expect(dropRejectedRecalculationChange(pending, sentQuantity, {}, null)).toBe(pending);
   });
 
   it("keeps a later change of the same field that replaced the sent one", () => {
     const laterTotal = buildRecalculationChange("summaryTotalAmountMaterial", "", "1300");
     expect(
-      dropRejectedRecalculationChange([quantityChange, laterTotal], sentTotal, {
-        summaryTotalAmountMaterial: 1250,
-      }),
+      dropRejectedRecalculationChange(
+        [quantityChange, laterTotal],
+        sentTotal,
+        {},
+        chargeableSummary({ totalAmount: 1250 }),
+      ),
     ).toEqual([quantityChange, laterTotal]);
   });
 });

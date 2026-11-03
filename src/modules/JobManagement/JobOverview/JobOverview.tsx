@@ -61,6 +61,7 @@ import {
   isRecalculationValueEmpty,
   mergeRecalculationChanges,
   dropRejectedRecalculationChange,
+  getSummaryChangeServerValue,
   type SentRecalculationChange,
 } from "./JobOverview.utils";
 import {
@@ -891,7 +892,12 @@ export default function JobOverview() {
       const sentChange = sentRecalculationChangeRef.current;
       sentRecalculationChangeRef.current = null;
       setRecalculatedPricesChanges((prev) =>
-        dropRejectedRecalculationChange(prev, sentChange, responseValues),
+        dropRejectedRecalculationChange(
+          prev,
+          sentChange,
+          responseValues,
+          validatedDiagnostic?.priceSummaryDetailed,
+        ),
       );
 
       if (data.errorMessages && data.errorMessages.length > 0) {
@@ -1614,6 +1620,8 @@ export default function JobOverview() {
     internalApprovalRequestMutation.mutate({ jobId });
   }, [jobId, internalApprovalRequestMutation, isProductPhotoForExchangeActionValid]);
 
+  // Server summary before a summary edit: tells a rejected edit from a rounded one.
+  const previousSummaryDetailed = jobFullData?.diagnostic?.priceSummaryDetailed;
   const onRecalculatePrices = useCallback(
     (fieldName: string, value: unknown) => {
       if (recalculatePricesMutation.isPending) return;
@@ -1662,13 +1670,18 @@ export default function JobOverview() {
         ),
       ];
       setRecalculatedPricesChanges((prev) => mergeRecalculationChanges(prev, changes));
-      sentRecalculationChangeRef.current = { fieldName, change: changes[0] };
+      sentRecalculationChangeRef.current = {
+        fieldName,
+        change: changes[0],
+        previousValue: getSummaryChangeServerValue(changes[0], previousSummaryDetailed),
+      };
       payload.changes = changes;
       recalculatePricesMutation.mutate(payload);
     },
     [
       buildDiagnosticPayload,
       jobData?.order?.countryCode,
+      previousSummaryDetailed,
       recalculatePricesMutation,
       setRecalculatedPricesChanges,
       validateByAction,

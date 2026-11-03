@@ -74,6 +74,7 @@ import {
 import {
   buildRecalculationChange,
   dropRejectedRecalculationChange,
+  getSummaryChangeServerValue,
   getTotalSummaryTypeValues,
   isPriceSummaryMissing,
   isRecalculationValueEmpty,
@@ -219,7 +220,12 @@ export default function ClaimOverview() {
           formValuesRef.current,
         );
         setRecalculatedPricesChanges((prev) =>
-          dropRejectedRecalculationChange(prev, sentChange, responseValues),
+          dropRejectedRecalculationChange(
+            prev,
+            sentChange,
+            responseValues,
+            data.claimPriceSummaryDetailed,
+          ),
         );
       }
       arePricesValidatedRef.current = false;
@@ -748,7 +754,12 @@ export default function ClaimOverview() {
       }
       const changes = [buildRecalculationChange(originalName, lineId, value)];
       setRecalculatedPricesChanges((prev) => mergeRecalculationChanges(prev, changes));
-      sentRecalculationChangeRef.current = { fieldName, change: changes[0] };
+      sentRecalculationChangeRef.current = {
+        fieldName,
+        change: changes[0],
+        // Server summary before a summary edit: tells a rejected edit from a rounded one.
+        previousValue: getSummaryChangeServerValue(changes[0], claimData.claimPriceSummaryDetailed),
+      };
       recalculateClaimPrices(formValues, changes);
     },
     [
