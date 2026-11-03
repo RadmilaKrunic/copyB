@@ -12,10 +12,17 @@ export interface DefaultParameterRequest {
   exchangeReason?: string;
 }
 
+/** Allowed unit price of a position (FR, PC). Equal limits = fixed default price. */
+export interface UnitPriceRange {
+  lowestLimit: number | null;
+  highestLimit: number | null;
+}
+
 export interface DefaultParameterByPosition {
   position: string;
   value: number | null;
   serviceUnits: number | null;
+  unitPriceRange?: UnitPriceRange | null;
 }
 
 export interface DefaultParameterResponse {
@@ -24,6 +31,14 @@ export interface DefaultParameterResponse {
 
 /** Default quantity per position (e.g. { LA: 5, FR: 1 }). */
 export type DefaultQuantities = Partial<Record<string, number>>;
+
+/** Unit price range per position with both limits set (e.g. { FR: { lowestLimit: 0, highestLimit: 500 } }). */
+export type DefaultUnitPriceRanges = Partial<Record<string, ResolvedUnitPriceRange>>;
+
+export interface ResolvedUnitPriceRange {
+  lowestLimit: number;
+  highestLimit: number;
+}
 
 /** Job or claim values the default-parameter request is built from. */
 export interface DefaultParameterSource {

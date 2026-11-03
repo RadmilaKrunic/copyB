@@ -11,6 +11,17 @@ import SparePartsRow from "./SparePartsRow";
 import type Field from "components/generics/Field/GenericField.types";
 import { useHasPermission } from "hooks/useHasPermission";
 import { PERMISSIONS } from "utils/Permissions";
+import type { DefaultUnitPriceRanges } from "api/services/prices/prices.types";
+import type { FieldValueRange } from "components/generics/Form/formValidation";
+
+const unitPriceRangesMock = vi.hoisted(() => {
+  const state: { ranges: DefaultUnitPriceRanges } = { ranges: {} };
+  return state;
+});
+
+vi.mock("api/services/prices/hooks", () => ({
+  useDefaultUnitPriceRanges: () => unitPriceRangesMock.ranges,
+}));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -411,6 +422,7 @@ const renderRow = (
 
 afterEach(() => {
   vi.mocked(useHasPermission).mockImplementation(() => true);
+  unitPriceRangesMock.ranges = {};
 });
 
 describe("SparePartsRow price field editability", () => {
@@ -2408,5 +2420,125 @@ describe("SparePartsRow current row behavior", () => {
 
       expect(selectOptions("field-row0_type").WARRANTY.disabled).toBe(false);
     });
+  });
+});
+
+describe("SparePartsRow FR / PC unit price range", () => {
+  const RANGE = { lowestLimit: 0, highestLimit: 500 };
+
+  const renderRangedRow = (
+    values: Record<string, unknown>,
+    discountBase: DiagnosticsContextValue["discountBase"] = "GROSS_PRICE",
+    validatedIds: string[] = [],
+    valueRanges: Record<string, FieldValueRange> = {},
+  ) =>
+    renderRow(
+      { row0_type: "WARRANTY", ...values },
+      [],
+      discountBase,
+      {},
+      ELIGIBLE_WARRANTY_PANEL_INFO,
+      { formContextOverrides: { fieldValueRanges: { current: valueRanges } } },
+      { validatedUnitPriceMaterialIds: new Set(validatedIds) },
+    );
+
+  it.each(["FR", "PC"])("%s new row without materialId: every price field disabled", (position) => {
+    unitPriceRangesMock.ranges = { [position]: RANGE };
+    renderRangedRow({ row0_position: position });
+
+    expect(screen.getByTestId("field-row0_unitPrice")).toBeDisabled();
+    expect(screen.getByTestId("field-row0_totalAmount")).toBeDisabled();
+    expect(screen.getByTestId("field-row0_netAmount")).toBeDisabled();
+    expect(screen.getByTestId("field-row0_discount")).toBeDisabled();
+  });
+
+  it("saved FR row with unit price not validated yet: only the unit price is enabled", () => {
+    unitPriceRangesMock.ranges = { FR: RANGE };
+    renderRangedRow({ row0_position: "FR", row0_materialId: "mat-1", row0_unitPrice: 0 });
+
+    expect(screen.getByTestId("field-row0_unitPrice")).toBeEnabled();
+    expect(screen.getByTestId("field-row0_totalAmount")).toBeDisabled();
+    expect(screen.getByTestId("field-row0_netAmount")).toBeDisabled();
+    expect(screen.getByTestId("field-row0_discount")).toBeDisabled();
+  });
+
+  it("FR unit price validated (GROSS_PRICE): unit price and totalAmount enabled", () => {
+    unitPriceRangesMock.ranges = { FR: RANGE };
+    renderRangedRow(
+      { row0_position: "FR", row0_materialId: "mat-1", row0_unitPrice: 120 },
+      "GROSS_PRICE",
+      ["mat-1"],
+    );
+
+    expect(screen.getByTestId("field-row0_unitPrice")).toBeEnabled();
+    expect(screen.getByTestId("field-row0_totalAmount")).toBeEnabled();
+    expect(screen.getByTestId("field-row0_netAmount")).toBeDisabled();
+    expect(screen.getByTestId("field-row0_discount")).toBeDisabled();
+  });
+
+  it("FR unit price validated (NET_PRICE): unit price and netAmount enabled", () => {
+    unitPriceRangesMock.ranges = { FR: RANGE };
+    renderRangedRow(
+      { row0_position: "FR", row0_materialId: "mat-1", row0_unitPrice: 120 },
+      "NET_PRICE",
+      ["mat-1"],
+    );
+
+    expect(screen.getByTestId("field-row0_unitPrice")).toBeEnabled();
+    expect(screen.getByTestId("field-row0_netAmount")).toBeEnabled();
+    expect(screen.getByTestId("field-row0_totalAmount")).toBeDisabled();
+  });
+
+  it("chargeable FR with 0 / 0 limits follows the same steps", () => {
+    unitPriceRangesMock.ranges = { FR: { lowestLimit: 0, highestLimit: 0 } };
+    renderRangedRow({ row0_position: "FR", row0_type: "CHARGEABLE", row0_materialId: "mat-1" });
+
+    expect(screen.getByTestId("field-row0_unitPrice")).toBeEnabled();
+    expect(screen.getByTestId("field-row0_totalAmount")).toBeDisabled();
+    expect(screen.getByTestId("field-row0_discount")).toBeDisabled();
+  });
+
+  it("FR with equal non-zero limits keeps the fixed-price behaviour", () => {
+    unitPriceRangesMock.ranges = { FR: { lowestLimit: 467.96, highestLimit: 467.96 } };
+    renderRangedRow(
+      { row0_position: "FR", row0_type: "CHARGEABLE", row0_materialId: "mat-1" },
+      "GROSS_PRICE",
+      ["mat-1"],
+    );
+
+    expect(screen.getByTestId("field-row0_unitPrice")).toBeDisabled();
+    expect(screen.getByTestId("field-row0_totalAmount")).toBeEnabled();
+    expect(screen.getByTestId("field-row0_discount")).toBeEnabled();
+  });
+
+  it("registers the unit price limits for validation only when they differ", () => {
+    const valueRanges: Record<string, FieldValueRange> = {};
+    unitPriceRangesMock.ranges = { FR: RANGE };
+    const { unmount } = renderRangedRow(
+      { row0_position: "FR", row0_materialId: "mat-1" },
+      "GROSS_PRICE",
+      [],
+      valueRanges,
+    );
+
+    expect(valueRanges).toEqual({ row0_unitPrice: { minValue: 0, maxValue: 500 } });
+    unmount();
+    expect(valueRanges).toEqual({});
+
+    unitPriceRangesMock.ranges = { FR: { lowestLimit: 0, highestLimit: 0 } };
+    renderRangedRow(
+      { row0_position: "FR", row0_materialId: "mat-1" },
+      "GROSS_PRICE",
+      [],
+      valueRanges,
+    );
+    expect(valueRanges).toEqual({});
+  });
+
+  it("ignores a range on a non-protected position", () => {
+    unitPriceRangesMock.ranges = { SP: RANGE };
+    renderRangedRow({ row0_position: "SP", row0_materialId: "mat-1" });
+
+    expect(screen.getByTestId("field-row0_unitPrice")).toBeDisabled();
   });
 });

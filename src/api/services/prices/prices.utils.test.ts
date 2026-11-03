@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { buildDefaultParameterRequest, toDefaultQuantities } from "./prices.utils";
+import {
+  buildDefaultParameterRequest,
+  toDefaultQuantities,
+  toUnitPriceRanges,
+} from "./prices.utils";
 
 describe("buildDefaultParameterRequest", () => {
   const base = {
@@ -87,5 +91,51 @@ describe("toDefaultQuantities", () => {
 
   it("returns an empty map for a missing response", () => {
     expect(toDefaultQuantities(undefined)).toEqual({});
+  });
+});
+
+describe("toUnitPriceRanges", () => {
+  it("returns the range per position and skips positions without one", () => {
+    expect(
+      toUnitPriceRanges({
+        byPosition: [
+          { position: "LA", value: 8, serviceUnits: 8, unitPriceRange: null },
+          {
+            position: "fr",
+            value: 1,
+            serviceUnits: null,
+            unitPriceRange: { lowestLimit: 0, highestLimit: 500 },
+          },
+          {
+            position: "PC",
+            value: 1,
+            serviceUnits: null,
+            unitPriceRange: { lowestLimit: 467.96, highestLimit: 467.96 },
+          },
+        ],
+      }),
+    ).toEqual({
+      FR: { lowestLimit: 0, highestLimit: 500 },
+      PC: { lowestLimit: 467.96, highestLimit: 467.96 },
+    });
+  });
+
+  it("skips a range with a missing limit", () => {
+    expect(
+      toUnitPriceRanges({
+        byPosition: [
+          {
+            position: "FR",
+            value: 1,
+            serviceUnits: null,
+            unitPriceRange: { lowestLimit: null, highestLimit: 500 },
+          },
+        ],
+      }),
+    ).toEqual({});
+  });
+
+  it("returns an empty object without a response", () => {
+    expect(toUnitPriceRanges(null)).toEqual({});
   });
 });

@@ -1,8 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
   getPriceFieldEditability,
+  getUserUnitPriceEditability,
+  hasUnitPriceLimit,
   isProtectedPosition,
   isSummaryControlledRow,
+  isUnitPriceEnteredByUser,
 } from "./materialPriceEditability";
 
 describe("isProtectedPosition", () => {
@@ -120,4 +123,55 @@ describe("isSummaryControlledRow", () => {
       expect(isSummaryControlledRow(position, "CHARGEABLE")).toBe(false);
     },
   );
+});
+
+describe("unit price range helpers", () => {
+  it("treats different limits and 0 / 0 as a user-entered unit price", () => {
+    expect(isUnitPriceEnteredByUser({ lowestLimit: 0, highestLimit: 500 })).toBe(true);
+    expect(isUnitPriceEnteredByUser({ lowestLimit: 0, highestLimit: 0 })).toBe(true);
+    expect(isUnitPriceEnteredByUser({ lowestLimit: 467.96, highestLimit: 467.96 })).toBe(false);
+    expect(isUnitPriceEnteredByUser(undefined)).toBe(false);
+  });
+
+  it("checks limits only when they differ", () => {
+    expect(hasUnitPriceLimit({ lowestLimit: 0, highestLimit: 500 })).toBe(true);
+    expect(hasUnitPriceLimit({ lowestLimit: 0, highestLimit: 0 })).toBe(false);
+    expect(hasUnitPriceLimit(undefined)).toBe(false);
+  });
+});
+
+describe("getUserUnitPriceEditability", () => {
+  const chargeable = getPriceFieldEditability("FR", "CHARGEABLE", "GROSS_PRICE");
+  const warranty = getPriceFieldEditability("FR", "WARRANTY", "GROSS_PRICE");
+
+  it("locks every price field before the row is saved", () => {
+    expect(getUserUnitPriceEditability(false, false, chargeable, "GROSS_PRICE")).toEqual({
+      unitPrice: false,
+      prices: { discount: false, totalAmount: false, netAmount: false },
+    });
+  });
+
+  it("enables only the unit price until it is validated", () => {
+    expect(getUserUnitPriceEditability(true, false, chargeable, "GROSS_PRICE")).toEqual({
+      unitPrice: true,
+      prices: { discount: false, totalAmount: false, netAmount: false },
+    });
+  });
+
+  it("enables the total of the pricing mode once the unit price is validated", () => {
+    expect(getUserUnitPriceEditability(true, true, warranty, "GROSS_PRICE")).toEqual({
+      unitPrice: true,
+      prices: { discount: false, totalAmount: true, netAmount: false },
+    });
+    expect(getUserUnitPriceEditability(true, true, warranty, "NET_PRICE")).toEqual({
+      unitPrice: true,
+      prices: { discount: false, totalAmount: false, netAmount: true },
+    });
+  });
+
+  it("keeps the usual discount rule once the unit price is validated", () => {
+    expect(getUserUnitPriceEditability(true, true, chargeable, "GROSS_PRICE").prices.discount).toBe(
+      true,
+    );
+  });
 });

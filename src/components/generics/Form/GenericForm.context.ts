@@ -6,6 +6,7 @@ import { createContext } from "react";
 import { ActionMandatoryFields } from "./GenericForm.types";
 import type { ResolveDefaultQuantities } from "api/services/prices/prices.types";
 import type { AllowedPosition } from "api/services/countryConfiguration/countryConfiguration";
+import type { FieldValueRange } from "./formValidation";
 
 export interface ActionCallbackHelpers {
   setFieldValue: (field: string, value: unknown) => void | Promise<unknown>;
@@ -55,6 +56,11 @@ export interface GenericFormContextType {
    * so a disabled field gets no pattern / length / min-max errors.
    */
   disabledFields?: React.RefObject<Record<string, boolean>>;
+  /**
+   * Runtime min/max per field name, read by the form's validator (e.g. the FR / PC unit price
+   * range from the default-parameter API). Rows write and clear their own entries.
+   */
+  fieldValueRanges?: React.RefObject<Record<string, FieldValueRange>>;
   warrantyPanelInfo?: WarrantyPanelInfo;
   isRepairAnswerLocked?: boolean;
   /** Default quantity of protected spare-parts rows from the backend (job & claim). */
@@ -78,6 +84,7 @@ export const GenericFormContext = createContext<GenericFormContextType>({
   autocompleteValidation: undefined,
   sparePartNotBelongsToTool: undefined,
   disabledFields: undefined,
+  fieldValueRanges: undefined,
   warrantyPanelInfo: undefined,
   isRepairAnswerLocked: undefined,
   resolveDefaultQuantities: undefined,
