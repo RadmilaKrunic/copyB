@@ -11,16 +11,25 @@ import SparePartsRow from "./SparePartsRow";
 import type Field from "components/generics/Field/GenericField.types";
 import { useHasPermission } from "hooks/useHasPermission";
 import { PERMISSIONS } from "utils/Permissions";
-import type { DefaultUnitPriceRanges } from "api/services/prices/prices.types";
+import type {
+  DefaultParameterSource,
+  DefaultUnitPriceRanges,
+} from "api/services/prices/prices.types";
 import type { FieldValueRange } from "components/generics/Form/formValidation";
 
 const unitPriceRangesMock = vi.hoisted(() => {
-  const state: { ranges: DefaultUnitPriceRanges } = { ranges: {} };
+  const state: { ranges: DefaultUnitPriceRanges; lastSource: DefaultParameterSource | null } = {
+    ranges: {},
+    lastSource: null,
+  };
   return state;
 });
 
 vi.mock("api/services/prices/hooks", () => ({
-  useDefaultUnitPriceRanges: () => unitPriceRangesMock.ranges,
+  useDefaultUnitPriceRanges: (source: DefaultParameterSource) => {
+    unitPriceRangesMock.lastSource = source;
+    return unitPriceRangesMock.ranges;
+  },
 }));
 
 vi.mock("react-i18next", () => ({
@@ -423,6 +432,7 @@ const renderRow = (
 afterEach(() => {
   vi.mocked(useHasPermission).mockImplementation(() => true);
   unitPriceRangesMock.ranges = {};
+  unitPriceRangesMock.lastSource = null;
 });
 
 describe("SparePartsRow price field editability", () => {
@@ -2473,7 +2483,7 @@ describe("SparePartsRow FR / PC unit price range", () => {
     expect(screen.getByTestId("field-row0_unitPrice")).toBeEnabled();
     expect(screen.getByTestId("field-row0_totalAmount")).toBeEnabled();
     expect(screen.getByTestId("field-row0_netAmount")).toBeDisabled();
-    expect(screen.getByTestId("field-row0_discount")).toBeDisabled();
+    expect(screen.getByTestId("field-row0_discount")).toBeEnabled();
   });
 
   it("FR unit price validated (NET_PRICE): unit price and netAmount enabled", () => {
@@ -2533,6 +2543,16 @@ describe("SparePartsRow FR / PC unit price range", () => {
       valueRanges,
     );
     expect(valueRanges).toEqual({});
+  });
+
+  it("requests the range with the row's own type, falling back to the job type", () => {
+    renderRangedRow({ row0_position: "FR", row0_type: "CHARGEABLE", jobType: "WARRANTY" });
+    expect(unitPriceRangesMock.lastSource?.jobType).toBe("CHARGEABLE");
+  });
+
+  it("requests the range with the job type when the row has no type yet", () => {
+    renderRangedRow({ row0_position: "FR", row0_type: "", jobType: "WARRANTY" });
+    expect(unitPriceRangesMock.lastSource?.jobType).toBe("WARRANTY");
   });
 
   it("ignores a range on a non-protected position", () => {

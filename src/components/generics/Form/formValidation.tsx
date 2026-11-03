@@ -286,6 +286,25 @@ export const withRuntimeValueRange = (
   return range ? { ...field, minValue: range.minValue, maxValue: range.maxValue } : field;
 };
 
+/** Spare-parts row fields (job & claim) that must hold a value whenever the user can edit them. */
+const ROW_AMOUNT_SUBTYPES = new Set([
+  "diagnosticQuantity",
+  "diagnosticUnitPrice",
+  "diagnosticDiscount",
+  "diagnosticNetAmount",
+  "diagnosticTotalAmount",
+]);
+
+/**
+ * True for a row quantity / price field the screen shows enabled (GenericField registry): it
+ * must not be left empty (0 is a value). Fields shown disabled or not rendered are not checked.
+ */
+export const isEnabledRowAmountField = (
+  field: Field,
+  disabledFieldsRef: RefObject<Record<string, boolean>> | undefined,
+): boolean =>
+  ROW_AMOUNT_SUBTYPES.has(field.subtype ?? "") && disabledFieldsRef?.current[field.name] === false;
+
 function validateLengthAndRange(
   field: Field,
   errors: Record<string, string>,
@@ -625,7 +644,8 @@ function validateSingleField({
     (mf) => originalName?.toLowerCase() === mf?.toLowerCase(),
   );
   const shouldCheckRequired = Boolean(
-    isMandatoryForAction && (!onlyTouched || touchedFields?.[fieldName]),
+    (isMandatoryForAction && (!onlyTouched || touchedFields?.[fieldName])) ||
+      isEnabledRowAmountField(field, disabledFieldsRef),
   );
 
   const hasByValueCondition = hasRequiredDependency(field);

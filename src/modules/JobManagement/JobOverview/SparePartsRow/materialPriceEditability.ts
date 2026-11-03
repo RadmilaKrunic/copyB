@@ -85,14 +85,12 @@ export interface UserUnitPriceEditability {
  * They unlock in steps:
  * 1. Row not saved yet (no materialId): every price field disabled.
  * 2. Saved, no validated unit price yet: only the unit price is editable.
- * 3. Unit price validated (saved non-zero): unit price stays editable and the total
- *    (totalAmount in GROSS_PRICE, netAmount in NET_PRICE) is editable too. Discount keeps the
- *    usual rule (`base.discount`).
+ * 3. Unit price validated (saved non-zero): unit price stays editable, and the discount and the
+ *    total (totalAmount in GROSS_PRICE, netAmount in NET_PRICE) are editable too.
  */
 export function getUserUnitPriceEditability(
   hasMaterialId: boolean,
   hasValidatedUnitPrice: boolean,
-  base: PriceFieldEditability,
   discountBase: discountBase,
 ): UserUnitPriceEditability {
   if (!hasMaterialId) return { unitPrice: false, prices: NOT_EDITABLE };
@@ -100,7 +98,7 @@ export function getUserUnitPriceEditability(
   return {
     unitPrice: true,
     prices: {
-      discount: base.discount,
+      discount: true,
       totalAmount: discountBase !== "NET_PRICE",
       netAmount: discountBase === "NET_PRICE",
     },

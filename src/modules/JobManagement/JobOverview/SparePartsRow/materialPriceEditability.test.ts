@@ -141,37 +141,28 @@ describe("unit price range helpers", () => {
 });
 
 describe("getUserUnitPriceEditability", () => {
-  const chargeable = getPriceFieldEditability("FR", "CHARGEABLE", "GROSS_PRICE");
-  const warranty = getPriceFieldEditability("FR", "WARRANTY", "GROSS_PRICE");
-
   it("locks every price field before the row is saved", () => {
-    expect(getUserUnitPriceEditability(false, false, chargeable, "GROSS_PRICE")).toEqual({
+    expect(getUserUnitPriceEditability(false, false, "GROSS_PRICE")).toEqual({
       unitPrice: false,
       prices: { discount: false, totalAmount: false, netAmount: false },
     });
   });
 
   it("enables only the unit price until it is validated", () => {
-    expect(getUserUnitPriceEditability(true, false, chargeable, "GROSS_PRICE")).toEqual({
+    expect(getUserUnitPriceEditability(true, false, "GROSS_PRICE")).toEqual({
       unitPrice: true,
       prices: { discount: false, totalAmount: false, netAmount: false },
     });
   });
 
-  it("enables the total of the pricing mode once the unit price is validated", () => {
-    expect(getUserUnitPriceEditability(true, true, warranty, "GROSS_PRICE")).toEqual({
+  it("enables discount and the total of the pricing mode once the unit price is validated", () => {
+    expect(getUserUnitPriceEditability(true, true, "GROSS_PRICE")).toEqual({
       unitPrice: true,
-      prices: { discount: false, totalAmount: true, netAmount: false },
+      prices: { discount: true, totalAmount: true, netAmount: false },
     });
-    expect(getUserUnitPriceEditability(true, true, warranty, "NET_PRICE")).toEqual({
+    expect(getUserUnitPriceEditability(true, true, "NET_PRICE")).toEqual({
       unitPrice: true,
-      prices: { discount: false, totalAmount: false, netAmount: true },
+      prices: { discount: true, totalAmount: false, netAmount: true },
     });
-  });
-
-  it("keeps the usual discount rule once the unit price is validated", () => {
-    expect(getUserUnitPriceEditability(true, true, chargeable, "GROSS_PRICE").prices.discount).toBe(
-      true,
-    );
   });
 });
