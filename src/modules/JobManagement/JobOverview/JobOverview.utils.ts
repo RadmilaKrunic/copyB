@@ -278,10 +278,14 @@ export const mergeRecalculationChanges = (
     return [...acc.filter((c) => getRecalculationChangeKey(c) !== key), change];
   }, previous);
 
-/** The field and change last sent to recalculate, checked against its response. */
+/**
+ * The field and change last sent to recalculate, checked against its response.
+ * `previousValue` (summary edits only): the server's chargeable summary value before the edit.
+ */
 export interface SentRecalculationChange {
   fieldName: string;
   change: Record<string, unknown>;
+  previousValue?: unknown;
 }
 
 /** Price values compare in cents, so a backend rounding (12.345 -> 12.35) is not a rejection. */
@@ -306,17 +310,85 @@ export const isRecalculationValueRejected = (
   return sent !== null && returned !== null && sent !== returned;
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+/**
+ * Summary change type -> key of `byJobType[].materialRelated`. The same keys serve both
+ * discount bases: GROSS_PRICE edits discount / totalAmount, NET_PRICE edits discount / netAmount.
+ */
+const SUMMARY_CHANGE_PRICE_KEYS: Record<string, string> = {
+  summaryTotalAmount: "totalAmount",
+  summaryNetAmount: "netAmount",
+  summaryDiscount: "discount",
+};
+
+const getChangeScopeJobTypes = (change: Record<string, unknown>): string[] => {
+  const scope = change.scope;
+  if (!isRecord(scope) || !Array.isArray(scope.jobTypes)) return SUMMARY_CHANGE_SCOPE.jobTypes;
+  return scope.jobTypes.filter((jobType): jobType is string => typeof jobType === "string");
+};
+
+/**
+ * Server value of the summary field a summary change edits, read from a
+ * `priceSummaryDetailed` / `claimPriceSummaryDetailed` object. The job type entry is found by
+ * the change scope (CHARGEABLE), never by array index: the backend may reorder `byJobType`.
+ * Undefined when the change is not a summary change or the entry / value is missing.
+ */
+export const getSummaryChangeServerValue = (
+  change: Record<string, unknown>,
+  summaryDetailed: unknown,
+): unknown => {
+  const type = typeof change.type === "string" ? change.type : "";
+  const priceKey = SUMMARY_CHANGE_PRICE_KEYS[type];
+  if (!priceKey || !isRecord(summaryDetailed) || !Array.isArray(summaryDetailed.byJobType)) {
+    return undefined;
+  }
+  const jobTypes = new Set(getChangeScopeJobTypes(change).map((jobType) => jobType.toUpperCase()));
+  const entry: unknown = summaryDetailed.byJobType.find(
+    (item: unknown) =>
+      isRecord(item) &&
+      typeof item.jobType === "string" &&
+      jobTypes.has(item.jobType.toUpperCase()),
+  );
+  if (!isRecord(entry) || !isRecord(entry.materialRelated)) return undefined;
+  return entry.materialRelated[priceKey];
+};
+
+/**
+ * Row edits: rejected when the response maps the field to another number than was sent.
+ * Summary edits: the backend spreads a summary total / discount over the rows and rounds, so
+ * another number alone is not a rejection. Rejected only when the chargeable entry came back
+ * with another number than was sent and that number is the value from before the edit (when
+ * known): the backend kept its own value.
+ */
+const isSentRecalculationChangeRejected = (
+  sent: SentRecalculationChange,
+  responseValues: Record<string, unknown>,
+  responseSummaryDetailed: unknown,
+): boolean => {
+  if (!isSummaryChange(sent.change)) {
+    return isRecalculationValueRejected(sent.change.value, responseValues[sent.fieldName]);
+  }
+  const returned = getSummaryChangeServerValue(sent.change, responseSummaryDetailed);
+  if (!isRecalculationValueRejected(sent.change.value, returned)) return false;
+  if (toRecalculationCents(sent.previousValue) === null) return true;
+  return !isRecalculationValueRejected(sent.previousValue, returned);
+};
+
 /**
  * Removes the sent change from the changes kept for validate-and-save when the recalculate
  * response rejected it, so validate does not send the rejected value again.
- * `responseValues` are the response mapped to form values (field name -> value).
+ * `responseValues` are the response mapped to form values (field name -> value);
+ * `responseSummaryDetailed` is the response's detailed price summary (summary edits).
  */
 export const dropRejectedRecalculationChange = (
   pending: Record<string, unknown>[],
   sent: SentRecalculationChange | null,
   responseValues: Record<string, unknown>,
+  responseSummaryDetailed: unknown,
 ): Record<string, unknown>[] => {
-  if (!sent || !isRecalculationValueRejected(sent.change.value, responseValues[sent.fieldName])) {
+  if (!sent || !isSentRecalculationChangeRejected(sent, responseValues, responseSummaryDetailed)) {
     return pending;
   }
   return pending.filter((change) => change !== sent.change);

@@ -1132,6 +1132,42 @@ describe("ClaimOverview onRecalculatePrices field action", () => {
     ]);
   });
 
+  it("sends an edited chargeable summary total with validate when recalculate spreads it", async () => {
+    const SUMMARY = "claims_claimDiagnosticsSummary_summaryTotalAmountMaterial";
+    const area = rowArea();
+    h.formInit.tabs = [
+      makeTab("claims", { label: "claimDetails", areas: [area] }),
+      makeTab("notes"),
+      makeTab("diagnosticData"),
+    ];
+    h.formInit.allFields = [...area.fields, { name: SUMMARY, subtype: "price" }];
+    h.mgr = makeManager({ materials: [{ sourceMaterial: { id: "SP_1_WARRANTY" } }] });
+    setClaim(
+      makeClaim({
+        claimPriceSummaryDetailed: {
+          byJobType: [{ jobType: "CHARGEABLE", materialRelated: { totalAmount: 1250 } }],
+        },
+      }),
+    );
+    renderClaim();
+
+    recalc(SUMMARY, 1300);
+    // The field name maps by index to another job type entry; the chargeable entry is rounded.
+    h.convertAPIDataToFormValues.mockReturnValueOnce({ [SUMMARY]: 7 });
+    act(() =>
+      h.recalculatePricesOptions.onSuccess({
+        claimPriceSummaryDetailed: {
+          byJobType: [{ jobType: "CHARGEABLE", materialRelated: { totalAmount: 1299.97 } }],
+        },
+      }),
+    );
+
+    await validateSuccessfully();
+    expect(h.updatePrices.mock.calls[0][0].payload.changes).toEqual([
+      expect.objectContaining({ type: "summaryTotalAmount", lineId: "", value: 1300 }),
+    ]);
+  });
+
   it("applies the re-priced materials and summary to the cached claim", () => {
     setup();
     recalc(`${ROW}quantity`, 2);

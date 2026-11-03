@@ -3567,6 +3567,10 @@ describe("JobOverview onRecalculatePrices", () => {
     makeField("jobNote", "text", { fieldMapping: { parentMap: ["job"] } }),
   ];
 
+  const chargeableSummary = (materialRelated: Record<string, number | undefined>) => ({
+    byJobType: [{ jobType: "CHARGEABLE", materialRelated }],
+  });
+
   const mockDiagnosticMaterials = (materials: AnyRecord[]) => {
     vi.mocked(mapValuesToAPI).mockReturnValueOnce({
       diagnostic: { status: "SUBMITTED", materials },
@@ -3795,7 +3799,9 @@ describe("JobOverview onRecalculatePrices", () => {
     recalculate("summaryTotalAmountMaterial", "99999");
     // The backend rejects the too-large total and returns the previous one.
     vi.mocked(convertAPIDataToFormValues).mockReturnValueOnce({ summaryTotalAmountMaterial: 1250 });
-    await runOnSuccess("recalculate", { diagnostic: { jobId: "J-1" } });
+    await runOnSuccess("recalculate", {
+      diagnostic: { jobId: "J-1", priceSummaryDetailed: chargeableSummary({ totalAmount: 1250 }) },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Validate" }));
 
     await waitFor(() => expect(validateAndSaveMutateMock).toHaveBeenCalledTimes(1));
@@ -3809,7 +3815,9 @@ describe("JobOverview onRecalculatePrices", () => {
 
     recalculate("summaryTotalAmountMaterial", "1300");
     vi.mocked(convertAPIDataToFormValues).mockReturnValueOnce({ summaryTotalAmountMaterial: 1300 });
-    await runOnSuccess("recalculate", { diagnostic: { jobId: "J-1" } });
+    await runOnSuccess("recalculate", {
+      diagnostic: { jobId: "J-1", priceSummaryDetailed: chargeableSummary({ totalAmount: 1300 }) },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Validate" }));
 
     await waitFor(() => expect(validateAndSaveMutateMock).toHaveBeenCalledTimes(1));
@@ -3818,6 +3826,56 @@ describe("JobOverview onRecalculatePrices", () => {
       expect.objectContaining({ type: "summaryTotalAmount", value: "1300" }),
     ]);
   });
+
+  it.each([
+    {
+      mode: "GROSS_PRICE total",
+      fieldName: "summaryTotalAmountMaterial",
+      type: "summaryTotalAmount",
+      before: { totalAmount: 1250 },
+      after: { totalAmount: 1299.97 },
+    },
+    {
+      mode: "NET_PRICE net amount",
+      fieldName: "summarySubtotalMaterial",
+      type: "summaryNetAmount",
+      before: { netAmount: 1250 },
+      after: { netAmount: 1299.97 },
+    },
+    {
+      mode: "NET_PRICE discount",
+      fieldName: "summaryDiscountNetMaterial",
+      type: "summaryDiscount",
+      before: { discount: 5 },
+      after: { discount: 12.5 },
+    },
+  ])(
+    "sends the edited $mode with validate when recalculate spreads it over the rows",
+    async ({ fieldName, type, before, after }) => {
+      diagnosticDataMock.value = { jobId: "J-1", priceSummaryDetailed: chargeableSummary(before) };
+      mockDiagnosticMaterials([{ id: "M-1", order: 1, partNumber: "PN-1" }]);
+      renderWithMessages();
+
+      recalculate(fieldName, 1300);
+      // The edited field name maps by index to another job type entry of the response.
+      vi.mocked(convertAPIDataToFormValues).mockReturnValueOnce({ [fieldName]: 7 });
+      await runOnSuccess("recalculate", {
+        diagnostic: { jobId: "J-1", priceSummaryDetailed: chargeableSummary(after) },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Validate" }));
+
+      await waitFor(() => expect(validateAndSaveMutateMock).toHaveBeenCalledTimes(1));
+      const { payload } = validateAndSaveMutateMock.mock.calls[0][0] as { payload: AnyRecord };
+      expect(payload.changes).toEqual([
+        {
+          type,
+          lineId: "",
+          value: 1300,
+          scope: { positions: ["SP", "PN", "AC"], jobTypes: ["CHARGEABLE"] },
+        },
+      ]);
+    },
+  );
 });
 
 describe("JobOverview job flow mutation success and error messages", () => {
