@@ -43,6 +43,7 @@ import {
 import Section from "components/generics/Section/GenericSection.types";
 import { Formik, Form, useFormikContext } from "formik";
 import { useFormValidation } from "components/generics/Form/useFormValidation";
+import type { FieldValueRange } from "components/generics/Form/formValidation";
 import { scrollToFirstError, scrollToTop } from "utils/scrollToError";
 import { getApiErrorMessage } from "utils/getApiErrorMessage";
 import { CreateJobContext } from "../CreateJob/CreateJob.context";
@@ -62,6 +63,7 @@ import {
   mergeRecalculationChanges,
   dropRejectedRecalculationChange,
   getSummaryChangeServerValue,
+  getValidatedUnitPriceMaterialIds,
   type SentRecalculationChange,
 } from "./JobOverview.utils";
 import {
@@ -432,6 +434,11 @@ export default function JobOverview() {
   // Loaded rows without a summary show only the total row, all amounts 0. A recalculation
   // without one still hides it, so its cache write is flagged here.
   const isRecalculationWriteRef = useRef(false);
+  // Saved unit prices (load / validate-and-save, never a recalculation): FR / PC rows with a
+  // price range unlock their total once their unit price is validated.
+  const [validatedUnitPriceMaterialIds, setValidatedUnitPriceMaterialIds] = useState<
+    ReadonlySet<string>
+  >(() => new Set<string>());
   useEffect(() => {
     const isRecalculation = isRecalculationWriteRef.current;
     isRecalculationWriteRef.current = false;
@@ -439,6 +446,7 @@ export default function JobOverview() {
       setIsZeroSummaryShown(false);
       return;
     }
+    setValidatedUnitPriceMaterialIds(getValidatedUnitPriceMaterialIds(diagnosticData?.materials));
     const hasMaterials = (diagnosticData?.materials?.length ?? 0) > 0;
     if (hasMaterials && isPriceSummaryMissing(diagnosticData?.priceSummaryDetailed)) {
       setIsZeroSummaryShown(true);
@@ -962,6 +970,7 @@ export default function JobOverview() {
   const autocompleteValidationRef = useRef<Record<string, boolean>>({});
   const sparePartNotBelongsToToolRef = useRef<Record<string, boolean>>({});
   const disabledFieldsRef = useRef<Record<string, boolean>>({});
+  const fieldValueRangesRef = useRef<Record<string, FieldValueRange>>({});
 
   const { validate, validateByAction, startValidation, stopValidation, setCurrentAction } =
     useFormValidation({
@@ -970,6 +979,7 @@ export default function JobOverview() {
       autocompleteValidationRef,
       sparePartNotBelongsToToolRef,
       disabledFieldsRef,
+      valueRangesRef: fieldValueRangesRef,
     });
 
   const visibleTabs = useMemo(() => {
@@ -1060,6 +1070,10 @@ export default function JobOverview() {
         exchangeReason: values.exchangeReason,
       }),
     [fetchDefaultQuantities, jobCountryCode, jobAscId, jobId],
+  );
+  const defaultParameterJobSource = useMemo(
+    () => ({ countryCode: jobCountryCode, ascId: jobAscId, jobId }),
+    [jobCountryCode, jobAscId, jobId],
   );
 
   const {
@@ -2235,6 +2249,7 @@ export default function JobOverview() {
       autocompleteValidation: autocompleteValidationRef,
       sparePartNotBelongsToTool: sparePartNotBelongsToToolRef,
       disabledFields: disabledFieldsRef,
+      fieldValueRanges: fieldValueRangesRef,
       warrantyPanelInfo,
       isRepairAnswerLocked,
       resolveDefaultQuantities,
@@ -2338,6 +2353,8 @@ export default function JobOverview() {
       discountBase,
       automaticRows,
       isValidating: validateAndSaveMutation.isPending || recalculatePricesMutation.isPending,
+      validatedUnitPriceMaterialIds,
+      defaultParameterJobSource,
     }),
     [
       materials,
@@ -2370,6 +2387,8 @@ export default function JobOverview() {
       automaticRows,
       validateAndSaveMutation.isPending,
       recalculatePricesMutation.isPending,
+      validatedUnitPriceMaterialIds,
+      defaultParameterJobSource,
     ],
   );
 

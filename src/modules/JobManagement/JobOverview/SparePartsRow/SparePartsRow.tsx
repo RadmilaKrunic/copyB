@@ -13,7 +13,13 @@ import "./SparePartsRow.scss";
 import Field from "components/generics/Field/GenericField.types";
 import type { GenericOptionProps } from "components/generics/Field/GenericField.types";
 import { SparePartsMainFields, SparePartsCollapsedSection } from "./SparePartsRow.components";
-import { getPriceFieldEditability } from "./materialPriceEditability";
+import {
+  getPriceFieldEditability,
+  getUserUnitPriceEditability,
+  hasUnitPriceLimit,
+  isUnitPriceEnteredByUser,
+} from "./materialPriceEditability";
+import { useDefaultUnitPriceRanges } from "api/services/prices/hooks";
 import { POSITION_PERMISSIONS } from "./positionPermissions";
 import { PERMISSIONS } from "utils/Permissions";
 import { useDiagnosticsContext } from "../DiagnosticsContext";
@@ -96,6 +102,7 @@ function SparePartsRow({
     sparePartNotBelongsToTool,
     warrantyPanelInfo,
     isRepairAnswerLocked,
+    fieldValueRanges,
   } = useContext(GenericFormContext);
   const {
     arePricesValidated,
@@ -105,6 +112,8 @@ function SparePartsRow({
     discountBase,
     automaticRows,
     isValidating,
+    validatedUnitPriceMaterialIds,
+    defaultParameterJobSource,
   } = useDiagnosticsContext();
   const [isRowCollapsed, setIsRowCollapsed] = useState(arePricesValidated);
 
@@ -163,18 +172,60 @@ function SparePartsRow({
   const isSparePartTypeRestricted =
     positionValue.toUpperCase() === "SP" &&
     (partNumberValue.trim().length === 0 || partNotBelongsToTool);
-  const priceFieldEditability = getPriceFieldEditability(
+  const effectiveDiscountBase = discountBase ?? "GROSS_PRICE";
+  const basePriceFieldEditability = getPriceFieldEditability(
     positionValue,
     rowTypeValue,
-    discountBase ?? "GROSS_PRICE",
+    effectiveDiscountBase,
   );
+
+  // FR / PC with a unit price range from the default-parameter API: the user enters the unit
+  // price, and the price fields unlock step by step (see getUserUnitPriceEditability).
+  const unitPriceRanges = useDefaultUnitPriceRanges(
+    {
+      ...defaultParameterJobSource,
+      actionType: values["actionType"],
+      jobType: values["jobType"],
+      faultCode: values["faultCode"],
+      faultCodeLabourQuantity: values["faultCodeLabourQuantity"],
+      exchangeReason: values["exchangeReason"],
+    },
+    isAutomaticRow,
+  );
+  const unitPriceLimits = isAutomaticRow ? unitPriceRanges[positionValue.toUpperCase()] : undefined;
+  const isUserUnitPrice = isUnitPriceEnteredByUser(unitPriceLimits);
+  const userUnitPriceEditability = isUserUnitPrice
+    ? getUserUnitPriceEditability(
+        Boolean(materialId),
+        Boolean(materialId && validatedUnitPriceMaterialIds?.has(materialId)),
+        basePriceFieldEditability,
+        effectiveDiscountBase,
+      )
+    : null;
+  const priceFieldEditability = userUnitPriceEditability?.prices ?? basePriceFieldEditability;
+
+  // Non-chargeable range (different limits): the validator checks the unit price against it.
+  const unitPriceField = fields.find((field) => field.subtype === "diagnosticUnitPrice");
+  const unitPriceFieldName = unitPriceField?.name ?? "";
+  const checkedUnitPriceLimits = hasUnitPriceLimit(unitPriceLimits) ? unitPriceLimits : null;
+  const unitPriceMin = checkedUnitPriceLimits?.lowestLimit;
+  const unitPriceMax = checkedUnitPriceLimits?.highestLimit;
+  useEffect(() => {
+    const ranges = fieldValueRanges?.current;
+    if (!ranges || !unitPriceFieldName || unitPriceMin === undefined || unitPriceMax === undefined)
+      return undefined;
+    ranges[unitPriceFieldName] = { minValue: unitPriceMin, maxValue: unitPriceMax };
+    return () => {
+      delete ranges[unitPriceFieldName];
+    };
+  }, [fieldValueRanges, unitPriceFieldName, unitPriceMin, unitPriceMax]);
 
   const mappedPositionOptions: Record<string, boolean> = {
     // Position locks once a part number is set, but only after a position was chosen:
     // a row still on "Select" keeps the dropdown open so the user can pick one.
     diagnosticPosition: partNumberValue !== "" && positionValue.trim() !== "",
     diagnosticQuantity: !canEditQuantity,
-    diagnosticUnitPrice: true,
+    diagnosticUnitPrice: !userUnitPriceEditability?.unitPrice,
     diagnosticPartNumber: (isAutomaticRow || isPnRow) && hasHardcodedAutofill,
     diagnosticDescription: (isAutomaticRow || isPnRow) && hasHardcodedAutofill,
   };
@@ -205,6 +256,10 @@ function SparePartsRow({
     const isDisabledBySubtype = mappedPositionOptions[field.subtype] ?? false;
     if (isDisabledBySubtype) {
       return { ...field, isDisabled: true };
+    }
+    // The UI config ships the unit price disabled; a user-entered FR / PC unit price unlocks it.
+    if (field.subtype === "diagnosticUnitPrice") {
+      return { ...field, isDisabled: false };
     }
 
     return field;

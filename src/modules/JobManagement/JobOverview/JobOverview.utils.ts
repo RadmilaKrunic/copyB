@@ -393,3 +393,18 @@ export const dropRejectedRecalculationChange = (
   }
   return pending.filter((change) => change !== sent.change);
 };
+
+/**
+ * Ids of saved material rows whose unit price is not 0. Only server data that was loaded or
+ * validated-and-saved goes in, so a unit price counts as validated, not just recalculated.
+ */
+export const getValidatedUnitPriceMaterialIds = (
+  materials: JobDiagnostic["materials"],
+): ReadonlySet<string> => {
+  const ids = new Set<string>();
+  for (const material of materials ?? []) {
+    const unitPrice = Number(material?.price?.unitPrice);
+    if (material?.id && Number.isFinite(unitPrice) && unitPrice !== 0) ids.add(material.id);
+  }
+  return ids;
+};

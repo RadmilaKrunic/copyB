@@ -1,9 +1,13 @@
 import { useCallback } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DEFAULT_GC_TIME_MS, DEFAULT_STALE_TIME_MS } from "utils/queryConstants";
 import { postDefaultParameter } from "./action";
-import { DefaultParameterSource, DefaultQuantities } from "./prices.types";
-import { buildDefaultParameterRequest, toDefaultQuantities } from "./prices.utils";
+import { DefaultParameterSource, DefaultQuantities, DefaultUnitPriceRanges } from "./prices.types";
+import {
+  buildDefaultParameterRequest,
+  toDefaultQuantities,
+  toUnitPriceRanges,
+} from "./prices.utils";
 
 /**
  * Returns a function that loads the backend default quantities per position.
@@ -32,4 +36,29 @@ export const useFetchDefaultQuantities = () => {
     },
     [queryClient],
   );
+};
+
+const NO_UNIT_PRICE_RANGES: DefaultUnitPriceRanges = {};
+
+/**
+ * Unit price range per position (FR, PC) from the default-parameter API. Shares the cache
+ * entry of `useFetchDefaultQuantities`, so rows add no extra call for the same request.
+ * Empty while the request is incomplete, loading or failed.
+ */
+export const useDefaultUnitPriceRanges = (
+  source: DefaultParameterSource,
+  enabled: boolean,
+): DefaultUnitPriceRanges => {
+  // The query key is hashed by value, so a new request object per render is fine.
+  const request = buildDefaultParameterRequest(source);
+  const { data } = useQuery({
+    queryKey: ["defaultParameter", request],
+    queryFn: () => (request ? postDefaultParameter(request) : Promise.resolve(null)),
+    enabled: enabled && request !== null,
+    staleTime: DEFAULT_STALE_TIME_MS,
+    gcTime: DEFAULT_GC_TIME_MS,
+    retry: false,
+    select: toUnitPriceRanges,
+  });
+  return data ?? NO_UNIT_PRICE_RANGES;
 };

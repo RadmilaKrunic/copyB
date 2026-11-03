@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import Field from "components/generics/Field/GenericField.types";
 import { convertAPIDataToFormValues, mapFieldToFieldMapping } from "components/generics/utils";
-import { JobOverviewItem } from "../JobList/JobList.types";
+import { JobDiagnostic, JobOverviewItem } from "../JobList/JobList.types";
 import {
   buildJobOverviewWarrantyCheckPayload,
   clearNullMaterialValues,
@@ -18,6 +18,7 @@ import {
   dropRejectedRecalculationChange,
   getSummaryChangeServerValue,
   isRecalculationValueRejected,
+  getValidatedUnitPriceMaterialIds,
 } from "./JobOverview.utils";
 
 vi.mock("../CreateJob/CreateJob.warranty.utils", () => ({
@@ -493,5 +494,47 @@ describe("dropRejectedRecalculationChange", () => {
         chargeableSummary({ totalAmount: 1250 }),
       ),
     ).toEqual([quantityChange, laterTotal]);
+  });
+});
+
+describe("getValidatedUnitPriceMaterialIds", () => {
+  type ApiMaterial = NonNullable<JobDiagnostic["materials"]>[number];
+  const material = (id: string, unitPrice: number): ApiMaterial => ({
+    id,
+    position: "FR",
+    partNumber: "FR",
+    description: "Freight",
+    type: "WARRANTY",
+    quantity: 1,
+    status: "PENDING",
+    approvedBy: "",
+    approvedByName: "",
+    approvedAt: "",
+    approvalRemarks: "",
+    isPriceSetManually: false,
+    price: {
+      discount: 0,
+      suggestedNetPrice: 0,
+      taxAmount: 0,
+      unitPrice,
+      netAmount: 0,
+      tax: 0,
+      grossAmount: 0,
+      totalAmount: 0,
+      discountAmount: 0,
+    },
+  });
+
+  it("returns ids of saved rows with a non-zero unit price", () => {
+    const ids = getValidatedUnitPriceMaterialIds([
+      material("mat-1", 120),
+      material("mat-2", 0),
+      material("", 50),
+    ]);
+    expect([...ids]).toEqual(["mat-1"]);
+  });
+
+  it("returns an empty set without materials", () => {
+    expect(getValidatedUnitPriceMaterialIds(undefined).size).toBe(0);
   });
 });

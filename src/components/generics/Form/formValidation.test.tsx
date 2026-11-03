@@ -633,6 +633,33 @@ describe("formValidation", () => {
         expect(errors.summaryTotalDiscountNet).toBe("Value exceeds maximum value 100");
       });
 
+      it("checks a runtime value range over the UI config range", () => {
+        const unitPriceField = createMockField({
+          name: "row0_unitPrice",
+          minValue: 0,
+          maxValue: 0,
+          fieldMapping: { originalName: "unitPrice" },
+        });
+        const valueRangesRef = { current: { row0_unitPrice: { minValue: 10, maxValue: 500 } } };
+        const validate = (unitPrice: number) => {
+          const errors: ValidationErrors = {};
+          validateByAction({
+            errors,
+            mandatoryFields: [],
+            values: { row0_unitPrice: unitPrice },
+            fields: [unitPriceField],
+            t: mockT,
+            valueRangesRef,
+          });
+          return errors.row0_unitPrice;
+        };
+
+        expect(validate(501)).toContain("500");
+        expect(validate(5)).toContain("10");
+        expect(validate(500)).toBeUndefined();
+        expect(validate(10)).toBeUndefined();
+      });
+
       it("skips pattern and length checks on a disabled field", () => {
         const errors: ValidationErrors = {};
         const fields = [

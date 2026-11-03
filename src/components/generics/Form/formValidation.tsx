@@ -9,6 +9,12 @@ import { isBeforeEarliestJobCreationDate } from "../../../utils/dateFormatter";
 
 export type ValidationErrors = Record<string, string>;
 
+/** Value limits a form sets per field name at runtime (e.g. FR unit price range). */
+export interface FieldValueRange {
+  minValue: number;
+  maxValue: number;
+}
+
 export const getMandatoryFieldsForSection = (section: Section, actionName: string): string[] => {
   if (section.actions === null || section.actions === undefined) {
     return [];
@@ -269,6 +275,15 @@ export const isFieldDisabledForValidation = (
   const shownDisabled = disabledFieldsRef.current;
   if (field.name in shownDisabled) return shownDisabled[field.name];
   return Boolean(field.isDisabled || field.alwaysDisabled);
+};
+
+/** The field with its runtime value limits, when the form registered some for it. */
+export const withRuntimeValueRange = (
+  field: Field,
+  valueRangesRef: RefObject<Record<string, FieldValueRange>> | undefined,
+): Field => {
+  const range = valueRangesRef?.current[field.name];
+  return range ? { ...field, minValue: range.minValue, maxValue: range.maxValue } : field;
 };
 
 function validateLengthAndRange(
@@ -577,6 +592,7 @@ interface ValidateSingleFieldParams {
   autocompleteValidationRef?: RefObject<Record<string, boolean>>;
   sparePartNotBelongsToToolRef?: RefObject<Record<string, boolean>>;
   disabledFieldsRef?: RefObject<Record<string, boolean>>;
+  valueRangesRef?: RefObject<Record<string, FieldValueRange>>;
 }
 
 function validateSingleField({
@@ -591,6 +607,7 @@ function validateSingleField({
   autocompleteValidationRef,
   sparePartNotBelongsToToolRef,
   disabledFieldsRef,
+  valueRangesRef,
 }: ValidateSingleFieldParams): void {
   const fieldName = field.name;
   const originalName = field.fieldMapping?.originalName;
@@ -650,7 +667,14 @@ function validateSingleField({
 
   if (!isFieldDisabledForValidation(field, disabledFieldsRef)) {
     validatePattern(field, errors, fieldName, value, hasValue, t);
-    validateLengthAndRange(field, errors, fieldName, value, hasValue, t);
+    validateLengthAndRange(
+      withRuntimeValueRange(field, valueRangesRef),
+      errors,
+      fieldName,
+      value,
+      hasValue,
+      t,
+    );
   }
   validateManufacturedBeforePurchaseDate({
     field,
@@ -708,6 +732,7 @@ export const validateByAction = ({
   autocompleteValidationRef,
   sparePartNotBelongsToToolRef,
   disabledFieldsRef,
+  valueRangesRef,
 }: {
   errors: Record<string, string>;
   mandatoryFields: string[];
@@ -719,6 +744,7 @@ export const validateByAction = ({
   autocompleteValidationRef?: RefObject<Record<string, boolean>>;
   sparePartNotBelongsToToolRef?: RefObject<Record<string, boolean>>;
   disabledFieldsRef?: RefObject<Record<string, boolean>>;
+  valueRangesRef?: RefObject<Record<string, FieldValueRange>>;
 }): ValidationErrors => {
   fields.forEach((field) => {
     validateSingleField({
@@ -733,6 +759,7 @@ export const validateByAction = ({
       autocompleteValidationRef,
       sparePartNotBelongsToToolRef,
       disabledFieldsRef,
+      valueRangesRef,
     });
   });
   return errors;
@@ -748,6 +775,7 @@ export const useValidator = () => {
     autocompleteValidationRef,
     sparePartNotBelongsToToolRef,
     disabledFieldsRef,
+    valueRangesRef,
   }: {
     fields: Field[];
     values: Record<string, unknown>;
@@ -757,6 +785,7 @@ export const useValidator = () => {
     autocompleteValidationRef?: RefObject<Record<string, boolean>>;
     sparePartNotBelongsToToolRef?: RefObject<Record<string, boolean>>;
     disabledFieldsRef?: RefObject<Record<string, boolean>>;
+    valueRangesRef?: RefObject<Record<string, FieldValueRange>>;
   }): ValidationErrors => {
     const errors: ValidationErrors = {};
 
@@ -771,6 +800,7 @@ export const useValidator = () => {
       autocompleteValidationRef,
       sparePartNotBelongsToToolRef,
       disabledFieldsRef,
+      valueRangesRef,
     });
 
     return errors;

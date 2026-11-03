@@ -1,5 +1,5 @@
 import { useCallback, useState, useRef, useEffect } from "react";
-import { useValidator } from "./formValidation";
+import { FieldValueRange, useValidator } from "./formValidation";
 import Field from "../Field/GenericField.types";
 import { ActionMandatoryFields } from "./GenericForm.types";
 
@@ -15,6 +15,8 @@ interface UseFormValidationProps {
   sparePartNotBelongsToToolRef?: React.RefObject<Record<string, boolean>>;
   /** Shown disabled state per field name (GenericField registers it); disabled fields skip format checks. */
   disabledFieldsRef?: React.RefObject<Record<string, boolean>>;
+  /** Runtime min/max per field name (e.g. FR unit price range); wins over the UI config. */
+  valueRangesRef?: React.RefObject<Record<string, FieldValueRange>>;
 }
 
 interface UseFormValidationReturn {
@@ -32,6 +34,7 @@ export const useFormValidation = ({
   autocompleteValidationRef,
   sparePartNotBelongsToToolRef,
   disabledFieldsRef,
+  valueRangesRef,
 }: UseFormValidationProps): UseFormValidationReturn => {
   const validateFormByAction = useValidator();
   const [validationState, setValidationState] = useState<ValidationState>({
@@ -64,6 +67,7 @@ export const useFormValidation = ({
         autocompleteValidationRef,
         sparePartNotBelongsToToolRef,
         disabledFieldsRef,
+        valueRangesRef,
       });
     },
     [
@@ -73,6 +77,7 @@ export const useFormValidation = ({
       autocompleteValidationRef,
       sparePartNotBelongsToToolRef,
       disabledFieldsRef,
+      valueRangesRef,
     ],
   );
 
@@ -108,6 +113,7 @@ export const useFormValidation = ({
           autocompleteValidationRef,
           sparePartNotBelongsToToolRef,
           disabledFieldsRef,
+          valueRangesRef,
         });
 
         // Filter to only include autocomplete, serial number and spare-part compatibility errors
@@ -141,6 +147,7 @@ export const useFormValidation = ({
       autocompleteValidationRef,
       sparePartNotBelongsToToolRef,
       disabledFieldsRef,
+      valueRangesRef,
     ],
   );
 

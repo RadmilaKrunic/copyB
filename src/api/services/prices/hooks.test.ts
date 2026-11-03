@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook } from "@testing-library/react";
+import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 
 vi.mock("./action", () => ({ postDefaultParameter: vi.fn() }));
 
 import { postDefaultParameter } from "./action";
-import { useFetchDefaultQuantities } from "./hooks";
+import { useDefaultUnitPriceRanges, useFetchDefaultQuantities } from "./hooks";
 
 const mockPost = vi.mocked(postDefaultParameter);
 
@@ -59,6 +59,39 @@ describe("useFetchDefaultQuantities", () => {
   it("resolves null without calling the API when the request is incomplete", async () => {
     const fetchQuantities = getFetchDefaultQuantities();
     expect(await fetchQuantities({ ...source, jobType: "" })).toBeNull();
+    expect(mockPost).not.toHaveBeenCalled();
+  });
+});
+
+describe("useDefaultUnitPriceRanges", () => {
+  const renderRanges = (enabled: boolean, requestSource = source) => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(QueryClientProvider, { client: queryClient }, children);
+    return renderHook(() => useDefaultUnitPriceRanges(requestSource, enabled), { wrapper });
+  };
+
+  it("returns the unit price range per position", async () => {
+    mockPost.mockResolvedValueOnce({
+      byPosition: [
+        {
+          position: "FR",
+          value: 1,
+          serviceUnits: null,
+          unitPriceRange: { lowestLimit: 0, highestLimit: 500 },
+        },
+      ],
+    });
+    const { result } = renderRanges(true);
+    await waitFor(() =>
+      expect(result.current).toEqual({ FR: { lowestLimit: 0, highestLimit: 500 } }),
+    );
+    expect(mockPost).toHaveBeenCalledWith(source);
+  });
+
+  it("does not call the API when disabled or the request is incomplete", () => {
+    expect(renderRanges(false).result.current).toEqual({});
+    expect(renderRanges(true, { ...source, faultCode: "" }).result.current).toEqual({});
     expect(mockPost).not.toHaveBeenCalled();
   });
 });

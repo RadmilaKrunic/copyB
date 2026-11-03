@@ -64,6 +64,19 @@ export interface DiagnosticsContextValue {
   automaticRows?: string[];
   /** True while validateAndSave mutation is pending — all row inputs locked */
   isValidating: boolean;
+  /**
+   * Material ids whose saved (validated) unit price is not 0. Recalculation does not change it,
+   * so FR / PC rows with a price range unlock their total only after validate-and-save.
+   */
+  validatedUnitPriceMaterialIds?: ReadonlySet<string>;
+  /** Job values of the default-parameter request that are not form fields. */
+  defaultParameterJobSource?: DefaultParameterJobSource;
+}
+
+export interface DefaultParameterJobSource {
+  countryCode?: string;
+  ascId?: string;
+  jobId?: string;
 }
 
 const DEFAULT_SUMMARY_TYPE_OPTIONS = [{ value: "totalSummary", label: "totalSummary" }];
@@ -101,6 +114,8 @@ const defaultDiagnosticsContextValue: DiagnosticsContextValue = {
   discountBase: "GROSS_PRICE",
   automaticRows: [],
   isValidating: false,
+  validatedUnitPriceMaterialIds: new Set<string>(),
+  defaultParameterJobSource: undefined,
 };
 
 export const DiagnosticsContext = createContext<DiagnosticsContextValue>(
