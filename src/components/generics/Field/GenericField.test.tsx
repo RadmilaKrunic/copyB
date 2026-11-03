@@ -1000,6 +1000,80 @@ describe("GenericField", () => {
       );
     });
 
+    it("refreshes the row quantity with the new row type, then recalculates once", async () => {
+      const user = userEvent.setup();
+      const calls: unknown[][] = [];
+      const onRecalculatePrices = (name: unknown, value: unknown) => {
+        calls.push([name, value]);
+      };
+      const resolveDefaultQuantities = vi.fn().mockResolvedValue({ LA: 4 });
+      vi.mocked(refreshProtectedRowQuantities).mockClear();
+
+      renderWithContext(
+        {
+          name: "row0_type",
+          label: "Type",
+          type: "dropdown",
+          subtype: "diagnosticType",
+          isRequired: false,
+          onValueChange: "onRecalculatePrices",
+          options: [{ value: "CHARGEABLE", label: "Chargeable", name: "Chargeable" }],
+          fieldMapping: { originalName: "type", nameStartsWith: "row0_" },
+        },
+        { actionCallbacks: { onRecalculatePrices }, resolveDefaultQuantities },
+        { jobType: "WARRANTY" },
+      );
+
+      await user.selectOptions(screen.getByTestId("dropdown-row0_type"), "CHARGEABLE");
+
+      await waitFor(() => expect(calls).toEqual([["row0_type", "CHARGEABLE"]]));
+      expect(refreshProtectedRowQuantities).toHaveBeenCalledTimes(1);
+      expect(refreshProtectedRowQuantities).toHaveBeenCalledWith(
+        expect.objectContaining({
+          formValues: expect.objectContaining({ row0_type: "CHARGEABLE", jobType: "CHARGEABLE" }),
+          resolveDefaultQuantities,
+          rowPrefix: "row0_",
+        }),
+      );
+    });
+
+    it("recalculates the refreshed quantity when the row type has no action", async () => {
+      const user = userEvent.setup();
+      const calls: unknown[][] = [];
+      const onRecalculatePrices = (name: unknown, value: unknown) => {
+        calls.push([name, value]);
+      };
+      const qtyField: Field = {
+        name: "row0_quantity",
+        label: "Quantity",
+        type: "number",
+        subtype: "diagnosticQuantity",
+        isRequired: false,
+        onBlur: "onRecalculatePrices",
+        fieldMapping: { originalName: "quantity", nameStartsWith: "row0_" },
+      };
+      vi.mocked(refreshProtectedRowQuantities).mockResolvedValueOnce([
+        { field: qtyField, value: 4 },
+      ]);
+
+      renderWithContext(
+        {
+          name: "row0_type",
+          label: "Type",
+          type: "dropdown",
+          subtype: "diagnosticType",
+          isRequired: false,
+          options: [{ value: "CHARGEABLE", label: "Chargeable", name: "Chargeable" }],
+          fieldMapping: { originalName: "type", nameStartsWith: "row0_" },
+        },
+        { actionCallbacks: { onRecalculatePrices }, resolveDefaultQuantities: vi.fn() },
+      );
+
+      await user.selectOptions(screen.getByTestId("dropdown-row0_type"), "CHARGEABLE");
+
+      await waitFor(() => expect(calls).toEqual([["row0_quantity", 4]]));
+    });
+
     it("does not refresh quantities when a non default-parameter dropdown changes", async () => {
       const user = userEvent.setup();
       vi.mocked(refreshProtectedRowQuantities).mockClear();
