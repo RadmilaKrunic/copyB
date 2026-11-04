@@ -892,6 +892,8 @@ export const useDiagnosticsManager = ({
   const hasSyncedArchivedRef = useRef(false);
   const hasSyncedSummaryDetailedRef = useRef(false);
   const forceRebuildRef = useRef(false);
+  /** Set by a rule change (Effect 2): an empty rebuilt list then clears the old rows. */
+  const isRuleRebuildRef = useRef(false);
   const archivedForceRebuildRef = useRef(false);
   const jobStatusRef = useRef(jobStatus);
   jobStatusRef.current = jobStatus;
@@ -1122,6 +1124,7 @@ export const useDiagnosticsManager = ({
     // Build fresh from automatic rows only.
     const positionsToAdd = sortByPositionOrder(automatic.filter((pos) => allowedSet.has(pos)));
 
+    isRuleRebuildRef.current = true;
     setMaterials((prev) => {
       const automaticItems = positionsToAdd.map((pos) => {
         const qty = getQuantityForPositionRef.current(pos, faultCode, faultCodeLabourQty) ?? 1;
@@ -1180,7 +1183,11 @@ export const useDiagnosticsManager = ({
 
   // ── Effect 3: materials[] → areas + allFields + initialFormValues ─────────
   useEffect(() => {
-    if (materials.length === 0) return;
+    // A rule with no automatic rows rebuilds an empty list: the old rows must still go, and
+    // the form must take the new action/job type, or a later form reset brings the old one back.
+    const isRuleClear = materials.length === 0 && isRuleRebuildRef.current;
+    isRuleRebuildRef.current = false;
+    if (materials.length === 0 && !isRuleClear) return;
 
     const currentTabs = tabsRef.current;
     const currentFields = allFieldsRef.current ?? [];
@@ -1195,7 +1202,8 @@ export const useDiagnosticsManager = ({
     const templateArea = sparePartsAreas[0];
     if (!templateArea) return;
     const currentCount = sparePartsAreas.length;
-    const targetCount = materials.length;
+    // The first area is the clone template and is never removed; it is emptied instead.
+    const targetCount = Math.max(materials.length, 1);
     const needed = targetCount - currentCount;
 
     // Hoisted so they're in scope for both the build phase and the functional setters below.
@@ -1234,14 +1242,16 @@ export const useDiagnosticsManager = ({
       removeAreaNames,
     );
 
-    const rowValues = buildMaterialsRowValues({
-      materials,
-      areas: finalSparePartsAreas,
-      fields: updatedFields,
-      formValues: formValuesRef.current,
-      currentCount,
-      forceRebuild: forceRebuildRef.current,
-    });
+    const rowValues = isRuleClear
+      ? clearAreaValues(templateArea)
+      : buildMaterialsRowValues({
+          materials,
+          areas: finalSparePartsAreas,
+          fields: updatedFields,
+          formValues: formValuesRef.current,
+          currentCount,
+          forceRebuild: forceRebuildRef.current,
+        });
 
     if (needed !== 0 || forceRebuildRef.current) {
       skipFormResetRef.current = true;

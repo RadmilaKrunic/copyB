@@ -2812,6 +2812,39 @@ describe("useDiagnosticsManager default quantity from the API", () => {
     expect(mergedInitialValues(mocks.setInitialFormValues).actionType).toBe("NEW_TOOL_EXCHANGE");
   });
 
+  it("an action type without a rule clears the rows and keeps the new action type", async () => {
+    const { props, mocks } = createHookProps();
+    const resolveDefaultQuantities = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ actionType }) =>
+        useDiagnosticsManager({
+          ...props,
+          currentActionType: actionType,
+          resolveDefaultQuantities,
+        }),
+      { initialProps: { actionType: "REPAIR" } },
+    );
+    await waitFor(() => {
+      expect(result.current.materials.map((m) => m.position)).toEqual(["PN"]);
+    });
+
+    props.formValuesRef.current.actionType = "ACCESSORIES_EXCHANGE";
+    props.formValuesRef.current.exchangeReason = "DEFECT";
+    rerender({ actionType: "ACCESSORIES_EXCHANGE" });
+
+    await waitFor(() => {
+      expect(mergedInitialValues(mocks.setInitialFormValues).actionType).toBe(
+        "ACCESSORIES_EXCHANGE",
+      );
+    });
+    expect(result.current.materials).toEqual([]);
+    const values = mergedInitialValues(mocks.setInitialFormValues);
+    expect(values[`${SPARE}#0_position`]).toBe("");
+    expect(values[`${SPARE}#0_sparePartNumber`]).toBe("");
+    expect(values.exchangeReason).toBe("DEFECT");
+    expect(resolveDefaultQuantities).not.toHaveBeenCalled();
+  });
+
   it("does not call the API when no automatic row is protected", async () => {
     const { props } = createHookProps();
     const resolveDefaultQuantities = vi.fn();
