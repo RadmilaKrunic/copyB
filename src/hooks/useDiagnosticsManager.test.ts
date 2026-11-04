@@ -6,10 +6,6 @@ vi.mock("@tanstack/react-query", () => ({
   useQueryClient: vi.fn(),
 }));
 
-vi.mock("api/services/bareSalesRelation/hooks", () => ({
-  useBareSalesRelation: vi.fn(),
-}));
-
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
@@ -29,7 +25,6 @@ vi.mock("components/generics/utils", async (importOriginal) => {
 });
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useBareSalesRelation } from "api/services/bareSalesRelation/hooks";
 import { setDuplicatedArea } from "components/generics/utils";
 import { scrollToTop } from "utils/scrollToError";
 import { MessagesContext } from "@/contexts/messagescontext";
@@ -273,7 +268,6 @@ const createHookProps = (overrides: HookOverride = {}) => {
   });
 
   vi.mocked(useQueryClient).mockReturnValue({ getQueryData } as never);
-  vi.mocked(useBareSalesRelation).mockReturnValue({ data: undefined } as never);
 
   return {
     props: {
@@ -1461,124 +1455,6 @@ describe("useDiagnosticsManager effects", () => {
       await waitFor(() => {
         expect(result.current.materials.map((m) => m.partNumber)).toEqual(["SM"]);
       });
-    });
-  });
-
-  describe("bare sales relation autofill", () => {
-    it("fills the PN row from sales data available on first build", async () => {
-      const { props } = createHookProps();
-      vi.mocked(useBareSalesRelation).mockReturnValue({
-        data: { salesSku: "SKU-1", desc: "Sales desc" },
-      } as never);
-      const { result } = renderManager(props);
-
-      await waitFor(() => {
-        expect(result.current.materials[0]?.partNumber).toBe("SKU-1");
-      });
-      expect(result.current.materials[0].description).toBe("Sales desc");
-    });
-
-    it("falls back to an empty description when sales data has none", async () => {
-      const { props } = createHookProps();
-      vi.mocked(useBareSalesRelation).mockReturnValue({ data: { salesSku: "SKU-1" } } as never);
-      const { result } = renderManager(props);
-
-      await waitFor(() => {
-        expect(result.current.materials[0]?.partNumber).toBe("SKU-1");
-      });
-      expect(result.current.materials[0].description).toBe("");
-    });
-
-    it("applies late-arriving sales data to an empty PN row and forces a rebuild", async () => {
-      const { props, mocks } = createHookProps();
-      const { result, rerender } = renderManager(props);
-
-      await waitFor(() => {
-        expect(result.current.materials).toHaveLength(1);
-      });
-
-      vi.mocked(useBareSalesRelation).mockReturnValue({
-        data: { salesSku: "SKU-2", desc: "Late desc" },
-      } as never);
-      rerender();
-
-      await waitFor(() => {
-        expect(result.current.materials[0].partNumber).toBe("SKU-2");
-      });
-      expect(result.current.materials[0].description).toBe("Late desc");
-      await waitFor(() => {
-        expect(mergedInitialValues(mocks.setInitialFormValues)[`${SPARE}#0_sparePartNumber`]).toBe(
-          "SKU-2",
-        );
-      });
-      expect(props.skipFormResetRef.current).toBe(true);
-    });
-
-    it("uses an empty description for late sales data without desc", async () => {
-      const { props } = createHookProps();
-      const { result, rerender } = renderManager(props);
-
-      await waitFor(() => {
-        expect(result.current.materials).toHaveLength(1);
-      });
-      vi.mocked(useBareSalesRelation).mockReturnValue({ data: { salesSku: "SKU-3" } } as never);
-      rerender();
-
-      await waitFor(() => {
-        expect(result.current.materials[0].partNumber).toBe("SKU-3");
-      });
-      expect(result.current.materials[0].description).toBe("");
-    });
-
-    it("does not overwrite a PN row that already has a part number", async () => {
-      const { props } = createHookProps();
-      const { result, rerender } = renderManager(props);
-
-      act(() => {
-        result.current.setMaterials([makeItem({ position: "PN", partNumber: "KEEP" })]);
-      });
-      vi.mocked(useBareSalesRelation).mockReturnValue({ data: { salesSku: "SKU-4" } } as never);
-      rerender();
-
-      expect(result.current.materials[0].partNumber).toBe("KEEP");
-    });
-
-    it("ignores late sales data when there is no PN row", async () => {
-      const { props } = createHookProps();
-      const { result, rerender } = renderManager(props);
-
-      act(() => {
-        result.current.setMaterials([makeItem({ position: "SP", partNumber: "SP-1" })]);
-      });
-      vi.mocked(useBareSalesRelation).mockReturnValue({ data: { salesSku: "SKU-5" } } as never);
-      rerender();
-
-      expect(result.current.materials.map((m) => m.partNumber)).toEqual(["SP-1"]);
-    });
-
-    it("queries sales relation only for pre-approval action types and non-internal users", () => {
-      const baretoolField = makeField("bareTool", "baretoolNumber");
-      const { props } = createHookProps({
-        allFields: [...diagnosticFields, baretoolField],
-        formValues: { bareTool: "BT-1" },
-      });
-      renderManager({ ...props, currentActionType: "NEW_TOOL_EXCHANGE" });
-
-      expect(useBareSalesRelation).toHaveBeenCalledWith(
-        { bareTool: "BT-1", countryCode: "ZA", language: "EN" },
-        { enabled: true },
-      );
-    });
-
-    it("disables the sales relation query for non pre-approval action types", () => {
-      const baretoolField = makeField("bareTool", "baretoolNumber");
-      const { props } = createHookProps({
-        allFields: [...diagnosticFields, baretoolField],
-        formValues: { bareTool: "BT-1" },
-      });
-      renderManager(props);
-
-      expect(useBareSalesRelation).toHaveBeenCalledWith(expect.anything(), { enabled: false });
     });
   });
 
@@ -2893,6 +2769,47 @@ describe("useDiagnosticsManager default quantity from the API", () => {
       expect(resolveDefaultQuantities).toHaveBeenCalled();
     });
     expect(result.current.materials.map((m) => [m.position, m.quantity])).toEqual([["LA", 7]]);
+  });
+
+  it("switching to an exchange action type keeps it, loads API quantities and leaves PN empty", async () => {
+    const { props, mocks } = createHookProps({
+      allowedPositions: [makeAllowedPosition("PN", "DEFAULT", 1, 1), makeAllowedPosition("LA")],
+    });
+    const config = mocks.getQueryData(["countryConfiguration", "ZA"]) as CountryConfig;
+    const [repairRule] = config.diagnosticsConfiguration.rules;
+    config.diagnosticsConfiguration.rules.push({
+      ...repairRule,
+      actionType: "NEW_TOOL_EXCHANGE",
+      rule: { ...repairRule.rule, automaticRows: ["PN", "LA"] },
+    });
+    props.formValuesRef.current.exchangeReason = "DEFECT";
+    const resolveDefaultQuantities = vi.fn().mockResolvedValue({ LA: 5 });
+    const { result, rerender } = renderHook(
+      ({ actionType }) =>
+        useDiagnosticsManager({
+          ...props,
+          currentActionType: actionType,
+          resolveDefaultQuantities,
+        }),
+      { initialProps: { actionType: "REPAIR" } },
+    );
+    await waitFor(() => {
+      expect(result.current.materials.map((m) => m.position)).toEqual(["PN"]);
+    });
+
+    props.formValuesRef.current.actionType = "NEW_TOOL_EXCHANGE";
+    rerender({ actionType: "NEW_TOOL_EXCHANGE" });
+
+    await waitFor(() => {
+      expect(result.current.materials.map((m) => [m.position, m.partNumber, m.quantity])).toEqual([
+        ["LA", expect.any(String), 5],
+        ["PN", "", 1],
+      ]);
+    });
+    expect(resolveDefaultQuantities).toHaveBeenCalledWith(
+      expect.objectContaining({ actionType: "NEW_TOOL_EXCHANGE", exchangeReason: "DEFECT" }),
+    );
+    expect(mergedInitialValues(mocks.setInitialFormValues).actionType).toBe("NEW_TOOL_EXCHANGE");
   });
 
   it("does not call the API when no automatic row is protected", async () => {

@@ -18,7 +18,6 @@ import {
 } from "components/generics/utils";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { useBareSalesRelation } from "api/services/bareSalesRelation/hooks";
 import { PERMISSIONS } from "utils/Permissions";
 import type { HeaderUserData } from "api/services/header/action";
 import type { Material } from "modules/ClaimManagement/ClaimOverview/Claims.types";
@@ -903,7 +902,6 @@ export const useDiagnosticsManager = ({
   const [rowsChangedVersion, setRowsChangedVersion] = useState(0);
   const shouldMarkValidatedRef = useRef(false);
   const prevRuleKeyRef = useRef("");
-  const prAutofillAppliedRef = useRef(false);
   const materialsRef = useRef(materials);
   materialsRef.current = materials;
   const archivedMaterialsRef = useRef(archivedMaterials);
@@ -911,25 +909,6 @@ export const useDiagnosticsManager = ({
   const archivedTemplateRef = useRef<Area | null>(null);
   const priceSummaryDetailedRef = useRef(priceSummaryDetailed);
   priceSummaryDetailedRef.current = priceSummaryDetailed;
-
-  const baretoolNumberField = allFields?.find((x) => x.subtype === "baretoolNumber");
-  const baretoolNumber = baretoolNumberField
-    ? (formValuesRef.current[baretoolNumberField.name] as string | undefined)
-    : undefined;
-  // ── Bare-sales-relation query (PN row autofill) ───────────────────────────
-  const countryCode = userData?.countryCode ?? "";
-  const language = userData?.language?.toUpperCase() || "EN";
-  const { data: bareSalesData } = useBareSalesRelation(
-    { bareTool: baretoolNumber ?? "", countryCode, language },
-    {
-      enabled:
-        !!(baretoolNumber && countryCode) &&
-        userData?.type !== "BOSCH_INTERNAL" &&
-        PREAPPROVAL_ACTION_TYPES.has(currentActionType),
-    },
-  );
-  const bareSalesDataRef = useRef(bareSalesData);
-  bareSalesDataRef.current = bareSalesData;
 
   const mapPrice = (
     m: Record<string, unknown>,
@@ -978,7 +957,6 @@ export const useDiagnosticsManager = ({
     hasSyncedArchivedRef.current = false;
     hasSyncedSummaryDetailedRef.current = false;
     prevRuleKeyRef.current = "";
-    prAutofillAppliedRef.current = false;
     setApiMaterialsLoaded(false);
     setApiMaterialsEmpty(false);
     setMaterials([]);
@@ -1147,16 +1125,7 @@ export const useDiagnosticsManager = ({
     setMaterials((prev) => {
       const automaticItems = positionsToAdd.map((pos) => {
         const qty = getQuantityForPositionRef.current(pos, faultCode, faultCodeLabourQty) ?? 1;
-        const item = buildEmptyMaterial(pos, currentJobType, qty, tRef.current);
-        if (pos === "PN") {
-          prAutofillAppliedRef.current = false;
-          const salesData = bareSalesDataRef.current;
-          if (salesData?.salesSku) {
-            prAutofillAppliedRef.current = true;
-            return { ...item, partNumber: salesData.salesSku, description: salesData.desc ?? "" };
-          }
-        }
-        return item;
+        return buildEmptyMaterial(pos, currentJobType, qty, tRef.current);
       });
 
       const spInAllowed = allowedSet.has("SP");
@@ -1208,30 +1177,6 @@ export const useDiagnosticsManager = ({
     setArePricesValidated,
     hasDiagnosticsConfig,
   ]);
-
-  // ── Effect 2b: bare-sales-relation data → apply to PN row when it arrives late ──
-  useEffect(() => {
-    if (!bareSalesData?.salesSku) return;
-    if (prAutofillAppliedRef.current) return;
-
-    const currentMaterials = materialsRef.current;
-    const pnIndex = currentMaterials.findIndex((m) => m.position === "PN");
-    if (pnIndex === -1 || currentMaterials[pnIndex].partNumber) return;
-
-    prAutofillAppliedRef.current = true;
-    forceRebuildRef.current = true;
-    setMaterials((prev) => {
-      const idx = prev.findIndex((m) => m.position === "PN");
-      if (idx === -1) return prev;
-      const updated = [...prev];
-      updated[idx] = {
-        ...updated[idx],
-        partNumber: bareSalesData.salesSku,
-        description: bareSalesData.desc ?? "",
-      };
-      return normalizeMaterialOrders(updated);
-    });
-  }, [bareSalesData]);
 
   // ── Effect 3: materials[] → areas + allFields + initialFormValues ─────────
   useEffect(() => {
