@@ -388,15 +388,18 @@ const SERVER_ROW_KEY_PREFIXES = [
 ];
 
 /**
- * The user's current non-row values (action type, job type, exchange reason, ...). Every
- * initial-values rebuild keeps them: Formik re-initializes from the initial values, so a stale
- * action type there would undo the user's change.
+ * The user's current, non-empty form values outside the given row lists. Initial-values
+ * rebuilds keep them: Formik re-initializes from the initial values, so a stale action type
+ * there would undo the user's change.
  */
-function getCurrentHeaderValues(formValues: Record<string, unknown>): Record<string, unknown> {
+function getFormValuesOutside(
+  formValues: Record<string, unknown>,
+  excludedPrefixes: readonly string[],
+): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(formValues).filter(
       ([key, value]) =>
-        !SERVER_ROW_KEY_PREFIXES.some((prefix) => key.startsWith(prefix)) &&
+        !excludedPrefixes.some((prefix) => key.startsWith(prefix)) &&
         value !== "" &&
         value !== null &&
         value !== undefined,
@@ -576,6 +579,81 @@ function withSpecialMaterialSpOption(params: {
     if (f.subtype !== "diagnosticPosition" || !spPositionFieldNames.has(f.name)) return f;
     return { ...f, options: [...(f.options ?? []), spOption] };
   });
+}
+
+/** Areas and fields to add or remove so the spare-parts rows match `targetCount`. */
+interface SparePartsAreaPlan {
+  needed: number;
+  newAreas: Area[];
+  removeAreaNames: Set<string>;
+  removeFieldNames: Set<string>;
+  updatedFields: Field[];
+  finalAreas: Area[];
+}
+
+function planSparePartsAreas(
+  sparePartsAreas: Area[],
+  targetCount: number,
+  currentFields: Field[],
+  tabName: string,
+): SparePartsAreaPlan {
+  const needed = targetCount - sparePartsAreas.length;
+  const newAreas: Area[] = [];
+  let removeAreaNames = new Set<string>();
+  let removeFieldNames = new Set<string>();
+  let updatedFields = [...currentFields];
+
+  if (needed > 0) {
+    const maxIndex = sparePartsAreas.reduce((max, a) => Math.max(max, a.index ?? 0), 0);
+    for (let i = 0; i < needed; i++) {
+      const cloned = structuredClone(sparePartsAreas[0]);
+      cloned.label = "";
+      const area = setDuplicatedArea(cloned, maxIndex + 1 + i, tabName);
+      newAreas.push(area);
+      updatedFields = [...updatedFields, ...area.fields.map((f) => mapFieldToFieldMapping(f))];
+    }
+  } else if (needed < 0) {
+    // Remove excess areas (from the end, beyond index 0)
+    const toRemove = sparePartsAreas.slice(targetCount);
+    removeAreaNames = new Set(toRemove.map((a) => a.name));
+    removeFieldNames = new Set(toRemove.flatMap((a) => a.fields.map((f) => f.name)));
+    updatedFields = currentFields.filter((f) => !removeFieldNames.has(f.name));
+  }
+
+  return {
+    needed,
+    newAreas,
+    removeAreaNames,
+    removeFieldNames,
+    updatedFields,
+    finalAreas: computeFinalSparePartsAreas(needed, sparePartsAreas, newAreas, removeAreaNames),
+  };
+}
+
+/**
+ * Writes a plan to fields and tabs with functional updaters, so it composes with any other
+ * hook (e.g. useClaimMaterialsManager) that shares the same setAllFields / setTabs.
+ */
+function applySparePartsAreaPlan(
+  plan: SparePartsAreaPlan,
+  addedFields: Field[],
+  setters: {
+    setAllFields: Dispatch<SetStateAction<Field[] | null>>;
+    setTabs: Dispatch<SetStateAction<Section[]>>;
+  },
+): void {
+  const { setAllFields, setTabs } = setters;
+  if (plan.needed > 0) {
+    setAllFields((prev) => [...(prev ?? []), ...addedFields]);
+    setTabs((prev) =>
+      prev.map((tab) =>
+        tab.name === "diagnosticData" ? { ...tab, areas: [...tab.areas, ...plan.newAreas] } : tab,
+      ),
+    );
+  } else if (plan.needed < 0) {
+    setAllFields((prev) => (prev ?? []).filter((f) => !plan.removeFieldNames.has(f.name)));
+    setTabs((prev) => prev.map((tab) => removeDiagnosticsAreas(tab, plan.removeAreaNames)));
+  }
 }
 
 function computeFinalSparePartsAreas(
@@ -1213,114 +1291,55 @@ export const useDiagnosticsManager = ({
     isRuleRebuildRef.current = false;
     if (materials.length === 0 && !isRuleClear) return;
 
-    const currentTabs = tabsRef.current;
-    const currentFields = allFieldsRef.current ?? [];
-
-    const diagnosticTab = currentTabs.find((t) => t.name === "diagnosticData");
+    const diagnosticTab = tabsRef.current.find((t) => t.name === "diagnosticData");
     if (!diagnosticTab) return;
-
     const sparePartsAreas = diagnosticTab.areas.filter(
       (a) => a.isMultiple && a.name.includes("diagnosticsSpareParts"),
     );
-
     const templateArea = sparePartsAreas[0];
     if (!templateArea) return;
-    const currentCount = sparePartsAreas.length;
+
+    const currentFields = allFieldsRef.current ?? [];
+    const isForced = forceRebuildRef.current;
     // The first area is the clone template and is never removed; it is emptied instead.
-    const targetCount = Math.max(materials.length, 1);
-    const needed = targetCount - currentCount;
-
-    // Hoisted so they're in scope for both the build phase and the functional setters below.
-    const newAreas: Area[] = [];
-    let removeAreaNames = new Set<string>();
-    let removeFieldNames = new Set<string>();
-
-    let updatedFields = [...currentFields];
-
-    if (needed > 0) {
-      const maxIndex = sparePartsAreas.reduce((max, a) => Math.max(max, a.index ?? 0), 0);
-
-      for (let i = 0; i < needed; i++) {
-        const cloned = structuredClone(templateArea);
-        cloned.label = "";
-        const area = setDuplicatedArea(cloned, maxIndex + 1 + i, diagnosticTab.name);
-        const areaFields = area.fields.map((f) => mapFieldToFieldMapping(f));
-        newAreas.push(area);
-        updatedFields = [...updatedFields, ...areaFields];
-      }
-    } else if (needed < 0) {
-      // Remove excess areas (from the end, beyond index 0)
-      const toRemove = sparePartsAreas.slice(targetCount);
-      removeAreaNames = new Set(toRemove.map((a) => a.name));
-      removeFieldNames = new Set(toRemove.flatMap((a) => a.fields.map((f) => f.name)));
-      updatedFields = currentFields.filter((f) => !removeFieldNames.has(f.name));
-    }
-
-    // Build form values from each MaterialItem mapped onto its area's fields.
-    // For the "needed > 0" case we need to know the final areas; build them inline
-    // from updatedFields (same data as before, just without the updatedTabs variable).
-    const finalSparePartsAreas = computeFinalSparePartsAreas(
-      needed,
+    const plan = planSparePartsAreas(
       sparePartsAreas,
-      newAreas,
-      removeAreaNames,
+      Math.max(materials.length, 1),
+      currentFields,
+      diagnosticTab.name,
     );
-
     const rowValues = isRuleClear
       ? clearAreaValues(templateArea)
       : buildMaterialsRowValues({
           materials,
-          areas: finalSparePartsAreas,
-          fields: updatedFields,
+          areas: plan.finalAreas,
+          fields: plan.updatedFields,
           formValues: formValuesRef.current,
-          currentCount,
-          forceRebuild: forceRebuildRef.current,
+          currentCount: sparePartsAreas.length,
+          forceRebuild: isForced,
         });
 
-    if (needed !== 0 || forceRebuildRef.current) {
+    if (plan.needed !== 0 || isForced) {
       skipFormResetRef.current = true;
-
-      updatedFields = withSpecialMaterialSpOption({
-        fields: updatedFields,
+      const fieldsWithSpOption = withSpecialMaterialSpOption({
+        fields: plan.updatedFields,
         rowValues,
         allowedPositions: allowedPositionsRef.current,
         addSpecialMaterialsAllowed: addSpecialMaterialsAllowedRef.current,
       });
-
-      // Use functional updaters so this composes correctly with any concurrent
-      // functional setter from useClaimMaterialsManager (or any other hook)
-      // that shares the same setAllFields / setTabs.
-      if (needed > 0) {
-        const addedFields = updatedFields.slice(currentFields.length);
-        setAllFields((prev) => [...(prev ?? []), ...addedFields]);
-        setTabs((prev) =>
-          prev.map((tab) =>
-            tab.name === "diagnosticData" ? { ...tab, areas: [...tab.areas, ...newAreas] } : tab,
-          ),
-        );
-      } else if (needed < 0) {
-        setAllFields((prev) => (prev ?? []).filter((f) => !removeFieldNames.has(f.name)));
-        setTabs((prev) => prev.map((tab) => removeDiagnosticsAreas(tab, removeAreaNames)));
-      }
+      applySparePartsAreaPlan(plan, fieldsWithSpOption.slice(currentFields.length), {
+        setAllFields,
+        setTabs,
+      });
     }
 
-    if (forceRebuildRef.current) {
-      // A forced rebuild (e.g. default-parameter quantities landing in the same render as a
-      // rule change) must still carry the new action type, or the form reverts to the old one.
-      const headerValues = getCurrentHeaderValues(formValuesRef.current);
-      setInitialFormValues((prev) => ({ ...prev, ...headerValues, ...rowValues }));
-    } else {
-      const currentFormWithoutRowFields = Object.fromEntries(
-        Object.entries(formValuesRef.current).filter(
-          ([k, v]) =>
-            !MANAGED_ROW_KEY_PREFIXES.some((prefix) => k.startsWith(prefix)) &&
-            v !== "" &&
-            v !== null &&
-            v !== undefined,
-        ),
-      );
-      setInitialFormValues((prev) => ({ ...prev, ...currentFormWithoutRowFields, ...rowValues }));
-    }
+    // A forced rebuild (e.g. default-parameter quantities landing in the same render as a
+    // rule change) keeps only the header values: rows and summary come from the server.
+    const keptFormValues = getFormValuesOutside(
+      formValuesRef.current,
+      isForced ? SERVER_ROW_KEY_PREFIXES : MANAGED_ROW_KEY_PREFIXES,
+    );
+    setInitialFormValues((prev) => ({ ...prev, ...keptFormValues, ...rowValues }));
     forceRebuildRef.current = false;
   }, [materials, setAllFields, setTabs, setInitialFormValues, formValuesRef, skipFormResetRef]);
   // ── Effect 3b: archivedMaterials[] → areas + allFields + initialFormValues ───
