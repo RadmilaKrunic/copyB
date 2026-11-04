@@ -2845,6 +2845,52 @@ describe("useDiagnosticsManager default quantity from the API", () => {
     expect(resolveDefaultQuantities).not.toHaveBeenCalled();
   });
 
+  it("keeps a new action type when its API quantities land in the same render as the rebuild", async () => {
+    const { props, mocks } = createHookProps({
+      allowedPositions: [makeAllowedPosition("PN", "DEFAULT", 1, 1), makeAllowedPosition("LA")],
+      formValues: { actionType: "NEW_TOOL_EXCHANGE", exchangeReason: "DEFECT" },
+    });
+    const config = mocks.getQueryData(["countryConfiguration", "ZA"]) as CountryConfig;
+    const [repairRule] = config.diagnosticsConfiguration.rules;
+    repairRule.rule.automaticRows = ["LA"];
+    config.diagnosticsConfiguration.rules.push({
+      ...repairRule,
+      actionType: "NEW_TOOL_EXCHANGE",
+      rule: { ...repairRule.rule, automaticRows: ["PN", "LA"] },
+    });
+    // Cached default-parameter answer: lands before React renders the rebuilt rows. A promise
+    // would settle only after act() flushed the render, so the answer is applied synchronously.
+    const answer = { LA: 3 };
+    const settledAnswer = {
+      catch: () => settledAnswer,
+      then: (onFulfilled: (quantities: typeof answer) => void) => onFulfilled(answer),
+    };
+    const resolveDefaultQuantities = vi.fn().mockReturnValue(settledAnswer);
+    const { result, rerender } = renderHook(
+      ({ actionType }) =>
+        useDiagnosticsManager({
+          ...props,
+          currentActionType: actionType,
+          resolveDefaultQuantities,
+        }),
+      { initialProps: { actionType: "NEW_TOOL_EXCHANGE" } },
+    );
+    await waitFor(() => {
+      expect(result.current.materials.map((m) => [m.position, m.quantity])).toEqual([
+        ["LA", 1],
+        ["PN", 1],
+      ]);
+    });
+
+    props.formValuesRef.current.actionType = "REPAIR";
+    rerender({ actionType: "REPAIR" });
+
+    await waitFor(() => {
+      expect(result.current.materials.map((m) => [m.position, m.quantity])).toEqual([["LA", 3]]);
+    });
+    expect(mergedInitialValues(mocks.setInitialFormValues).actionType).toBe("REPAIR");
+  });
+
   it("does not call the API when no automatic row is protected", async () => {
     const { props } = createHookProps();
     const resolveDefaultQuantities = vi.fn();

@@ -380,6 +380,30 @@ const MANAGED_ROW_KEY_PREFIXES = [
   "claims_claimArchivedSpareParts",
 ];
 
+/** Server-owned row and summary values a forced rebuild must not take from the form. */
+const SERVER_ROW_KEY_PREFIXES = [
+  ...MANAGED_ROW_KEY_PREFIXES,
+  "diagnosticData_archivedSpareParts",
+  "diagnosticData_diagnosticsSummary",
+];
+
+/**
+ * The user's current non-row values (action type, job type, exchange reason, ...). Every
+ * initial-values rebuild keeps them: Formik re-initializes from the initial values, so a stale
+ * action type there would undo the user's change.
+ */
+function getCurrentHeaderValues(formValues: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(formValues).filter(
+      ([key, value]) =>
+        !SERVER_ROW_KEY_PREFIXES.some((prefix) => key.startsWith(prefix)) &&
+        value !== "" &&
+        value !== null &&
+        value !== undefined,
+    ),
+  );
+}
+
 /**
  * Status shown on a reused row. undefined = keep the row's current status;
  * null = backend has not decided yet (new rows), so always PENDING, never the stale form value.
@@ -1281,7 +1305,10 @@ export const useDiagnosticsManager = ({
     }
 
     if (forceRebuildRef.current) {
-      setInitialFormValues((prev) => ({ ...prev, ...rowValues }));
+      // A forced rebuild (e.g. default-parameter quantities landing in the same render as a
+      // rule change) must still carry the new action type, or the form reverts to the old one.
+      const headerValues = getCurrentHeaderValues(formValuesRef.current);
+      setInitialFormValues((prev) => ({ ...prev, ...headerValues, ...rowValues }));
     } else {
       const currentFormWithoutRowFields = Object.fromEntries(
         Object.entries(formValuesRef.current).filter(
