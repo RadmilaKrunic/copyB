@@ -305,6 +305,17 @@ export const isEnabledRowAmountField = (
 ): boolean =>
   ROW_AMOUNT_SUBTYPES.has(field.subtype ?? "") && disabledFieldsRef?.current[field.name] === false;
 
+/**
+ * True for a row quantity / price field the screen shows disabled (GenericField registry), e.g.
+ * the FR / PC unit price and quantity. The user cannot change it, so it gets no checks at all,
+ * not even a required one from the action's mandatory fields.
+ */
+export const isDisabledRowAmountField = (
+  field: Field,
+  disabledFieldsRef: RefObject<Record<string, boolean>> | undefined,
+): boolean =>
+  ROW_AMOUNT_SUBTYPES.has(field.subtype ?? "") && disabledFieldsRef?.current[field.name] === true;
+
 function validateLengthAndRange(
   field: Field,
   errors: Record<string, string>,
@@ -631,7 +642,10 @@ function validateSingleField({
   const fieldName = field.name;
   const originalName = field.fieldMapping?.originalName;
 
-  if (!isFieldVisible(field, fields, values)) {
+  if (
+    !isFieldVisible(field, fields, values) ||
+    isDisabledRowAmountField(field, disabledFieldsRef)
+  ) {
     delete errors[fieldName];
     return;
   }

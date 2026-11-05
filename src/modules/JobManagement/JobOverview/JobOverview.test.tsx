@@ -3707,6 +3707,40 @@ describe("JobOverview onRecalculatePrices", () => {
     },
   );
 
+  const recalculateHeader = (field: unknown, value: unknown) => {
+    act(() => {
+      callbacks().onRecalculatePricesForHeaderChange(field, value);
+    });
+  };
+
+  it.each([
+    { field: "faultCode", value: "E001" },
+    { field: "exchangeReason", value: "BROKEN" },
+  ])("sends a $field change without a line or scope", ({ field, value }) => {
+    mockDiagnosticMaterials([{ id: "M-1", order: 1, partNumber: "PN-1" }]);
+    renderWithMessages();
+    setPricesValidated(true);
+
+    recalculateHeader(field, value);
+
+    expect(recalculatePricesMutateMock).toHaveBeenCalledTimes(1);
+    expect(lastRecalculatePayload().changes).toEqual([
+      { type: field, lineId: "", value, scope: null },
+    ]);
+    expect(diagnosticsCtx().arePricesValidated).toBe(false);
+  });
+
+  it("skips a header recalculation without a saved row or for an unknown header field", () => {
+    renderWithMessages();
+    recalculateHeader("jobNote", "x");
+    expect(recalculatePricesMutateMock).not.toHaveBeenCalled();
+
+    initialFormValuesMock.value = { row0_status: "REVISED" };
+    renderWithMessages();
+    recalculateHeader("faultCode", "E001");
+    expect(recalculatePricesMutateMock).not.toHaveBeenCalled();
+  });
+
   it("recalculates with an empty change list after a spare-parts row is deleted", () => {
     mockDiagnosticMaterials([{ id: "M-2", order: 1, partNumber: "PN2" }]);
     const { rerenderView } = renderWithMessages();

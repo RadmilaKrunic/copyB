@@ -3,7 +3,7 @@ import {
   DefaultParameterResponse,
   DefaultParameterSource,
   DefaultQuantities,
-  DefaultUnitPriceRanges,
+  DefaultPriceRanges,
 } from "./prices.types";
 
 const toText = (value: unknown): string | undefined =>
@@ -91,17 +91,17 @@ const toFiniteNumber = (value: unknown): number | undefined => {
 };
 
 /**
- * Unit price range per position from the response. Entries without a range, or with a
- * missing limit, are skipped (the row keeps its fixed-price behaviour).
+ * Total amount range (`totalAmountPriceRange`) per position from the response. Entries without
+ * a range, or with a missing limit, are skipped (the row keeps its usual price behaviour).
  */
-export const toUnitPriceRanges = (
+export const toTotalAmountPriceRanges = (
   response: DefaultParameterResponse | null | undefined,
-): DefaultUnitPriceRanges => {
-  const ranges: DefaultUnitPriceRanges = {};
+): DefaultPriceRanges => {
+  const ranges: DefaultPriceRanges = {};
   for (const entry of response?.byPosition ?? []) {
-    if (!entry?.position || !entry.unitPriceRange) continue;
-    const lowestLimit = toFiniteNumber(entry.unitPriceRange.lowestLimit);
-    const highestLimit = toFiniteNumber(entry.unitPriceRange.highestLimit);
+    if (!entry?.position || !entry.totalAmountPriceRange) continue;
+    const lowestLimit = toFiniteNumber(entry.totalAmountPriceRange.lowestLimit);
+    const highestLimit = toFiniteNumber(entry.totalAmountPriceRange.highestLimit);
     if (lowestLimit === undefined || highestLimit === undefined) continue;
     ranges[entry.position.toUpperCase()] = { lowestLimit, highestLimit };
   }

@@ -226,6 +226,35 @@ const RECALCULATION_CHANGE_TYPES: Record<string, string> = {
   discountNet: "discount",
 };
 
+/**
+ * Job header inputs that re-price the rows (default-parameter inputs). Their recalculate change
+ * has no line: `{ type, lineId: "", value, scope: null }`. The backend contract is not final, so
+ * the change type and value are kept in this one place.
+ */
+export const HEADER_RECALCULATION_CHANGE_TYPES = {
+  faultCode: "faultCode",
+  exchangeReason: "exchangeReason",
+} as const;
+
+export type HeaderRecalculationField = keyof typeof HEADER_RECALCULATION_CHANGE_TYPES;
+
+export const buildHeaderRecalculationChange = (
+  field: HeaderRecalculationField,
+  value: unknown,
+): Record<string, unknown> => ({
+  type: HEADER_RECALCULATION_CHANGE_TYPES[field],
+  lineId: "",
+  value,
+  scope: null,
+});
+
+/** True when at least one spare-parts row is saved (has a materialId), so there is a price. */
+export const hasSavedMaterialRow = (allFields: Field[], values: Record<string, unknown>): boolean =>
+  allFields.some(
+    (field) =>
+      field.subtype === "diagnosticMaterialId" && !isRecalculationValueEmpty(values[field.name]),
+  );
+
 /** Summary "Material" fields re-price the chargeable spare parts, not one line. */
 const SUMMARY_CHANGE_SCOPE = { positions: ["SP", "PN", "AC"], jobTypes: ["CHARGEABLE"] };
 
@@ -395,16 +424,16 @@ export const dropRejectedRecalculationChange = (
 };
 
 /**
- * Ids of saved material rows whose unit price is not 0. Only server data that was loaded or
- * validated-and-saved goes in, so a unit price counts as validated, not just recalculated.
+ * Ids of saved material rows whose total amount is not 0. Only server data that was loaded or
+ * validated-and-saved goes in, so a total amount counts as validated, not just recalculated.
  */
-export const getValidatedUnitPriceMaterialIds = (
+export const getValidatedTotalAmountMaterialIds = (
   materials: JobDiagnostic["materials"],
 ): ReadonlySet<string> => {
   const ids = new Set<string>();
   for (const material of materials ?? []) {
-    const unitPrice = Number(material?.price?.unitPrice);
-    if (material?.id && Number.isFinite(unitPrice) && unitPrice !== 0) ids.add(material.id);
+    const totalAmount = Number(material?.price?.totalAmount);
+    if (material?.id && Number.isFinite(totalAmount) && totalAmount !== 0) ids.add(material.id);
   }
   return ids;
 };

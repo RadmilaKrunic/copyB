@@ -702,6 +702,34 @@ describe("formValidation", () => {
         ]);
       });
 
+      it("skips every check, required included, on a row quantity / price shown disabled", () => {
+        const errors: ValidationErrors = { row0_quantity: "stale" };
+
+        validateByAction({
+          errors,
+          mandatoryFields: ["quantity", "unitPrice"],
+          values: { row0_quantity: "", row0_unitPrice: -5 },
+          fields: [
+            createMockField({
+              name: "row0_quantity",
+              subtype: "diagnosticQuantity",
+              fieldMapping: { originalName: "quantity" },
+            }),
+            createMockField({
+              name: "row0_unitPrice",
+              subtype: "diagnosticUnitPrice",
+              minValue: 0,
+              maxValue: 100,
+              fieldMapping: { originalName: "unitPrice" },
+            }),
+          ],
+          t: mockT,
+          disabledFieldsRef: { current: { row0_quantity: true, row0_unitPrice: true } },
+        });
+
+        expect(errors).toEqual({});
+      });
+
       it("does not require an empty row price field that is not rendered", () => {
         const errors: ValidationErrors = {};
 

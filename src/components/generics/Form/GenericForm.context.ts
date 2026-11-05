@@ -6,6 +6,7 @@ import { createContext } from "react";
 import { ActionMandatoryFields } from "./GenericForm.types";
 import type { ResolveDefaultQuantities } from "api/services/prices/prices.types";
 import type { AllowedPosition } from "api/services/countryConfiguration/countryConfiguration";
+import type { FieldValueRange } from "./formValidation";
 import { LaborExchangeRow } from "@/modules/AccountManagement/ASC/AscLaborRulesExchangeArea/AscLaborRulesExchangeArea.utils";
 import { RepairCosts } from "@/api/services/serviceCenters/serviceCenters.types";
 

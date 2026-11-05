@@ -65,10 +65,11 @@ export interface DiagnosticsContextValue {
   /** True while validateAndSave mutation is pending — all row inputs locked */
   isValidating: boolean;
   /**
-   * Material ids whose saved (validated) unit price is not 0. Recalculation does not change it,
-   * so FR / PC rows with a price range unlock their total only after validate-and-save.
+   * Material ids whose saved (validated) total amount is not 0. Recalculation does not change it,
+   * so FR / PC rows with a total amount range unlock their other price fields only after
+   * validate-and-save.
    */
-  validatedUnitPriceMaterialIds?: ReadonlySet<string>;
+  validatedTotalAmountMaterialIds?: ReadonlySet<string>;
   /** Job values of the default-parameter request that are not form fields. */
   defaultParameterJobSource?: DefaultParameterJobSource;
 }
@@ -114,7 +115,7 @@ const defaultDiagnosticsContextValue: DiagnosticsContextValue = {
   discountBase: "GROSS_PRICE",
   automaticRows: [],
   isValidating: false,
-  validatedUnitPriceMaterialIds: new Set<string>(),
+  validatedTotalAmountMaterialIds: new Set<string>(),
   defaultParameterJobSource: undefined,
 };
 

@@ -1,11 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
   getPriceFieldEditability,
-  getUserUnitPriceEditability,
-  hasUnitPriceLimit,
+  getRangedTotalAmountEditability,
+  hasPriceLimit,
   isProtectedPosition,
   isSummaryControlledRow,
-  isUnitPriceEnteredByUser,
+  isTotalAmountInRange,
+  isTotalEntryPosition,
 } from "./materialPriceEditability";
 
 describe("isProtectedPosition", () => {
@@ -46,16 +47,29 @@ describe("getPriceFieldEditability", () => {
       },
     );
 
-    it.each(["LA", "FR", "PC"])("COMMERCIAL_GOODWILL on %s: nothing editable", (position) => {
-      const result = getPriceFieldEditability(position, "COMMERCIAL_GOODWILL", "GROSS_PRICE");
+    it("COMMERCIAL_GOODWILL on LA: nothing editable", () => {
+      const result = getPriceFieldEditability("LA", "COMMERCIAL_GOODWILL", "GROSS_PRICE");
       expect(result).toEqual({ discount: false, totalAmount: false, netAmount: false });
     });
 
     it.each(["WARRANTY", "SERVICE_OFFERING", "SPECIAL_CONTRACT", ""])(
-      "%s on a protected position: nothing editable",
+      "%s on LA: nothing editable",
       (jobType) => {
         const result = getPriceFieldEditability("LA", jobType, "GROSS_PRICE");
         expect(result).toEqual({ discount: false, totalAmount: false, netAmount: false });
+      },
+    );
+
+    it.each([
+      ["FR", "COMMERCIAL_GOODWILL", "GROSS_PRICE"],
+      ["FR", "WARRANTY", "NET_PRICE"],
+      ["PC", "SERVICE_OFFERING", "GROSS_PRICE"],
+      ["PC", "", "NET_PRICE"],
+    ] as const)(
+      "%s %s (%s): only totalAmount editable, whatever the discount base",
+      (position, jobType, base) => {
+        const result = getPriceFieldEditability(position, jobType, base);
+        expect(result).toEqual({ discount: false, totalAmount: true, netAmount: false });
       },
     );
   });
@@ -125,44 +139,59 @@ describe("isSummaryControlledRow", () => {
   );
 });
 
-describe("unit price range helpers", () => {
-  it("treats different limits and 0 / 0 as a user-entered unit price", () => {
-    expect(isUnitPriceEnteredByUser({ lowestLimit: 0, highestLimit: 500 })).toBe(true);
-    expect(isUnitPriceEnteredByUser({ lowestLimit: 0, highestLimit: 0 })).toBe(true);
-    expect(isUnitPriceEnteredByUser({ lowestLimit: 467.96, highestLimit: 467.96 })).toBe(false);
-    expect(isUnitPriceEnteredByUser(undefined)).toBe(false);
+describe("isTotalEntryPosition", () => {
+  it.each(["FR", "PC", "fr"])("returns true for %s", (position) => {
+    expect(isTotalEntryPosition(position)).toBe(true);
   });
 
-  it("checks limits only when they differ", () => {
-    expect(hasUnitPriceLimit({ lowestLimit: 0, highestLimit: 500 })).toBe(true);
-    expect(hasUnitPriceLimit({ lowestLimit: 0, highestLimit: 0 })).toBe(false);
-    expect(hasUnitPriceLimit(undefined)).toBe(false);
+  it.each(["LA", "SP", "PN", "AC", ""])("returns false for %s", (position) => {
+    expect(isTotalEntryPosition(position)).toBe(false);
   });
 });
 
-describe("getUserUnitPriceEditability", () => {
+describe("total amount range helpers", () => {
+  it("treats different limits and 0 / 0 as a ranged total amount", () => {
+    expect(isTotalAmountInRange({ lowestLimit: 0, highestLimit: 500 })).toBe(true);
+    expect(isTotalAmountInRange({ lowestLimit: 0, highestLimit: 0 })).toBe(true);
+    expect(isTotalAmountInRange({ lowestLimit: 467.96, highestLimit: 467.96 })).toBe(false);
+    expect(isTotalAmountInRange(undefined)).toBe(false);
+  });
+
+  it("checks limits only when they differ", () => {
+    expect(hasPriceLimit({ lowestLimit: 0, highestLimit: 500 })).toBe(true);
+    expect(hasPriceLimit({ lowestLimit: 0, highestLimit: 0 })).toBe(false);
+    expect(hasPriceLimit(undefined)).toBe(false);
+  });
+});
+
+describe("getRangedTotalAmountEditability", () => {
+  const chargeableGross = { discount: true, totalAmount: true, netAmount: false };
+  const chargeableNet = { discount: true, totalAmount: false, netAmount: true };
+  const otherType = { discount: false, totalAmount: true, netAmount: false };
+
   it("locks every price field before the row is saved", () => {
-    expect(getUserUnitPriceEditability(false, false, "GROSS_PRICE")).toEqual({
-      unitPrice: false,
-      prices: { discount: false, totalAmount: false, netAmount: false },
+    expect(getRangedTotalAmountEditability(false, false, chargeableGross)).toEqual({
+      discount: false,
+      totalAmount: false,
+      netAmount: false,
     });
   });
 
-  it("enables only the unit price until it is validated", () => {
-    expect(getUserUnitPriceEditability(true, false, "GROSS_PRICE")).toEqual({
-      unitPrice: true,
-      prices: { discount: false, totalAmount: false, netAmount: false },
+  it("enables only the totalAmount until it is validated", () => {
+    expect(getRangedTotalAmountEditability(true, false, chargeableNet)).toEqual({
+      discount: false,
+      totalAmount: true,
+      netAmount: false,
     });
   });
 
-  it("enables discount and the total of the pricing mode once the unit price is validated", () => {
-    expect(getUserUnitPriceEditability(true, true, "GROSS_PRICE")).toEqual({
-      unitPrice: true,
-      prices: { discount: true, totalAmount: true, netAmount: false },
+  it("adds the row's usual fields once the total amount is validated", () => {
+    expect(getRangedTotalAmountEditability(true, true, chargeableGross)).toEqual(chargeableGross);
+    expect(getRangedTotalAmountEditability(true, true, chargeableNet)).toEqual({
+      discount: true,
+      totalAmount: true,
+      netAmount: true,
     });
-    expect(getUserUnitPriceEditability(true, true, "NET_PRICE")).toEqual({
-      unitPrice: true,
-      prices: { discount: true, totalAmount: false, netAmount: true },
-    });
+    expect(getRangedTotalAmountEditability(true, true, otherType)).toEqual(otherType);
   });
 });
