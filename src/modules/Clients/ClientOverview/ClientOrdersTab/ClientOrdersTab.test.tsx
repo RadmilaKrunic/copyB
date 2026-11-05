@@ -145,7 +145,7 @@ describe("ClientOrdersTab", () => {
     });
 
     expect(await screen.findByText("order-match")).toBeInTheDocument();
-    expect(screen.getByText("1 results")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "page 2" })).not.toBeInTheDocument();
     expect(getCustomerOrders).toHaveBeenLastCalledWith("client-123", {
       searchTerm: "order-match",
       page: 0,
@@ -174,6 +174,21 @@ describe("ClientOrdersTab", () => {
       size: 5,
     });
   });
+
+  it.each([0, 9, 10, 11])(
+    "shows pagination only for at least 10 total results (%i)",
+    async (totalElements) => {
+      vi.mocked(getCustomerOrders).mockResolvedValue({
+        page: { number: 0, totalElements, totalPages: Math.ceil(totalElements / 10), size: 10 },
+        content: [],
+      });
+
+      renderTab();
+      await screen.findByTestId("orders-table");
+
+      expect(screen.queryByRole("button", { name: "page 2" }) !== null).toBe(totalElements >= 10);
+    },
+  );
 
   it("shows request failures instead of table", async () => {
     vi.mocked(getCustomerOrders).mockRejectedValue(new Error("Network error"));

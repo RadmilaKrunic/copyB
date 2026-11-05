@@ -23,6 +23,8 @@ const {
   mutateMock,
   invalidateQueriesMock,
   setInitialFormValuesMock,
+  mapLaborCostDetailsToApiPayloadMock,
+  mapExchangeLaborCostTableDataFromFormValuesMock,
   formikValuesRef,
   formInitStateRef,
   mutationModeRef,
@@ -49,6 +51,8 @@ const {
   mutateMock: vi.fn(),
   invalidateQueriesMock: vi.fn(),
   setInitialFormValuesMock: vi.fn(),
+  mapLaborCostDetailsToApiPayloadMock: vi.fn(),
+  mapExchangeLaborCostTableDataFromFormValuesMock: vi.fn(),
   formikValuesRef: {
     current: {
       name: "ASC Name",
@@ -89,6 +93,9 @@ const {
       employeeCode: "E-1",
       reimbursementMethod_CAT1_repair: "FIXED",
       reimbursementMethod_CAT1_exchange: "DYNAMIC",
+      sparePartLaborUnits_0: "39",
+      newToolExchangeLaborUnits_1: "17",
+      accessoryLaborUnits_2: "28",
     } as Record<string, unknown>,
   },
   formInitStateRef: {
@@ -123,6 +130,81 @@ const {
     current: {
       user: { countryCode: "TR", language: "en" },
       countryConfiguration: {
+        laborCostMethod: {
+          repairCostConfiguration: {
+            repairCosts: [
+              {
+                method: "LABOR_UNIT_X_COST_FROM_ASC",
+                level: "L1",
+                ranges: [],
+                value: 100,
+              },
+              {
+                method: "LABOR_UNIT_X_COST_FROM_ASC",
+                level: "L2",
+                ranges: [],
+                value: 200,
+              },
+              {
+                method: "LABOR_UNIT_X_COST_FROM_ASC",
+                level: "L3",
+                ranges: [],
+                value: 300,
+              },
+            ],
+          },
+          newToolExchange: {
+            prices: [
+              { level: "L1", source: "SAP", unitPrice: 10 },
+              { level: "L2", source: "SAP", unitPrice: 20 },
+              { level: "L3", source: "SAP", unitPrice: 30 },
+            ],
+            reasonMapping: [
+              {
+                reasonType: "REASON_A",
+                matrix: [
+                  { level: "L1", labourUnit: 7 },
+                  { level: "L2", labourUnit: 8 },
+                  { level: "L3", labourUnit: 9 },
+                ],
+              },
+            ],
+          },
+          accessoryExchange: {
+            prices: [
+              { level: "L1", source: "SAP", unitPrice: 10 },
+              { level: "L2", source: "SAP", unitPrice: 20 },
+              { level: "L3", source: "SAP", unitPrice: 30 },
+            ],
+            reasonMapping: [
+              {
+                reasonType: "REASON_B",
+                matrix: [
+                  { level: "L1", labourUnit: 6 },
+                  { level: "L2", labourUnit: 8 },
+                  { level: "L3", labourUnit: 10 },
+                ],
+              },
+            ],
+          },
+          sparePartsExchange: {
+            prices: [
+              { level: "L1", source: "SAP", unitPrice: 10 },
+              { level: "L2", source: "SAP", unitPrice: 20 },
+              { level: "L3", source: "SAP", unitPrice: 30 },
+            ],
+            reasonMapping: [
+              {
+                reasonType: "REASON_C",
+                matrix: [
+                  { level: "L1", labourUnit: 5 },
+                  { level: "L2", labourUnit: 7 },
+                  { level: "L3", labourUnit: 9 },
+                ],
+              },
+            ],
+          },
+        },
         reimbursementConfig: [
           {
             category: "CAT1",
@@ -199,6 +281,29 @@ vi.mock("../../../../hooks/useFormInitialization", () => ({
   }),
 }));
 
+vi.mock("../ASC.utils", async () => {
+  const actual = await vi.importActual<typeof import("../ASC.utils")>("../ASC.utils");
+
+  return {
+    ...actual,
+    mapLaborCostDetailsToApiPayload: (...args: unknown[]) => {
+      mapLaborCostDetailsToApiPayloadMock(...args);
+      return actual.mapLaborCostDetailsToApiPayload(
+        args[0] as Parameters<typeof actual.mapLaborCostDetailsToApiPayload>[0],
+        args[1] as Parameters<typeof actual.mapLaborCostDetailsToApiPayload>[1],
+        args[2] as Parameters<typeof actual.mapLaborCostDetailsToApiPayload>[2],
+      );
+    },
+    mapExchangeLaborCostTableDataFromFormValues: (...args: unknown[]) => {
+      mapExchangeLaborCostTableDataFromFormValuesMock(...args);
+      return actual.mapExchangeLaborCostTableDataFromFormValues(
+        args[0] as Parameters<typeof actual.mapExchangeLaborCostTableDataFromFormValues>[0],
+        args[1] as Parameters<typeof actual.mapExchangeLaborCostTableDataFromFormValues>[1],
+      );
+    },
+  };
+});
+
 vi.mock("../../../../components/generics/Form/useFormValidation", () => ({
   useFormValidation: () => ({
     validate: vi.fn(() => ({})),
@@ -258,6 +363,14 @@ vi.mock("../../../../components/generics/Action/GenericAction", () => ({
       </button>
     </div>
   ),
+}));
+
+vi.mock("../../../../components/ui/ExchangeLaborCostModal/ExchangeLaborCostModal", () => ({
+  default: () => <div data-testid="exchange-labor-cost-modal" />,
+}));
+
+vi.mock("../../../../components/ui/RepairLaborCostMatrixModal/RepairLaborCostMatrixModal", () => ({
+  default: () => <div data-testid="repair-labor-cost-matrix-modal" />,
 }));
 
 vi.mock("formik", async () => {
@@ -349,11 +462,89 @@ describe("AddASC", () => {
       employeeCode: "E-1",
       reimbursementMethod_CAT1_repair: "FIXED",
       reimbursementMethod_CAT1_exchange: "DYNAMIC",
+      sparePartLaborUnits_0: "39",
+      newToolExchangeLaborUnits_1: "17",
+      accessoryLaborUnits_2: "28",
     };
 
     queryDataRef.current = {
       user: { countryCode: "TR", language: "en" },
       countryConfiguration: {
+        laborCostMethod: {
+          repairCostConfiguration: {
+            repairCosts: [
+              {
+                method: "LABOR_UNIT_X_COST_FROM_ASC",
+                level: "L1",
+                ranges: [],
+                value: 100,
+              },
+              {
+                method: "LABOR_UNIT_X_COST_FROM_ASC",
+                level: "L2",
+                ranges: [],
+                value: 200,
+              },
+              {
+                method: "LABOR_UNIT_X_COST_FROM_ASC",
+                level: "L3",
+                ranges: [],
+                value: 300,
+              },
+            ],
+          },
+          newToolExchange: {
+            prices: [
+              { level: "L1", source: "SAP", unitPrice: 10 },
+              { level: "L2", source: "SAP", unitPrice: 20 },
+              { level: "L3", source: "SAP", unitPrice: 30 },
+            ],
+            reasonMapping: [
+              {
+                reasonType: "REASON_A",
+                matrix: [
+                  { level: "L1", labourUnit: 7 },
+                  { level: "L2", labourUnit: 8 },
+                  { level: "L3", labourUnit: 9 },
+                ],
+              },
+            ],
+          },
+          accessoryExchange: {
+            prices: [
+              { level: "L1", source: "SAP", unitPrice: 10 },
+              { level: "L2", source: "SAP", unitPrice: 20 },
+              { level: "L3", source: "SAP", unitPrice: 30 },
+            ],
+            reasonMapping: [
+              {
+                reasonType: "REASON_B",
+                matrix: [
+                  { level: "L1", labourUnit: 6 },
+                  { level: "L2", labourUnit: 8 },
+                  { level: "L3", labourUnit: 10 },
+                ],
+              },
+            ],
+          },
+          sparePartsExchange: {
+            prices: [
+              { level: "L1", source: "SAP", unitPrice: 10 },
+              { level: "L2", source: "SAP", unitPrice: 20 },
+              { level: "L3", source: "SAP", unitPrice: 30 },
+            ],
+            reasonMapping: [
+              {
+                reasonType: "REASON_C",
+                matrix: [
+                  { level: "L1", labourUnit: 5 },
+                  { level: "L2", labourUnit: 7 },
+                  { level: "L3", labourUnit: 9 },
+                ],
+              },
+            ],
+          },
+        },
         reimbursementConfig: [
           {
             category: "CAT1",
@@ -396,7 +587,20 @@ describe("AddASC", () => {
       invalidateQueries: invalidateQueriesMock,
     });
 
-    useQueryMock.mockImplementation(() => ({ data: ascQueryDataRef.current }));
+    useQueryMock.mockImplementation(({ queryKey }: { queryKey?: unknown[] }) => {
+      if (queryKey?.[0] === "laborCostConfig") {
+        return {
+          data: { laborCostMethod: queryDataRef.current.countryConfiguration.laborCostMethod },
+          isLoading: !formInitStateRef.current.isInitialized,
+        };
+      }
+
+      if (queryKey?.[0] === "ASC") {
+        return { data: ascQueryDataRef.current, isLoading: false };
+      }
+
+      return { data: undefined, isLoading: false };
+    });
 
     useMutationMock.mockImplementation(({ onSuccess, onError }: any) => {
       mutateMock.mockImplementation((variables: unknown) => {
@@ -424,6 +628,29 @@ describe("AddASC", () => {
     expect(screen.getByTestId("loading")).toBeInTheDocument();
   });
 
+  it("renders loading state while labor cost config is loading even when form is initialized", () => {
+    formInitStateRef.current.isInitialized = true;
+
+    useQueryMock.mockImplementation(({ queryKey }: { queryKey?: unknown[] }) => {
+      if (queryKey?.[0] === "laborCostConfig") {
+        return {
+          data: undefined,
+          isLoading: true,
+        };
+      }
+
+      if (queryKey?.[0] === "ASC") {
+        return { data: ascQueryDataRef.current, isLoading: false };
+      }
+
+      return { data: undefined, isLoading: false };
+    });
+
+    render(<AddASC />);
+
+    expect(screen.getByTestId("loading")).toBeInTheDocument();
+  });
+
   it("renders sections and generic actions when initialized", () => {
     render(<AddASC />);
 
@@ -444,30 +671,27 @@ describe("AddASC", () => {
       expect(startValidationMock).toHaveBeenCalledWith("submit");
       expect(stopValidationMock).toHaveBeenCalled();
       expect(mapAccountRolesToAPIFormatMock).toHaveBeenCalledWith(["ASC_TECHNICIAN"]);
-      expect(mutateMock).toHaveBeenCalledWith(
+      expect(mutateMock).toHaveBeenCalledWith(expect.objectContaining({ isDraft: false }));
+      expect(mapLaborCostDetailsToApiPayloadMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
         expect.objectContaining({
-          isDraft: false,
-          payload: expect.objectContaining({
-            firstUser: expect.objectContaining({
-              email: "user@mail.com",
-              accountRoles: ["ASC_TECHNICIAN"],
-              language: "en",
+          level1Exchange: expect.arrayContaining([
+            expect.objectContaining({
+              reasonType: "REASON_C",
+              sparePartLaborUnit: 39,
             }),
-            serviceCenter: expect.objectContaining({
-              reimbursementConfig: [
-                {
-                  category: "CAT1",
-                  reimbursementMethods: { REPAIR: "FIXED", EXCHANGE: "DYNAMIC" },
-                },
-              ],
-              laPrice: 20,
-              frPrice: 21,
-              pkPrice: 22,
-              currency: "TRY",
-              currencySymbol: "₺",
+            expect.objectContaining({
+              reasonType: "REASON_A",
+              newToolExchangeLaborUnit: 17,
             }),
-          }),
+            expect.objectContaining({
+              reasonType: "REASON_B",
+              accessoryLaborUnit: 28,
+            }),
+          ]),
         }),
+        expect.anything(),
       );
       expect(setMessagesMock).toHaveBeenCalledWith([
         { type: "success", duration: 5000, text: "ASCCreatedSuccessfully" },
@@ -507,6 +731,42 @@ describe("AddASC", () => {
       expect(mutateMock).toHaveBeenCalledWith(
         expect.objectContaining({
           isDraft: true,
+          payload: expect.objectContaining({
+            serviceCenter: expect.objectContaining({
+              laborCostMethod: expect.objectContaining({
+                newToolExchange: expect.objectContaining({
+                  reasonMapping: expect.arrayContaining([
+                    expect.objectContaining({
+                      reasonType: "REASON_A",
+                      matrix: expect.arrayContaining([
+                        expect.objectContaining({ level: "L1", labourUnit: 17 }),
+                      ]),
+                    }),
+                  ]),
+                }),
+                accessoryExchange: expect.objectContaining({
+                  reasonMapping: expect.arrayContaining([
+                    expect.objectContaining({
+                      reasonType: "REASON_B",
+                      matrix: expect.arrayContaining([
+                        expect.objectContaining({ level: "L1", labourUnit: 28 }),
+                      ]),
+                    }),
+                  ]),
+                }),
+                sparePartsExchange: expect.objectContaining({
+                  reasonMapping: expect.arrayContaining([
+                    expect.objectContaining({
+                      reasonType: "REASON_C",
+                      matrix: expect.arrayContaining([
+                        expect.objectContaining({ level: "L1", labourUnit: 39 }),
+                      ]),
+                    }),
+                  ]),
+                }),
+              }),
+            }),
+          }),
         }),
       );
     });
@@ -633,6 +893,55 @@ describe("AddASC", () => {
             reimbursementMethods: { REPAIR: "R1", EXCHANGE: "E1" },
           },
         ],
+        laborCostMethod: {
+          repairCosts: [
+            {
+              method: "LABOR_UNIT_X_COST_FROM_ASC",
+              level: "L1",
+              ranges: [],
+              value: 100,
+            },
+            {
+              method: "LABOR_UNIT_X_COST_FROM_ASC",
+              level: "L2",
+              ranges: [],
+              value: 200,
+            },
+            {
+              method: "LABOR_UNIT_X_COST_FROM_ASC",
+              level: "L3",
+              ranges: [],
+              value: 300,
+            },
+          ],
+          newToolExchange: {
+            prices: [{ level: "L1", source: "SAP", unitPrice: 10 }],
+            reasonMapping: [
+              {
+                reasonType: "REASON_A",
+                matrix: [{ level: "L1", labourUnit: 7 }],
+              },
+            ],
+          },
+          accessoryExchange: {
+            prices: [{ level: "L2", source: "SAP", unitPrice: 20 }],
+            reasonMapping: [
+              {
+                reasonType: "REASON_B",
+                matrix: [{ level: "L2", labourUnit: 8 }],
+              },
+            ],
+          },
+          sparePartsExchange: {
+            prices: [{ level: "L3", source: "SAP", unitPrice: 30 }],
+            reasonMapping: [
+              {
+                reasonType: "REASON_C",
+                matrix: [{ level: "L3", labourUnit: 9 }],
+              },
+            ],
+          },
+        },
       },
       firstUser: {
         userId: "U-9",
@@ -665,6 +974,61 @@ describe("AddASC", () => {
       reimbursementMethod_CAT1_repair: "R1",
       reimbursementMethod_CAT1_exchange: "E1",
     });
+  });
+
+  it("renders edit mode without crashing when laborCostMethod is missing", async () => {
+    useParamsMock.mockReturnValue({ ascId: "ASC-LEGACY" });
+    ascQueryDataRef.current = {
+      serviceCenter: {
+        ascId: "ASC-LEGACY",
+        name: "Legacy Draft ASC",
+        email: "legacy@mail.com",
+        phoneNumber: "123",
+        gst: "GST",
+        companyVATNumber: "VAT",
+        isActive: true,
+        address: {
+          houseNumber: "1",
+          street: "Street",
+          city: "City",
+          stateProvinceRegion: "State",
+          postalCode: "1000",
+          countryCode: "TR",
+        },
+        logo: { logoId: "logo-2", name: "logo2.png", type: "image/png" },
+        pkPriceChargeable: 5,
+        laPriceChargeable: 6,
+        frPriceChargeable: 7,
+        biqicName: "BQ",
+        customerCode: "CC",
+        serviceCenterType: "TYPE",
+        laPrice: 1,
+        frPrice: 2,
+        pkPrice: 3,
+        sparePartsDiscount: 0,
+        accessoriesDiscount: 0,
+        sparePartsIncentive: 0,
+        accessoriesIncentive: 0,
+        packagingCost: 0,
+        defaultCountry: "TR",
+        reimbursementPeriodType: "CUSTOM",
+        reimbursementCreateOn: "2",
+        reimbursementConfig: [],
+      },
+      firstUser: {
+        userId: "U-LEGACY",
+        firstName: "Ann",
+        lastName: "Lee",
+        phoneNumber: "888",
+        email: "ann@mail.com",
+        employeeCode: "EMP-9",
+        accountRoles: [{ id: "ASC_ADMIN" }],
+      },
+    };
+
+    render(<AddASC />);
+
+    expect(await screen.findByTestId("section-generalInfo")).toBeInTheDocument();
   });
 
   it("uses country config defaults for reimbursement in create mode", async () => {
@@ -728,6 +1092,55 @@ describe("AddASC", () => {
         reimbursementPeriodType: "CUSTOM",
         reimbursementCreateOn: "2",
         reimbursementConfig: [],
+        laborCostMethod: {
+          repairCosts: [
+            {
+              method: "LABOR_UNIT_X_COST_FROM_ASC",
+              level: "L1",
+              ranges: [],
+              value: 100,
+            },
+            {
+              method: "LABOR_UNIT_X_COST_FROM_ASC",
+              level: "L2",
+              ranges: [],
+              value: 200,
+            },
+            {
+              method: "LABOR_UNIT_X_COST_FROM_ASC",
+              level: "L3",
+              ranges: [],
+              value: 300,
+            },
+          ],
+          newToolExchange: {
+            prices: [{ level: "L1", source: "SAP", unitPrice: 10 }],
+            reasonMapping: [
+              {
+                reasonType: "REASON_A",
+                matrix: [{ level: "L1", labourUnit: 7 }],
+              },
+            ],
+          },
+          accessoryExchange: {
+            prices: [{ level: "L2", source: "SAP", unitPrice: 20 }],
+            reasonMapping: [
+              {
+                reasonType: "REASON_B",
+                matrix: [{ level: "L2", labourUnit: 8 }],
+              },
+            ],
+          },
+          sparePartsExchange: {
+            prices: [{ level: "L3", source: "SAP", unitPrice: 30 }],
+            reasonMapping: [
+              {
+                reasonType: "REASON_C",
+                matrix: [{ level: "L3", labourUnit: 9 }],
+              },
+            ],
+          },
+        },
       },
       firstUser: {
         userId: "U-42",

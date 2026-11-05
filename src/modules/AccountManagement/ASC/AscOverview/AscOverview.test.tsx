@@ -15,6 +15,7 @@ const {
   mutateMock,
   setMessagesMock,
   setAllFieldsMock,
+  setSectionsMock,
   setInitialFormValuesMock,
   setTouchedMock,
   setErrorsMock,
@@ -40,6 +41,7 @@ const {
   mutateMock: vi.fn(),
   setMessagesMock: vi.fn(),
   setAllFieldsMock: vi.fn(),
+  setSectionsMock: vi.fn(),
   setInitialFormValuesMock: vi.fn(),
   setTouchedMock: vi.fn(async () => undefined),
   setErrorsMock: vi.fn(),
@@ -102,6 +104,7 @@ const {
         parentNotificationEmail: false,
         parentNotificationSMS: false,
       } as Record<string, unknown>,
+      sections: [{ name: "generalInfo", areas: [{ fields: [] }], isDisabled: true }],
       allFields: [{ name: "name" }],
       mandatoryFields: { save: { fieldList: ["name"] } },
       tabs: [{ name: "generalInfo", label: "generalInfo", position: 0 }],
@@ -144,6 +147,14 @@ const analyticsMock = vi.hoisted(() => ({
   trackAscDeactivated: vi.fn(),
   trackActionFailed: vi.fn(),
 }));
+
+const MINIMAL_LABOR_COST_METHOD = {
+  repairCosts: [],
+  newToolExchange: { prices: [], reasonMapping: [] },
+  accessoryExchange: { prices: [], reasonMapping: [] },
+  sparePartsExchange: { prices: [], reasonMapping: [] },
+};
+
 vi.mock("@/analytics", async () => ({
   ...(await vi.importActual<Record<string, unknown>>("@/analytics")),
   useAnalytics: () => analyticsMock,
@@ -191,6 +202,7 @@ vi.mock("hooks/useFormInitialization", () => ({
   useFormInitialization: () => ({
     ...formInitStateRef.current,
     setAllFields: setAllFieldsMock,
+    setSections: setSectionsMock,
     setInitialFormValues: setInitialFormValuesMock,
   }),
 }));
@@ -219,33 +231,43 @@ vi.mock("components/ui/OverviewHeader", () => ({
 
 vi.mock("components/generics/Section/GenericSection", () => ({
   default: ({ section, onEdit }: { section: { name: string }; onEdit: () => void }) => {
-    const context = React.useContext(GenericFormContext);
-
     return (
-      <div>
-        <div data-testid={`section-${section.name}`}>{section.name}</div>
-        <button type="button" data-testid="edit-section" onClick={onEdit}>
-          edit
-        </button>
-        <button
-          type="button"
-          data-testid="trigger-save"
-          onClick={() => {
-            const onSaveUpdate = context.actionCallbacks.onSaveUpdate;
-            if (onSaveUpdate) {
-              onSaveUpdate(formValuesRef.current, {
-                setErrors: setErrorsMock,
-                setTouched: setTouchedMock,
-                setFieldValue: setFieldValueMock,
-              });
-            }
-          }}
-        >
-          save
-        </button>
-      </div>
+      <GenericFormContext.Consumer>
+        {(context) => (
+          <div>
+            <div data-testid={`section-${section.name}`}>{section.name}</div>
+            <button type="button" data-testid="edit-section" onClick={onEdit}>
+              edit
+            </button>
+            <button
+              type="button"
+              data-testid="trigger-save"
+              onClick={() => {
+                const onSaveUpdate = context.actionCallbacks.onSaveUpdate;
+                if (onSaveUpdate) {
+                  onSaveUpdate(formValuesRef.current, {
+                    setErrors: setErrorsMock,
+                    setTouched: setTouchedMock,
+                    setFieldValue: setFieldValueMock,
+                  });
+                }
+              }}
+            >
+              save
+            </button>
+          </div>
+        )}
+      </GenericFormContext.Consumer>
     );
   },
+}));
+
+vi.mock("components/ui/ExchangeLaborCostModal/ExchangeLaborCostModal", () => ({
+  default: () => <div data-testid="exchange-labor-modal" />,
+}));
+
+vi.mock("components/ui/RepairLaborCostMatrixModal/RepairLaborCostMatrixModal", () => ({
+  default: () => <div data-testid="repair-labor-modal" />,
 }));
 
 vi.mock("components/generics/Action/GenericAction", () => ({
@@ -287,17 +309,39 @@ vi.mock("components/generics/utils", async () => {
   };
 });
 
-vi.mock("../../../../api/axios-client/axiosClient", () => ({
-  default: {
-    put: (url: string) => putMock(url),
-  },
-}));
+vi.mock("../../../../api/axios-client/axiosClient", async () => {
+  const actual = await vi.importActual<typeof import("../../../../api/axios-client/axiosClient")>(
+    "../../../../api/axios-client/axiosClient",
+  );
+
+  return {
+    ...actual,
+    default: {
+      ...actual.default,
+      put: (url: string) => putMock(url),
+    },
+    createApiClient: vi.fn(() => ({
+      get: vi.fn(),
+      post: vi.fn(),
+      put: vi.fn(),
+      patch: vi.fn(),
+      delete: vi.fn(),
+    })),
+  };
+});
 
 import AscOverview from "./AscOverview";
 
 describe("AscOverview", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+
+    formInitStateRef.current = {
+      ...formInitStateRef.current,
+      sections: [{ name: "generalInfo", areas: [{ fields: [] }], isDisabled: true }],
+      tabs: [{ name: "generalInfo", label: "generalInfo", position: 0 }],
+      isInitialized: true,
+    };
 
     useParamsMock.mockReturnValue({});
     useLocationMock.mockReturnValue({ hash: "#generalInfo" });
@@ -360,6 +404,7 @@ describe("AscOverview", () => {
         isActive: true,
         defaultCountry: "ZA",
         address: {},
+        laborCostMethod: MINIMAL_LABOR_COST_METHOD,
       },
     };
 
@@ -376,11 +421,29 @@ describe("AscOverview", () => {
         name: "Bosch ASC",
         isActive: true,
         address: {},
+        laborCostMethod: MINIMAL_LABOR_COST_METHOD,
       },
     };
 
     render(<AscOverview />);
 
+    expect(screen.getByTestId("section-generalInfo")).toBeInTheDocument();
+  });
+
+  it("renders without crashing when laborCostMethod is missing", () => {
+    queryStateRef.current = {
+      isLoading: false,
+      data: {
+        ascId: "ASC-1",
+        name: "Legacy ASC",
+        isActive: true,
+        address: {},
+      },
+    };
+
+    render(<AscOverview />);
+
+    expect(screen.getByTestId("overview-header")).toBeInTheDocument();
     expect(screen.getByTestId("section-generalInfo")).toBeInTheDocument();
   });
 
@@ -391,6 +454,11 @@ describe("AscOverview", () => {
       isLoading: false,
       isError: false,
     });
+    formInitStateRef.current = {
+      ...formInitStateRef.current,
+      sections: [],
+      tabs: [],
+    };
     queryStateRef.current = {
       isLoading: false,
       data: {
@@ -398,6 +466,7 @@ describe("AscOverview", () => {
         name: "Bosch ASC",
         isActive: true,
         address: {},
+        laborCostMethod: MINIMAL_LABOR_COST_METHOD,
       },
     };
 
@@ -436,6 +505,7 @@ describe("AscOverview", () => {
         ],
         reimbursementCreateOn: "5",
         reimbursementPeriodType: "WEEKLY",
+        laborCostMethod: MINIMAL_LABOR_COST_METHOD,
       },
     };
 
@@ -473,6 +543,7 @@ describe("AscOverview", () => {
         isActive: true,
         createdOn: "2026-01-01",
         address: {},
+        laborCostMethod: MINIMAL_LABOR_COST_METHOD,
       },
     };
 
@@ -505,6 +576,7 @@ describe("AscOverview", () => {
         reimbursementCreateOn: "7",
         reimbursementPeriodType: "WEEKLY",
         address: {},
+        laborCostMethod: MINIMAL_LABOR_COST_METHOD,
       },
     };
 

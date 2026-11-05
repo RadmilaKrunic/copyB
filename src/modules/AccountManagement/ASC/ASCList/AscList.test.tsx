@@ -126,6 +126,39 @@ const baseAsc = (
   sparePartsIncentive: 0,
   accessoriesIncentive: 0,
   packagingCost: 0,
+  laborCostMethod: {
+    repairCosts: [
+      {
+        method: "LABOR_UNIT_X_COST_FROM_ASC",
+        level: "L1",
+        ranges: [],
+        value: 1,
+      },
+      {
+        method: "LABOR_UNIT_X_COST_FROM_ASC",
+        level: "L2",
+        ranges: [],
+        value: 1,
+      },
+      {
+        method: "LABOR_UNIT_X_COST_FROM_ASC",
+        level: "L3",
+        ranges: [],
+        value: 1,
+      },
+    ],
+    newToolExchange: { prices: [], reasonMapping: [] },
+    accessoryExchange: { prices: [], reasonMapping: [] },
+    sparePartsExchange: { prices: [], reasonMapping: [] },
+  },
+  freightCostDetails: {
+    isAllowed: false,
+    limits: [],
+  },
+  packagingCostDetails: {
+    isAllowed: false,
+    limits: [],
+  },
   notification: [],
   parentNotification: [],
   isActive: true,

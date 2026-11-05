@@ -1,0 +1,67 @@
+.asc-labor-rules-repair-table {
+  background-color: white;
+  margin-top: 24px;
+  margin-bottom: 1rem;
+}
+
+.asc-labor-rate-filed {
+  margin-top: 24px;
+  margin-bottom: 1rem;
+  width: 50%;
+}
+
+.asc-labor-cost-erp-field {
+  margin-top: 24px;
+  margin-bottom: 1rem;
+}
+
+.overview-container-wrapper {
+  position: relative;
+}
+.custom-pencil-button-position {
+  position: absolute;
+  top: -148px;
+  right: 0px;
+}
+.custom-pencil-button {
+  background: transparent;
+  border: none;
+  padding: 4px;
+  margin: 0;
+  cursor: pointer;
+  outline: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition:
+    background-color 0.2s ease,
+    transform 0.1s ease;
+
+  &.a-icon {
+    font-size: 24px !important;
+    color: var(--color-primary, var(--bosch-blue-50)) !important;
+    transition:
+      opacity 0.2s ease,
+      color 0.2s ease;
+  }
+
+  &:hover {
+    color: var(--color-primary, var(--bosch-blue-70)) !important;
+    opacity: 0.8;
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+.repair-labor-rate-field__actions {
+  margin-top: 2rem;
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+}
+.repair-labor-rate-field__button {
+  min-width: 49%;
+}

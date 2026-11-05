@@ -15,6 +15,61 @@ export interface ReimbursementConfiguration {
   };
 }
 
+export interface LaborUnitValue {
+  value: number | null;
+}
+export interface Ranges {
+  labourUnitRange: number[];
+  value: number;
+}
+
+export interface RepairCosts {
+  method: string;
+  level: string;
+  ranges: Ranges[] | null;
+  value: number | null;
+}
+
+export interface ExchangePrices {
+  level: string;
+  method: string;
+  unitPrice: number;
+}
+export interface ReasonMapping {
+  reasonType: string;
+  matrix: ReasonLabourUnit[];
+}
+
+export interface ReasonLabourUnit {
+  level: string;
+  labourUnit: number;
+}
+export interface ExchangeCostDetails {
+  prices: ExchangePrices[];
+  reasonMapping: ReasonMapping[];
+}
+export interface LaborCostMethod {
+  repairCosts: RepairCosts[];
+  newToolExchange: ExchangeCostDetails;
+  accessoryExchange: ExchangeCostDetails;
+  sparePartsExchange: ExchangeCostDetails;
+}
+
+export interface LaborRateLimitRange {
+  lowestLimit: number;
+  highestLimit: number;
+  defaultValue: number;
+}
+export interface Limits {
+  types: string[];
+  l1: LaborRateLimitRange | null;
+  l2: LaborRateLimitRange | null;
+  l3: LaborRateLimitRange | null;
+}
+export interface FreightPackagingCostDetails {
+  isAllowed: boolean;
+  limits: Limits[];
+}
 export interface ServiceCenter {
   ascId: string;
   name: string;
@@ -57,6 +112,9 @@ export interface ServiceCenter {
   sparePartsIncentive: number;
   accessoriesIncentive: number;
   packagingCost: number;
+  laborCostMethod: LaborCostMethod;
+  freightCostDetails: FreightPackagingCostDetails;
+  packagingCostDetails: FreightPackagingCostDetails;
   notification: string[];
   parentNotification: string[];
   isActive: boolean;
@@ -129,6 +187,7 @@ export interface DraftServiceCenter {
     isActive: true;
     reimbursementCreateOn: string;
     reimbursementPeriodType: string;
+    laborCostMethod: LaborCostMethod;
   };
   firstUser: {
     userId: string;

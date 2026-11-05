@@ -70,15 +70,17 @@ function ClientOrdersTab({ clientId }: Readonly<ClientOrdersTabProps>) {
             renderRowActions={() => null}
             emptyListMessage="noOrdersFoundMessage"
           />
-          <Pagination
-            page={pagination.page}
-            pageSize={pagination.pageSize}
-            onPageChange={(page) => setPagination((previous) => ({ ...previous, page }))}
-            onDropdownOptionChange={(option) =>
-              setPagination({ page: 1, pageSize: Number(option) })
-            }
-            totalResults={ordersPage?.page.totalElements ?? 0}
-          />
+          {(ordersPage?.page.totalElements ?? 0) >= 10 && (
+            <Pagination
+              page={pagination.page}
+              pageSize={pagination.pageSize}
+              onPageChange={(page) => setPagination((previous) => ({ ...previous, page }))}
+              onDropdownOptionChange={(option) =>
+                setPagination({ page: 1, pageSize: Number(option) })
+              }
+              totalResults={ordersPage?.page.totalElements ?? 0}
+            />
+          )}
         </>
       )}
     </div>

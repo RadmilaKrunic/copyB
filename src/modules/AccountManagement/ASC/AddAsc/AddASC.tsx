@@ -21,6 +21,7 @@ import { useTranslation } from "react-i18next";
 import { useAnalytics, toFailureReason, AnalyticsEventName, SaveType } from "@/analytics";
 import { SetErrorsType, SetFieldValueType, SetTouchedType } from "./AddAsc.types";
 import { createASC, getDraftAscById } from "../../../../api/services/serviceCenters/action";
+import { getLaborCostConfig } from "../../../../api/services/laborCost/laborCost";
 import { MessagesContext } from "../../../../contexts/messagescontext";
 import { useActionWithValidation } from "../../../../hooks/useActionWithValidation";
 import { mapAccountRolesToAPIFormat } from "../../Employees/EmployeeOverview/EmployeeOverview.utils";
@@ -30,7 +31,29 @@ import {
   ReimbursementConfiguration,
 } from "../../../../api/services/countryConfiguration/countryConfiguration";
 import { DEFAULT_STALE_TIME_MS } from "../../../../utils/queryConstants";
-import { DraftServiceCenter } from "../../../../api/services/serviceCenters/serviceCenters.types";
+import {
+  DraftServiceCenter,
+  RepairCosts,
+  Ranges as ServiceCenterRanges,
+} from "../../../../api/services/serviceCenters/serviceCenters.types";
+import {
+  updateLaborRepairSections,
+  updateLaborExchangeSections,
+  mapLaborCostDetailsToApiPayload,
+  mapExchangeLaborCostTableDataFromFormValues,
+  LABOR_RULE_DEFAULTS,
+  shouldShowAddLaborRuleButton,
+} from "../ASC.utils";
+import ExchangeLaborCostModal from "components/ui/ExchangeLaborCostModal/ExchangeLaborCostModal";
+import { showLaborRulesTable } from "../AscLaborRulesExchangeArea/AscLaborRulesExchangeArea.utils";
+import type { LaborExchangeRow } from "../AscLaborRulesExchangeArea/AscLaborRulesExchangeArea.utils";
+import type {
+  LaborCostConfigurationResponse,
+  Ranges,
+} from "../../../../api/services/laborCost/laborCost";
+import { AscIdProvider } from "../AscId.context";
+import RepairLaborCostMatrixModal from "@/components/ui/RepairLaborCostMatrixModal/RepairLaborCostMatrixModal";
+import { showLaborRulesMatrix } from "../AscLaborRulesRepairArea/AscLaborRulesRepairArea.utils";
 
 const getAscSaveType = (isDraft: boolean): SaveType =>
   isDraft ? SaveType.DRAFT : SaveType.CREATED;
@@ -57,6 +80,16 @@ function AddASC() {
     user?.countryCode,
   ]);
 
+  const { data: laborCostConfigResponse, isLoading } = useQuery<LaborCostConfigurationResponse>({
+    queryKey: ["laborCostConfig", user?.countryCode],
+    queryFn: () => getLaborCostConfig(user?.countryCode || ""),
+    refetchOnWindowFocus: false,
+    staleTime: DEFAULT_STALE_TIME_MS,
+    refetchOnMount: false,
+    enabled: Boolean(user?.countryCode),
+  });
+  const laborCostConfig = laborCostConfigResponse?.laborCostMethod;
+
   const uiConfigurationForms = queryClient.getQueryData<{ forms: GenericForm[] }>([
     "UIConfiguration",
     user?.countryCode,
@@ -76,6 +109,14 @@ function AddASC() {
     return state || {};
   });
 
+  const [selectedLaborRules, setSelectedLaborRules] = useState<{
+    repair: string | null;
+    exchange: string | null;
+  }>({
+    repair: LABOR_RULE_DEFAULTS.repair,
+    exchange: LABOR_RULE_DEFAULTS.exchange,
+  });
+
   const { data: asc } = useQuery({
     queryKey: ["ASC", ascId],
     queryFn: () => getDraftAscById(ascId || ""),
@@ -85,8 +126,54 @@ function AddASC() {
     enabled: !!ascId,
   });
 
+  const [isExchangeLaborCostModalOpen, setIsExchangeLaborCostModalOpen] = useState(false);
+  const [exchangeLaborCostTableDataByRule, setExchangeLaborCostTableDataByRule] = useState<
+    Record<string, LaborExchangeRow[]>
+  >({});
+  const [isRepairLaborCostModalOpen, setIsRepairLaborCostModalOpen] = useState(false);
+  const [repairLaborCostMatrixDataByRule, setRepairLaborCostMatrixDataByRule] = useState<
+    Record<string, RepairCosts>
+  >({});
+
+  const currentExchangeLaborRule = selectedLaborRules.exchange ?? LABOR_RULE_DEFAULTS.exchange;
+  const currentRepairLaborRule = selectedLaborRules.repair ?? LABOR_RULE_DEFAULTS.repair;
+
+  const repairLaborCostMatrixData = useMemo(() => {
+    if (!laborCostConfig || !currentRepairLaborRule) {
+      return null;
+    }
+    const laborRepairConfigSource =
+      (asc ?? undefined)
+        ? asc?.serviceCenter.laborCostMethod?.repairCosts
+        : laborCostConfig?.repairCostConfiguration.repairCosts;
+
+    return (
+      repairLaborCostMatrixDataByRule[currentRepairLaborRule] ??
+      showLaborRulesMatrix(laborRepairConfigSource, currentRepairLaborRule)
+    );
+  }, [laborCostConfig, currentRepairLaborRule, repairLaborCostMatrixDataByRule, asc]);
+
+  const exchangeLaborCostTableData = useMemo(() => {
+    if (!laborCostConfig || !currentExchangeLaborRule) {
+      return [];
+    }
+    const laborExchangeConfigSource =
+      (asc ?? undefined) ? asc?.serviceCenter.laborCostMethod : laborCostConfig;
+
+    return (
+      exchangeLaborCostTableDataByRule[currentExchangeLaborRule] ??
+      showLaborRulesTable(laborExchangeConfigSource, currentExchangeLaborRule)
+    );
+  }, [laborCostConfig, currentExchangeLaborRule, exchangeLaborCostTableDataByRule, asc]);
+
+  const laborConfigSource =
+    (asc ?? undefined)
+      ? asc?.serviceCenter.laborCostMethod?.repairCosts
+      : laborCostConfig?.repairCostConfiguration.repairCosts;
+
   const {
     sections,
+    setSections,
     initialFormValues,
     allFields,
     setAllFields,
@@ -276,6 +363,7 @@ function AddASC() {
       formFieldValues[repairName] = config.reimbursementMethods.REPAIR || "";
       formFieldValues[exchangeName] = config.reimbursementMethods.EXCHANGE || "";
     });
+
     return formFieldValues;
   }, []);
 
@@ -411,6 +499,16 @@ function AddASC() {
 
   const mapFormValuesToApiPayload = useCallback(
     (formValues: Record<string, any>): Record<string, unknown> => {
+      const exchangeLaborCostTableDataByRuleWithCurrentValues = currentExchangeLaborRule
+        ? {
+            ...exchangeLaborCostTableDataByRule,
+            [currentExchangeLaborRule]: mapExchangeLaborCostTableDataFromFormValues(
+              exchangeLaborCostTableData,
+              formValues,
+            ),
+          }
+        : exchangeLaborCostTableDataByRule;
+
       const apiValues: Record<string, any> = {
         serviceCenter: {
           name: formValues.name,
@@ -441,15 +539,23 @@ function AddASC() {
           biqicName: formValues.biqicName,
           customerCode: formValues.customerCode,
           serviceCenterType: formValues.serviceCenterType,
-          laPrice: +formValues.laPrice!,
-          frPrice: +formValues.frPrice!,
-          pkPrice: +formValues.pkPrice!,
+          laPrice: 0,
+          frPrice: 0,
+          pkPrice: 0,
           defaultCountry: user?.countryCode,
           preferredSelectedCountry: formValues.preferredSelectedCountry,
           reimbursementConfig: mapReimbursementFormValuesToApiPayload(
             formValues,
             countryConfiguration?.reimbursementConfig || [],
           ),
+          laborCostMethod: mapLaborCostDetailsToApiPayload(
+            laborCostConfig,
+            formValues,
+            exchangeLaborCostTableDataByRuleWithCurrentValues,
+            repairLaborCostMatrixDataByRule,
+          ),
+          freightCostDetails: laborCostConfigResponse?.freightCostDetails,
+          packagingCostDetails: laborCostConfigResponse?.packagingCostDetails,
           currency: countryConfiguration?.currency,
           currencySymbol: countryConfiguration?.currencySymbol,
           reimbursementType: "DIRECT_SHIPMENT",
@@ -479,10 +585,17 @@ function AddASC() {
       countryConfiguration?.currencySymbol,
       ascId,
       asc,
+      laborCostConfig,
       mapReimbursementFormValuesToApiPayload,
       countryConfiguration?.reimbursementConfig,
       mapFirstUserToApiPayload,
       user?.countryCode,
+      exchangeLaborCostTableData,
+      exchangeLaborCostTableDataByRule,
+      currentExchangeLaborRule,
+      repairLaborCostMatrixDataByRule,
+      laborCostConfigResponse?.freightCostDetails,
+      laborCostConfigResponse?.packagingCostDetails,
     ],
   );
 
@@ -592,6 +705,31 @@ function AddASC() {
     [handleAction, setCurrentAction, startValidation],
   );
 
+  const onNextSectionLaborConfiguration = useCallback(
+    (
+      formValues: Record<string, unknown>,
+      helpers: {
+        setErrors: (errors: FormikErrors<Record<string, unknown>>) => void;
+        setTouched: (touched: Record<string, boolean>) => Promise<void | Record<string, string>>;
+      },
+    ) => {
+      void handleAction(
+        "nextSectionLaborConfiguration",
+        { values: formValues, setErrors: helpers.setErrors, setTouched: helpers.setTouched },
+        () => {
+          setOpenedSections((prev) => ({
+            ...prev,
+            internalLaborConfiguration: false,
+            reimbursement: true,
+          }));
+          setCurrentAction("nextSectionLaborConfiguration");
+          startValidation("nextSectionLaborConfiguration");
+        },
+      );
+    },
+    [handleAction, setCurrentAction, startValidation],
+  );
+
   const onNextSectionReimbursement = useCallback(
     (
       formValues: Record<string, unknown>,
@@ -606,7 +744,7 @@ function AddASC() {
         () => {
           setOpenedSections((prev) => ({
             ...prev,
-            reimbursement: true,
+            internalLaborConfiguration: true,
             boschInternalConfiguration: false,
           }));
           setCurrentAction("next");
@@ -640,6 +778,107 @@ function AddASC() {
     [handleAction],
   );
 
+  const updateLaborRule = useCallback(
+    (rule: "repair" | "exchange", selectedActionName: string) => {
+      setSelectedLaborRules((prev) => ({
+        ...prev,
+        [rule]: selectedActionName,
+      }));
+      setSections((prevSections) =>
+        rule === "repair"
+          ? updateLaborRepairSections(prevSections, selectedActionName)
+          : updateLaborExchangeSections(prevSections, selectedActionName),
+      );
+    },
+    [setSections],
+  );
+
+  const laborRuleActionCallbacks = useMemo(
+    () => ({
+      addLaborExchangeRule: () => {
+        if (!laborCostConfig || !currentExchangeLaborRule) {
+          setIsExchangeLaborCostModalOpen(true);
+          return;
+        }
+
+        setExchangeLaborCostTableDataByRule((prev) => {
+          if (prev[currentExchangeLaborRule]) {
+            return prev;
+          }
+
+          return {
+            ...prev,
+            [currentExchangeLaborRule]: showLaborRulesTable(
+              laborCostConfig,
+              currentExchangeLaborRule,
+            ),
+          };
+        });
+        setIsExchangeLaborCostModalOpen(true);
+      },
+      showAddLaborRule: () =>
+        shouldShowAddLaborRuleButton(laborConfigSource, selectedLaborRules.repair),
+      addLaborRepairRule: () => {
+        if (!laborCostConfig) {
+          setIsRepairLaborCostModalOpen(true);
+          return;
+        }
+        setIsRepairLaborCostModalOpen(true);
+      },
+      switchLaborRepairRuleLevel1: () => updateLaborRule("repair", "level1Repair"),
+      switchLaborRepairRuleLevel2: () => updateLaborRule("repair", "level2Repair"),
+      switchLaborRepairRuleLevel3: () => updateLaborRule("repair", "level3Repair"),
+      switchLaborExchangeRuleLevel1: () => updateLaborRule("exchange", "level1Exchange"),
+      switchLaborExchangeRuleLevel2: () => updateLaborRule("exchange", "level2Exchange"),
+      switchLaborExchangeRuleLevel3: () => updateLaborRule("exchange", "level3Exchange"),
+    }),
+    [
+      laborConfigSource,
+      laborCostConfig,
+      currentExchangeLaborRule,
+      selectedLaborRules.repair,
+      updateLaborRule,
+    ],
+  );
+
+  const handleExchangeLaborCostSave = useCallback(
+    (updatedTableData: LaborExchangeRow[]) => {
+      if (!currentExchangeLaborRule) {
+        return;
+      }
+
+      setExchangeLaborCostTableDataByRule((prev) => ({
+        ...prev,
+        [currentExchangeLaborRule]: updatedTableData,
+      }));
+    },
+    [currentExchangeLaborRule],
+  );
+
+  const handleRepairLaborCostSave = useCallback(
+    (updatedMatrixData: Ranges[] | ServiceCenterRanges[]) => {
+      setRepairLaborCostMatrixDataByRule((prev) => {
+        const existingRuleConfig =
+          prev[currentRepairLaborRule] ||
+          showLaborRulesMatrix(laborConfigSource, currentRepairLaborRule);
+
+        if (!existingRuleConfig) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          [currentRepairLaborRule]: {
+            ...existingRuleConfig,
+            method: "MATRIX",
+            ranges: updatedMatrixData,
+          },
+        };
+      });
+    },
+    [currentRepairLaborRule, laborConfigSource],
+  );
+
   const genericFormContextValue = useMemo(
     () => ({
       allFields: allFields || [],
@@ -653,9 +892,15 @@ function AddASC() {
       },
       mandatoryFields,
       setMandatoryFields: () => {},
+      selectedLaborRepairRule: selectedLaborRules.repair,
+      selectedLaborExchangeRule: selectedLaborRules.exchange,
+      selectedLaborExchangeAction: selectedLaborRules.exchange,
+      exchangeLaborCostTableData,
+      repairLaborCostMatrixData: repairLaborCostMatrixData ?? undefined,
       actionCallbacks: {
         onNextSectionPricing: onNextSectionPricing,
         onNextSectionConfiguration: onNextSectionConfiguration,
+        onNextSectionLaborConfiguration: onNextSectionLaborConfiguration,
         onNextSectionReimbursement: onNextSectionReimbursement,
         onNextSectionAddAdmin: onNextSectionAddAdmin,
         saveDraft: (
@@ -670,6 +915,7 @@ function AddASC() {
         ) => {
           onSaveDraft(formValues, { setErrors, setTouched });
         },
+        ...laborRuleActionCallbacks,
       } as GenericFormContextType["actionCallbacks"],
       autocompleteValidation: autocompleteValidationRef,
     }),
@@ -682,6 +928,12 @@ function AddASC() {
       onNextSectionConfiguration,
       onNextSectionReimbursement,
       onNextSectionAddAdmin,
+      onNextSectionLaborConfiguration,
+      laborRuleActionCallbacks,
+      selectedLaborRules.repair,
+      selectedLaborRules.exchange,
+      exchangeLaborCostTableData,
+      repairLaborCostMatrixData,
     ],
   );
 
@@ -692,7 +944,7 @@ function AddASC() {
     }));
   }, []);
 
-  if (!isInitialized) {
+  if (!isInitialized || isLoading) {
     return (
       <div className="loading-container">
         <ActivityIndicator size="large" />
@@ -701,55 +953,72 @@ function AddASC() {
   }
   return (
     <div>
-      <GenericFormContext.Provider value={genericFormContextValue}>
-        <Formik
-          initialValues={initialFormValues}
-          onSubmit={() => {}}
-          enableReinitialize={true}
-          validateOnBlur={false}
-          validateOnChange={true}
-          validateOnMount={false}
-          validate={validate}
-        >
-          {({ values, setErrors, setTouched, setFieldValue }) => {
-            return (
-              <Form>
-                {sections.map((section) => (
-                  <GenericSection
-                    key={`${section.name}_${section.index}`}
-                    section={section}
-                    onHeaderClick={() => onHeaderClick(section.name)}
-                    isCollapsed={openedSections[section.name] === false}
-                  />
-                ))}
+      <AscIdProvider value={ascId}>
+        <GenericFormContext.Provider value={genericFormContextValue}>
+          <Formik
+            initialValues={initialFormValues}
+            onSubmit={() => {}}
+            enableReinitialize={true}
+            validateOnBlur={false}
+            validateOnChange={true}
+            validateOnMount={false}
+            validate={validate}
+          >
+            {({ values, setErrors, setTouched, setFieldValue }) => {
+              return (
+                <Form>
+                  {sections.map((section) => (
+                    <GenericSection
+                      key={`${section.name}_${section.index}`}
+                      section={section}
+                      onHeaderClick={() => onHeaderClick(section.name)}
+                      isCollapsed={openedSections[section.name] === false}
+                    />
+                  ))}
 
-                {addASCForm && (
-                  <GenericAction
-                    actions={addASCForm.actions || []}
-                    onActionClick={(actionName) => {
-                      if (isSubmittingAsc.current) return;
-
-                      const wrappedSetTouched = async (touched: Record<string, boolean>) => {
-                        await setTouched(touched);
-                        return undefined as void | Record<string, string>;
-                      };
-                      if (actionName) {
-                        handleGenericAction(actionName, values, {
-                          setErrors,
-                          setTouched: wrappedSetTouched,
-                          setFieldValue: (field: string, value: unknown) => {
-                            void setFieldValue(field, value);
-                          },
-                        });
-                      }
-                    }}
+                  <ExchangeLaborCostModal
+                    isOpen={isExchangeLaborCostModalOpen}
+                    onClose={() => setIsExchangeLaborCostModalOpen(false)}
+                    tableData={exchangeLaborCostTableData}
+                    onSave={handleExchangeLaborCostSave}
+                    currentExchangeLaborRule={currentExchangeLaborRule}
+                    currentExchangeMethod={laborCostConfig}
                   />
-                )}
-              </Form>
-            );
-          }}
-        </Formik>
-      </GenericFormContext.Provider>
+                  <RepairLaborCostMatrixModal
+                    isOpen={isRepairLaborCostModalOpen}
+                    onClose={() => setIsRepairLaborCostModalOpen(false)}
+                    onSave={handleRepairLaborCostSave}
+                    matrixData={repairLaborCostMatrixData}
+                  />
+
+                  {addASCForm && (
+                    <GenericAction
+                      actions={addASCForm.actions || []}
+                      onActionClick={(actionName) => {
+                        if (isSubmittingAsc.current) return;
+
+                        const wrappedSetTouched = async (touched: Record<string, boolean>) => {
+                          await setTouched(touched);
+                          return undefined as void | Record<string, string>;
+                        };
+                        if (actionName) {
+                          handleGenericAction(actionName, values, {
+                            setErrors,
+                            setTouched: wrappedSetTouched,
+                            setFieldValue: (field: string, value: unknown) => {
+                              void setFieldValue(field, value);
+                            },
+                          });
+                        }
+                      }}
+                    />
+                  )}
+                </Form>
+              );
+            }}
+          </Formik>
+        </GenericFormContext.Provider>
+      </AscIdProvider>
     </div>
   );
 }

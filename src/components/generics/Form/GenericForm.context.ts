@@ -6,7 +6,8 @@ import { createContext } from "react";
 import { ActionMandatoryFields } from "./GenericForm.types";
 import type { ResolveDefaultQuantities } from "api/services/prices/prices.types";
 import type { AllowedPosition } from "api/services/countryConfiguration/countryConfiguration";
-import type { FieldValueRange } from "./formValidation";
+import { LaborExchangeRow } from "@/modules/AccountManagement/ASC/AscLaborRulesExchangeArea/AscLaborRulesExchangeArea.utils";
+import { RepairCosts } from "@/api/services/serviceCenters/serviceCenters.types";
 
 export interface ActionCallbackHelpers {
   setFieldValue: (field: string, value: unknown) => void | Promise<unknown>;
@@ -70,6 +71,10 @@ export interface GenericFormContextType {
    * diagnostics (claim); when unset, fields use the DiagnosticsContext positions.
    */
   allowedPositions?: AllowedPosition[];
+  selectedLaborRepairRule?: string | null;
+  selectedLaborExchangeRule?: string | null;
+  exchangeLaborCostTableData?: LaborExchangeRow[];
+  repairLaborCostMatrixData?: RepairCosts;
 }
 
 export const GenericFormContext = createContext<GenericFormContextType>({
@@ -89,4 +94,8 @@ export const GenericFormContext = createContext<GenericFormContextType>({
   isRepairAnswerLocked: undefined,
   resolveDefaultQuantities: undefined,
   allowedPositions: undefined,
+  selectedLaborRepairRule: undefined,
+  selectedLaborExchangeRule: undefined,
+  exchangeLaborCostTableData: undefined,
+  repairLaborCostMatrixData: undefined,
 });

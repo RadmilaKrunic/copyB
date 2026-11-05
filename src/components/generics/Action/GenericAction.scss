@@ -82,4 +82,51 @@
       flex: 0 0 calc(25% - 0.5625rem);
     }
   }
+  .custom-price-level-button {
+    margin-left: -1rem;
+    border: none;
+    &.a-button--secondary {
+      background-color: var(--bosch-gray-85);
+      color: var(--bosch-gray-10);
+    }
+
+    &:first-child {
+      margin-left: 0;
+    }
+  }
+  .custom-pencil-button {
+    background: transparent;
+    border: none;
+    padding: 4px;
+    margin: 0;
+    cursor: pointer;
+    outline: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition:
+      background-color 0.2s ease,
+      transform 0.1s ease;
+
+    .a-icon {
+      font-size: 24px;
+      color: var(--color-primary, var(--bosch-blue-50));
+      transition:
+        opacity 0.2s ease,
+        color 0.2s ease;
+    }
+
+    &:hover {
+      color: var(--color-primary, var(--bosch-blue-70));
+
+      .a-icon {
+        opacity: 0.8;
+      }
+    }
+
+    &:active {
+      transform: scale(0.95);
+    }
+  }
 }

@@ -98,7 +98,7 @@ describe("ClientJobsTab", () => {
 
   it("sends search, page, and page size to the backend", async () => {
     vi.mocked(getCustomerJobs).mockResolvedValue({
-      page: { number: 0, totalElements: 0, totalPages: 0, size: 10 },
+      page: { number: 0, totalElements: 21, totalPages: 3, size: 10 },
       content: [],
     });
 
@@ -134,6 +134,21 @@ describe("ClientJobsTab", () => {
       }),
     );
   });
+
+  it.each([0, 9, 10, 11])(
+    "shows pagination only for at least 10 total results (%i)",
+    async (totalElements) => {
+      vi.mocked(getCustomerJobs).mockResolvedValue({
+        page: { number: 0, totalElements, totalPages: Math.ceil(totalElements / 10), size: 10 },
+        content: [],
+      });
+
+      renderTab();
+      await screen.findByTestId("jobs-table");
+
+      expect(screen.queryByText("next page") !== null).toBe(totalElements >= 10);
+    },
+  );
 
   it("shows request failures instead of an empty table", async () => {
     vi.mocked(getCustomerJobs).mockRejectedValue(new Error("Network error"));

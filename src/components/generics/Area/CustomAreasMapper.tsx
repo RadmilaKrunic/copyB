@@ -9,6 +9,8 @@ import ClaimSparePartsArea from "modules/ClaimManagement/ClaimOverview/ClaimSpar
 import ClaimSummaryArea from "modules/ClaimManagement/ClaimOverview/ClaimSummaryArea/ClaimSummaryArea";
 import ClaimArchivedSparePartsArea from "modules/ClaimManagement/ClaimOverview/ClaimArchivedSparePartsArea/ClaimArchivedSparePartsArea";
 import AscReimbursementArea from "../../../modules/AccountManagement/ASC/AscReimbursementArea/AscReimbursementArea";
+import AscLaborRulesRepairArea from "@/modules/AccountManagement/ASC/AscLaborRulesRepairArea/AscLaborRulesRepairArea";
+import AscLaborRulesExchangeArea from "@/modules/AccountManagement/ASC/AscLaborRulesExchangeArea/AscLaborRulesExchangeArea";
 
 export const getCustomArea = (area: Area) => {
   if (area.name.includes("accessory")) {
@@ -58,6 +60,13 @@ export const getCustomArea = (area: Area) => {
 
   if (area.name.includes("AscReimbursementArea")) {
     return <AscReimbursementArea area={area} />;
+  }
+
+  if (area.name.includes("laborRulesRepair")) {
+    return <AscLaborRulesRepairArea area={area} />;
+  }
+  if (area.name.includes("laborRulesExchange")) {
+    return <AscLaborRulesExchangeArea area={area} />;
   }
 
   return null;

@@ -19,19 +19,30 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "r
 import { Tab, TabNavigation } from "@bosch/react-frok";
 import { useFormInitialization } from "hooks/useFormInitialization";
 import { GenericFormContext } from "components/generics/Form/GenericForm.context";
+import { type GenericFormContextType } from "components/generics/Form/GenericForm.context";
 import Field from "components/generics/Field/GenericField.types";
 import GenericSection from "components/generics/Section/GenericSection";
-import { Formik, Form } from "formik";
+import { Formik, Form, FormikProps } from "formik";
 import { toggleSectionFieldsDisabled } from "components/generics/utils";
 import { useFormValidation } from "components/generics/Form/useFormValidation";
-import { ServiceCenter } from "api/services/serviceCenters/serviceCenters.types";
 import {
+  RepairCosts,
+  ServiceCenter,
+  Ranges as ServiceCenterRanges,
+} from "api/services/serviceCenters/serviceCenters.types";
+import {
+  LABOR_RULE_DEFAULTS,
   mapBanking,
   mapBoschConfig,
+  mapExchangeLaborCostTableDataFromFormValues,
   mapGeneralInfo,
+  mapLaborCostDetailsToApiPayload,
   mapNotifications,
   mapPricing,
   mapReimbursement,
+  shouldShowAddLaborRuleButton,
+  updateLaborExchangeSections,
+  updateLaborRepairSections,
 } from "../ASC.utils";
 import Section from "components/generics/Section/GenericSection.types";
 import { MessagesContext } from "contexts/messagescontext";
@@ -40,6 +51,15 @@ import { scrollToTop } from "../../../../utils/scrollToError";
 import GenericAction from "../../../../components/generics/Action/GenericAction";
 import axiosClient from "../../../../api/axios-client/axiosClient";
 import { useResourceUIConfiguration } from "hooks/useUIConfiguration";
+import {
+  LaborExchangeRow,
+  showLaborRulesTable,
+} from "../AscLaborRulesExchangeArea/AscLaborRulesExchangeArea.utils";
+import { showLaborRulesMatrix } from "../AscLaborRulesRepairArea/AscLaborRulesRepairArea.utils";
+import { Ranges } from "../../../../api/services/laborCost/laborCost";
+import ExchangeLaborCostModal from "@/components/ui/ExchangeLaborCostModal/ExchangeLaborCostModal";
+import RepairLaborCostMatrixModal from "@/components/ui/RepairLaborCostMatrixModal/RepairLaborCostMatrixModal";
+import { AscIdProvider } from "../AscId.context";
 
 const ASC_SECTION_BY_TAB: Readonly<Record<string, AscSection>> = {
   generalInfo: AscSection.GENERAL_INFO,
@@ -69,6 +89,47 @@ function AscOverview() {
     enabled: Boolean(ascId),
   });
 
+  const formikRef = useRef<FormikProps<any>>(null);
+  const [selectedLaborRules, setSelectedLaborRules] = useState<{
+    repair: string | null;
+    exchange: string | null;
+  }>({
+    repair: LABOR_RULE_DEFAULTS.repair,
+    exchange: LABOR_RULE_DEFAULTS.exchange,
+  });
+
+  const [isExchangeLaborCostModalOpen, setIsExchangeLaborCostModalOpen] = useState(false);
+  const [exchangeLaborCostTableDataByRule, setExchangeLaborCostTableDataByRule] = useState<
+    Record<string, LaborExchangeRow[]>
+  >({});
+  const [isRepairLaborCostModalOpen, setIsRepairLaborCostModalOpen] = useState(false);
+  const [repairLaborCostMatrixDataByRule, setRepairLaborCostMatrixDataByRule] = useState<
+    Record<string, RepairCosts>
+  >({});
+
+  const currentExchangeLaborRule = selectedLaborRules.exchange ?? LABOR_RULE_DEFAULTS.exchange;
+  const currentRepairLaborRule = selectedLaborRules.repair ?? LABOR_RULE_DEFAULTS.repair;
+
+  const repairLaborCostMatrixData = useMemo(() => {
+    const laborRepairConfigSource = asc?.laborCostMethod?.repairCosts;
+
+    return (
+      repairLaborCostMatrixDataByRule[currentRepairLaborRule] ??
+      showLaborRulesMatrix(laborRepairConfigSource, currentRepairLaborRule)
+    );
+  }, [currentRepairLaborRule, repairLaborCostMatrixDataByRule, asc]);
+
+  const exchangeLaborCostTableData = useMemo(() => {
+    const laborExchangeConfigSource = asc?.laborCostMethod;
+
+    return (
+      exchangeLaborCostTableDataByRule[currentExchangeLaborRule] ??
+      showLaborRulesTable(laborExchangeConfigSource, currentExchangeLaborRule)
+    );
+  }, [currentExchangeLaborRule, exchangeLaborCostTableDataByRule, asc]);
+
+  const laborConfigSource = asc?.laborCostMethod;
+
   const {
     uiConfiguration,
     isLoading: isLoadingUIConfig,
@@ -92,6 +153,8 @@ function AscOverview() {
 
   const {
     initialFormValues,
+    sections,
+    setSections,
     setInitialFormValues,
     allFields,
     setAllFields,
@@ -276,14 +339,47 @@ function AscOverview() {
       Object.entries(oldValues).forEach(([key, value]) => {
         setFieldValueRef.current?.(key, value);
       });
+
       setMessages([{ type: "error", duration: 5000, text: t("failedToUpdateData") }]);
       scrollToTop();
     },
   });
 
   const mapToAPIValues = useCallback(
-    (formValues: Record<string, unknown>) => {
+    (
+      formValues: Record<string, any>,
+      overrideExchangeDataByRule?: Record<string, LaborExchangeRow[]>,
+      overrideRepairDataByRule?: Record<string, RepairCosts>,
+    ) => {
       if (!asc) return {};
+
+      const activeRepairDataByRule = overrideRepairDataByRule || repairLaborCostMatrixDataByRule;
+      const activeExchangeDataByRule =
+        overrideExchangeDataByRule || exchangeLaborCostTableDataByRule;
+
+      const currentActiveExchangeTable = currentExchangeLaborRule
+        ? activeExchangeDataByRule[currentExchangeLaborRule] ||
+          showLaborRulesTable(asc.laborCostMethod, currentExchangeLaborRule)
+        : [];
+      const exchangeLaborCostTableDataByRuleWithCurrentValues = currentExchangeLaborRule
+        ? {
+            ...activeExchangeDataByRule,
+            [currentExchangeLaborRule]: mapExchangeLaborCostTableDataFromFormValues(
+              currentActiveExchangeTable,
+              formValues,
+            ),
+          }
+        : activeExchangeDataByRule;
+
+      const compatibleLaborCostConfig: any = {
+        repairCostConfiguration: {
+          repairCosts: asc.laborCostMethod?.repairCosts || [],
+        },
+        newToolExchange: asc.laborCostMethod?.newToolExchange,
+        accessoryExchange: asc.laborCostMethod?.accessoryExchange,
+        sparePartsExchange: asc.laborCostMethod?.sparePartsExchange,
+      };
+
       const updatedValues: any = {
         ...initialFormValues,
         ...mapGeneralInfo(selectedTab === "generalInfo" ? formValues : initialFormValues),
@@ -301,6 +397,14 @@ function AscOverview() {
         currencySymbol: asc.currencySymbol,
         currency: asc.currency,
         reimbursementType: "DIRECT_SHIPMENT",
+        laborCostMethod: mapLaborCostDetailsToApiPayload(
+          compatibleLaborCostConfig,
+          formValues,
+          exchangeLaborCostTableDataByRuleWithCurrentValues,
+          activeRepairDataByRule,
+        ),
+        freightCostDetails: asc.freightCostDetails,
+        packagingCostDetails: asc.packagingCostDetails,
       };
 
       if (updatedValues.reimbursementPeriodType === "CUSTOM") {
@@ -330,12 +434,19 @@ function AscOverview() {
 
       return updatedValues;
     },
-    [asc, initialFormValues, selectedTab],
+    [
+      asc,
+      initialFormValues,
+      selectedTab,
+      repairLaborCostMatrixDataByRule,
+      currentExchangeLaborRule,
+      exchangeLaborCostTableDataByRule,
+    ],
   );
 
   const onSettledSaveUpdate = useCallback(() => {
     const section = ascOverviewForm?.sections.find((section) => section.name === selectedTab);
-    if (section) {
+    if (section && section.name != "internalLaborConfiguration") {
       section.isDisabled = true;
       toggleFieldDisabledState(section);
     }
@@ -345,9 +456,15 @@ function AscOverview() {
     (
       formValues: Record<string, unknown>,
       { setErrors, setTouched }: { setFieldValue: any; setErrors: any; setTouched: any },
+      overrideExchangeDataByRule?: Record<string, LaborExchangeRow[]>,
+      overrideRepairDataByRule?: Record<string, RepairCosts>,
     ) => {
       if (!asc) return;
-      const apiValues = mapToAPIValues(formValues);
+      const apiValues = mapToAPIValues(
+        formValues,
+        overrideExchangeDataByRule,
+        overrideRepairDataByRule,
+      );
       handleActionWithValidation("save", formValues, { setErrors, setTouched }, () => {
         mutate(
           { serviceCenter: { ...apiValues } },
@@ -381,6 +498,120 @@ function AscOverview() {
     [ascId, queryClient, analytics],
   );
 
+  const updateLaborRule = useCallback(
+    (rule: "repair" | "exchange", selectedActionName: string) => {
+      setSelectedLaborRules((prev) => ({
+        ...prev,
+        [rule]: selectedActionName,
+      }));
+      setSections((prevSections) =>
+        rule === "repair"
+          ? updateLaborRepairSections(prevSections, selectedActionName)
+          : updateLaborExchangeSections(prevSections, selectedActionName),
+      );
+    },
+    [setSections],
+  );
+
+  const laborRuleActionCallbacks = useMemo(
+    () => ({
+      addLaborExchangeRule: () => {
+        if (!laborConfigSource || !currentExchangeLaborRule) {
+          setIsExchangeLaborCostModalOpen(true);
+          return;
+        }
+
+        setExchangeLaborCostTableDataByRule((prev) => {
+          if (prev[currentExchangeLaborRule]) {
+            return prev;
+          }
+
+          return {
+            ...prev,
+            [currentExchangeLaborRule]: showLaborRulesTable(
+              laborConfigSource,
+              currentExchangeLaborRule,
+            ),
+          };
+        });
+        setIsExchangeLaborCostModalOpen(true);
+      },
+      showAddLaborRule: () =>
+        shouldShowAddLaborRuleButton(laborConfigSource?.repairCosts, selectedLaborRules.repair),
+      addLaborRepairRule: () => {
+        if (!laborConfigSource) {
+          setIsRepairLaborCostModalOpen(true);
+          return;
+        }
+        setIsRepairLaborCostModalOpen(true);
+      },
+      switchLaborRepairRuleLevel1: () => updateLaborRule("repair", "level1Repair"),
+      switchLaborRepairRuleLevel2: () => updateLaborRule("repair", "level2Repair"),
+      switchLaborRepairRuleLevel3: () => updateLaborRule("repair", "level3Repair"),
+      switchLaborExchangeRuleLevel1: () => updateLaborRule("exchange", "level1Exchange"),
+      switchLaborExchangeRuleLevel2: () => updateLaborRule("exchange", "level2Exchange"),
+      switchLaborExchangeRuleLevel3: () => updateLaborRule("exchange", "level3Exchange"),
+    }),
+    [laborConfigSource, currentExchangeLaborRule, selectedLaborRules.repair, updateLaborRule],
+  );
+
+  const handleExchangeLaborCostSave = useCallback(
+    (updatedTableData: LaborExchangeRow[]) => {
+      if (!currentExchangeLaborRule) {
+        return;
+      }
+      if (formikRef.current) {
+        const { values, setErrors, setTouched, setFieldValue } = formikRef.current;
+
+        const nextExchangeLaborCostTableDataByRule: Record<string, LaborExchangeRow[]> = {
+          ...exchangeLaborCostTableDataByRule,
+          [currentExchangeLaborRule]: updatedTableData,
+        };
+        setExchangeLaborCostTableDataByRule(nextExchangeLaborCostTableDataByRule);
+
+        onSaveUpdate(
+          values,
+          { setErrors, setTouched, setFieldValue },
+          nextExchangeLaborCostTableDataByRule,
+        );
+      }
+    },
+    [currentExchangeLaborRule, exchangeLaborCostTableDataByRule, onSaveUpdate],
+  );
+
+  const handleRepairLaborCostSave = useCallback(
+    (updatedMatrixData: Ranges[] | ServiceCenterRanges[]) => {
+      if (formikRef.current) {
+        const { values, setErrors, setTouched, setFieldValue } = formikRef.current;
+        const existingRuleConfig =
+          repairLaborCostMatrixDataByRule[currentRepairLaborRule] ||
+          showLaborRulesMatrix(laborConfigSource?.repairCosts, currentRepairLaborRule);
+
+        if (!existingRuleConfig) {
+          return;
+        }
+
+        const nextRepairLaborCostMatrixDataByRule: Record<string, RepairCosts> = {
+          ...repairLaborCostMatrixDataByRule,
+          [currentRepairLaborRule]: {
+            ...existingRuleConfig,
+            method: "MATRIX",
+            ranges: updatedMatrixData,
+          },
+        };
+
+        setRepairLaborCostMatrixDataByRule(nextRepairLaborCostMatrixDataByRule);
+        onSaveUpdate(
+          values,
+          { setErrors, setTouched, setFieldValue },
+          undefined,
+          nextRepairLaborCostMatrixDataByRule,
+        );
+      }
+    },
+    [currentRepairLaborRule, laborConfigSource, onSaveUpdate, repairLaborCostMatrixDataByRule],
+  );
+
   const genericFormContextValue = useMemo(
     () => ({
       allFields: allFields || [],
@@ -393,12 +624,29 @@ function AscOverview() {
       },
       mandatoryFields,
       setMandatoryFields: () => {},
+      selectedLaborRepairRule: selectedLaborRules.repair,
+      selectedLaborExchangeRule: selectedLaborRules.exchange,
+      selectedLaborExchangeAction: selectedLaborRules.exchange,
+      exchangeLaborCostTableData,
+      repairLaborCostMatrixData: repairLaborCostMatrixData ?? undefined,
       actionCallbacks: {
         onSaveUpdate,
         onCancelUpdate,
-      },
+        ...laborRuleActionCallbacks,
+      } as GenericFormContextType["actionCallbacks"],
     }),
-    [allFields, setAllFields, mandatoryFields, onSaveUpdate, onCancelUpdate],
+    [
+      allFields,
+      setAllFields,
+      mandatoryFields,
+      onSaveUpdate,
+      onCancelUpdate,
+      laborRuleActionCallbacks,
+      selectedLaborRules.repair,
+      selectedLaborRules.exchange,
+      exchangeLaborCostTableData,
+      repairLaborCostMatrixData,
+    ],
   );
 
   if (isLoading || !ascId || isLoadingUIConfig) {
@@ -443,58 +691,75 @@ function AscOverview() {
         status={asc?.isActive ? "ACTIVE" : "INACTIVE"}
         showStatus={true}
       />
-      <GenericFormContext.Provider value={genericFormContextValue}>
-        <TabNavigation
-          className="sticky-tab-navigation"
-          selectedValue={selectedTab || tabs[0]?.name}
-          onTabSelect={(_, data) => setSelectedTab(data.value as string)}
-        >
-          {tabs.map((tab) => (
-            <Tab
-              key={`${tab.name}_${tab.position}`}
-              as={"a"}
-              href={`#${tab.name}`}
-              value={tab.name}
-            >
-              {t(tab.label)}
-            </Tab>
-          ))}
-        </TabNavigation>
-        <Formik
-          initialValues={initialFormValues}
-          validate={validate}
-          onSubmit={() => {}}
-          enableReinitialize={true}
-          validateOnBlur={false}
-        >
-          {({ setFieldValue }) => {
-            setFieldValueRef.current = setFieldValue;
-            return (
-              <Form>
-                {ascOverviewForm?.sections
-                  .filter((section) => section.name === selectedTab)
-                  .map((section) => {
-                    return (
-                      <GenericSection
-                        key={`${section.name}`}
-                        section={section}
-                        onEdit={() => enableEditSection(section.name)}
-                      />
-                    );
-                  })}
-                <GenericAction
-                  actions={ascOverviewForm?.actions || []}
-                  onActionClick={(actionName) => {
-                    if (!actionName) return;
-                    handleAscOverviewAction(actionName);
-                  }}
-                  currentStatus={status}
-                />
-              </Form>
-            );
-          }}
-        </Formik>
-      </GenericFormContext.Provider>
+      <AscIdProvider value={ascId}>
+        <GenericFormContext.Provider value={genericFormContextValue}>
+          <TabNavigation
+            className="sticky-tab-navigation"
+            selectedValue={selectedTab || tabs[0]?.name}
+            onTabSelect={(_, data) => setSelectedTab(data.value as string)}
+          >
+            {tabs.map((tab) => (
+              <Tab
+                key={`${tab.name}_${tab.position}`}
+                as={"a"}
+                href={`#${tab.name}`}
+                value={tab.name}
+              >
+                {t(tab.label)}
+              </Tab>
+            ))}
+          </TabNavigation>
+          <Formik
+            innerRef={formikRef}
+            initialValues={initialFormValues}
+            validate={validate}
+            onSubmit={() => {}}
+            enableReinitialize={true}
+            validateOnBlur={false}
+          >
+            {({ setFieldValue }) => {
+              setFieldValueRef.current = setFieldValue;
+              return (
+                <Form>
+                  {sections
+                    .filter((section) => section.name === selectedTab)
+                    .map((section) => {
+                      return (
+                        <GenericSection
+                          key={`${section.name}`}
+                          section={section}
+                          onEdit={() => enableEditSection(section.name)}
+                        />
+                      );
+                    })}
+                  <GenericAction
+                    actions={ascOverviewForm?.actions || []}
+                    onActionClick={(actionName) => {
+                      if (!actionName) return;
+                      handleAscOverviewAction(actionName);
+                    }}
+                    currentStatus={status}
+                  />
+                  <ExchangeLaborCostModal
+                    isOpen={isExchangeLaborCostModalOpen}
+                    onClose={() => setIsExchangeLaborCostModalOpen(false)}
+                    tableData={exchangeLaborCostTableData}
+                    onSave={handleExchangeLaborCostSave}
+                    currentExchangeLaborRule={currentExchangeLaborRule}
+                    currentExchangeMethod={laborConfigSource ?? undefined}
+                  />
+                  <RepairLaborCostMatrixModal
+                    isOpen={isRepairLaborCostModalOpen}
+                    onClose={() => setIsRepairLaborCostModalOpen(false)}
+                    onSave={handleRepairLaborCostSave}
+                    matrixData={repairLaborCostMatrixData}
+                  />
+                </Form>
+              );
+            }}
+          </Formik>
+        </GenericFormContext.Provider>
+      </AscIdProvider>
     </div>
   );
 }

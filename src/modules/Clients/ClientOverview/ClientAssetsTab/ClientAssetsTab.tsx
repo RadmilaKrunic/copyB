@@ -79,15 +79,17 @@ function ClientAssetsTab({ clientId }: Readonly<ClientAssetsTabProps>) {
             renderRowActions={() => null}
             emptyListMessage="noAssetsFoundMessage"
           />
-          <Pagination
-            page={pagination.page}
-            pageSize={pagination.pageSize}
-            onPageChange={(page) => setPagination((previous) => ({ ...previous, page }))}
-            onDropdownOptionChange={(option) =>
-              setPagination({ page: 1, pageSize: Number(option) })
-            }
-            totalResults={assetsPage?.page.totalElements ?? 0}
-          />
+          {(assetsPage?.page.totalElements ?? 0) >= 10 && (
+            <Pagination
+              page={pagination.page}
+              pageSize={pagination.pageSize}
+              onPageChange={(page) => setPagination((previous) => ({ ...previous, page }))}
+              onDropdownOptionChange={(option) =>
+                setPagination({ page: 1, pageSize: Number(option) })
+              }
+              totalResults={assetsPage?.page.totalElements ?? 0}
+            />
+          )}
         </>
       )}
     </div>

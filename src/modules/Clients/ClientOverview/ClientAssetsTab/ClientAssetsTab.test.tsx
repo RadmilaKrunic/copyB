@@ -165,6 +165,24 @@ describe("ClientAssetsTab", () => {
     });
   });
 
+  it.each([0, 9, 10, 11])(
+    "shows pagination only for at least 10 total results (%i)",
+    (totalElements) => {
+      vi.mocked(useCustomerAssets).mockReturnValue({
+        data: {
+          page: { number: 0, totalElements, totalPages: Math.ceil(totalElements / 10), size: 10 },
+          content: [],
+        },
+        isLoading: false,
+        isError: false,
+      } as never);
+
+      render(<ClientAssetsTab clientId="client-123" />);
+
+      expect(screen.queryByRole("button", { name: "page 2" }) !== null).toBe(totalElements >= 10);
+    },
+  );
+
   it("shows an error when assets fail to load", () => {
     vi.mocked(useCustomerAssets).mockReturnValue({
       data: undefined,

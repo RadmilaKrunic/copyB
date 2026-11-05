@@ -6,6 +6,9 @@ import {
   mapBoschConfig,
   mapReimbursement,
   mapNotifications,
+  mapLaborCostDetailsToApiPayload,
+  mapExchangeLaborCostTableDataFromFormValues,
+  updateLaborExchangeSections,
 } from "./ASC.utils";
 import { ServiceCenter } from "../../../api/services/serviceCenters/serviceCenters.types";
 
@@ -25,6 +28,7 @@ describe("ASC.utils", () => {
         state: "Test State",
         postalCode: "12345",
         country: "US",
+        preferredSelectedCountry: "TR",
         logo: [
           {
             attachmentId: "logo-id-1",
@@ -42,6 +46,7 @@ describe("ASC.utils", () => {
       expect(result.gst).toBe("GST123");
       expect(result.companyVATNumber).toBe("VAT456");
       expect(result.isActive).toBe(true);
+      expect(result.preferredSelectedCountry).toBe("TR");
       expect(result.address).toEqual({
         street: "Main Street",
         houseNumber: "123",
@@ -53,7 +58,6 @@ describe("ASC.utils", () => {
       expect(result.logo).toEqual({
         logoId: "logo-id-1",
         name: "logo.png",
-        type: "image/png",
       });
     });
 
@@ -523,6 +527,221 @@ describe("ASC.utils", () => {
 
       expect(result.notification).toEqual([]);
       expect(result.parentNotification).toEqual(["EMAIL"]);
+    });
+  });
+
+  describe("mapLaborCostDetails", () => {
+    it("should map every repair level and all exchange methods", () => {
+      const laborCostMethod = {
+        repairCostConfiguration: {
+          repairCosts: [
+            {
+              method: "LABOR_UNIT_X_COST_FROM_ASC",
+              level: "L1",
+              ranges: [],
+              value: 100,
+            },
+            {
+              method: "MATRIX",
+              level: "L2",
+              ranges: [
+                { labourUnitRange: ["1", "2"], value: 200 },
+                { labourUnitRange: ["3", "4"], value: 300 },
+              ],
+              value: 200,
+            },
+            {
+              method: "LABOR_UNIT_X_COST_FROM_ERP",
+              level: "L3",
+              ranges: [],
+              value: 300,
+            },
+          ],
+        },
+        newToolExchange: {
+          prices: [
+            { level: "L1", source: "SRC1", unitPrice: 10 },
+            { level: "L2", source: "SRC2", unitPrice: 20 },
+          ],
+          reasonMapping: [
+            {
+              reasonType: "REASON_A",
+              matrix: [
+                { level: "L1", laborUnit: "7" },
+                { level: "L2", laborUnit: "8" },
+              ],
+            },
+          ],
+        },
+        accessoryExchange: {
+          prices: [{ level: "L2", source: "SRC2", unitPrice: 20 }],
+          reasonMapping: [
+            {
+              reasonType: "REASON_B",
+              matrix: [{ level: "L2", laborUnit: "9" }],
+            },
+          ],
+        },
+        sparePartsExchange: {
+          prices: [{ level: "L3", source: "SRC3", unitPrice: 30 }],
+          reasonMapping: [
+            {
+              reasonType: "REASON_C",
+              matrix: [{ level: "L3", laborUnit: "11" }],
+            },
+          ],
+        },
+      } as never;
+
+      const result = mapLaborCostDetailsToApiPayload(laborCostMethod, {
+        laborRateLevel1: "111",
+        laborRateLevel3: 333,
+      });
+
+      expect(result.repairCosts).toHaveLength(3);
+      expect(result.repairCosts[0]).toEqual({
+        method: "LABOR_UNIT_X_COST_FROM_ASC",
+        level: "L1",
+        ranges: null,
+        value: 111,
+      });
+      expect(result.repairCosts[1]).toEqual({
+        method: "MATRIX",
+        level: "L2",
+        ranges: [
+          { labourUnitRange: ["1", "2"], value: 200 },
+          { labourUnitRange: ["3", "4"], value: 300 },
+        ],
+        value: 200,
+      });
+      expect(result.repairCosts[2]).toEqual({
+        method: "LABOR_UNIT_X_COST_FROM_ERP",
+        level: "L3",
+        ranges: null,
+        value: null,
+      });
+      expect(result.newToolExchange.reasonMapping[0].matrix).toEqual([
+        { level: "L1", labourUnit: 7 },
+        { level: "L2", labourUnit: 8 },
+      ]);
+      expect(result.accessoryExchange.prices[0]).toEqual({
+        level: "L2",
+        source: "SRC2",
+        unitPrice: 20,
+      });
+      expect(result.sparePartsExchange.reasonMapping[0].matrix[0]).toEqual({
+        level: "L3",
+        labourUnit: 11,
+      });
+    });
+
+    it("should apply exchange table edits from current form values", () => {
+      const laborCostMethod = {
+        repairCostConfiguration: { repairCosts: [] },
+        newToolExchange: {
+          prices: [],
+          reasonMapping: [
+            {
+              reasonType: "REASON_A",
+              matrix: [{ level: "L1", laborUnit: "7" }],
+            },
+          ],
+        },
+        accessoryExchange: {
+          prices: [],
+          reasonMapping: [
+            {
+              reasonType: "REASON_B",
+              matrix: [{ level: "L1", laborUnit: "8" }],
+            },
+          ],
+        },
+        sparePartsExchange: {
+          prices: [],
+          reasonMapping: [
+            {
+              reasonType: "REASON_C",
+              matrix: [{ level: "L1", laborUnit: "9" }],
+            },
+          ],
+        },
+      } as never;
+
+      const tableData = mapExchangeLaborCostTableDataFromFormValues(
+        [
+          {
+            reasonType: "REASON_A",
+            sparePartLaborUnit: 1,
+            newToolExchangeLaborUnit: 7,
+            accessoryLaborUnit: 1,
+          },
+          {
+            reasonType: "REASON_B",
+            sparePartLaborUnit: 1,
+            newToolExchangeLaborUnit: 1,
+            accessoryLaborUnit: 8,
+          },
+          {
+            reasonType: "REASON_C",
+            sparePartLaborUnit: 9,
+            newToolExchangeLaborUnit: 1,
+            accessoryLaborUnit: 1,
+          },
+        ],
+        {
+          newToolExchangeLaborUnits_0: 17,
+          accessoryLaborUnits_1: 28,
+          sparePartLaborUnits_2: 39,
+        },
+      );
+
+      const result = mapLaborCostDetailsToApiPayload(
+        laborCostMethod,
+        {},
+        {
+          level1Exchange: tableData,
+        },
+      );
+
+      expect(result.newToolExchange.reasonMapping[0].matrix[0]).toEqual({
+        level: "L1",
+        labourUnit: 17,
+      });
+      expect(result.accessoryExchange.reasonMapping[0].matrix[0]).toEqual({
+        level: "L1",
+        labourUnit: 28,
+      });
+      expect(result.sparePartsExchange.reasonMapping[0].matrix[0]).toEqual({
+        level: "L1",
+        labourUnit: 39,
+      });
+    });
+  });
+
+  describe("exchange labor rules", () => {
+    it("should switch pressed exchange button mode", () => {
+      const sections = [
+        {
+          name: "internalLaborConfiguration",
+          areas: [
+            {
+              name: "exchangeLaborCalculationArea",
+              actions: [
+                { name: "level1Exchange", mode: "primary" },
+                { name: "level2Exchange", mode: "secondary" },
+                { name: "level3Exchange", mode: "secondary" },
+              ],
+            },
+          ],
+        },
+      ] as never;
+
+      const updatedSections = updateLaborExchangeSections(sections, "level3Exchange");
+      const exchangeActions: Array<{ mode?: string }> = updatedSections[0].areas[0].actions ?? [];
+
+      expect(exchangeActions.length).toBe(3);
+      expect(exchangeActions[0].mode).toBe("secondary");
+      expect(exchangeActions[2].mode).toBe("primary");
     });
   });
 });

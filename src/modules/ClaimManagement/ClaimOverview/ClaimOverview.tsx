@@ -115,11 +115,7 @@ export default function ClaimOverview() {
   const { claimId } = useParams<{ claimId: string }>();
   // Every open loads the claim fresh, so a reopened claim builds its rows and prices exactly
   // like the first open instead of starting from the claim cached by an earlier visit.
-  const {
-    data: claimData,
-    isLoading: loading,
-    error,
-  } = useClaimById(claimId || "", { gcTime: 0 });
+  const { data: claimData, isLoading: loading, error } = useClaimById(claimId || "", { gcTime: 0 });
   // The claim's own countryCode determines which UI configuration to use, not the
   // user's currently selected/default country (a user can have claims across
   // multiple accessible countries).

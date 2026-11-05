@@ -106,15 +106,17 @@ function ClientJobsTab({ clientId, onRowClick, onCreateJob }: Readonly<ClientJob
             renderRowActions={() => <Icon iconName="right" />}
             emptyListMessage="noJobsFoundMessage"
           />
-          <Pagination
-            page={pagination.page}
-            pageSize={pagination.pageSize}
-            onPageChange={(page) => setPagination((prev) => ({ ...prev, page }))}
-            onDropdownOptionChange={(option) =>
-              setPagination({ page: 1, pageSize: Number(option) })
-            }
-            totalResults={jobsPage?.page.totalElements ?? 0}
-          />
+          {(jobsPage?.page.totalElements ?? 0) >= 10 && (
+            <Pagination
+              page={pagination.page}
+              pageSize={pagination.pageSize}
+              onPageChange={(page) => setPagination((prev) => ({ ...prev, page }))}
+              onDropdownOptionChange={(option) =>
+                setPagination({ page: 1, pageSize: Number(option) })
+              }
+              totalResults={jobsPage?.page.totalElements ?? 0}
+            />
+          )}
         </>
       )}
     </div>
