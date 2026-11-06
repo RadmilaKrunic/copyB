@@ -18,7 +18,9 @@ import {
   dropRejectedRecalculationChange,
   getSummaryChangeServerValue,
   isRecalculationValueRejected,
-  getValidatedUnitPriceMaterialIds,
+  getValidatedTotalAmountMaterialIds,
+  buildHeaderRecalculationChange,
+  hasSavedMaterialRow,
 } from "./JobOverview.utils";
 
 vi.mock("../CreateJob/CreateJob.warranty.utils", () => ({
@@ -497,9 +499,30 @@ describe("dropRejectedRecalculationChange", () => {
   });
 });
 
-describe("getValidatedUnitPriceMaterialIds", () => {
+describe("header recalculation helpers", () => {
+  it("builds a header change without a line or scope", () => {
+    expect(buildHeaderRecalculationChange("faultCode", "E001")).toEqual({
+      type: "faultCode",
+      lineId: "",
+      value: "E001",
+      scope: null,
+    });
+    expect(buildHeaderRecalculationChange("exchangeReason", "BROKEN").type).toBe("exchangeReason");
+  });
+
+  it("finds a saved spare-parts row by its material id", () => {
+    const fields: Field[] = [
+      { name: "row0_id", label: "", type: "text", subtype: "diagnosticMaterialId" },
+      { name: "row0_qty", label: "", type: "number", subtype: "diagnosticQuantity" },
+    ];
+    expect(hasSavedMaterialRow(fields, { row0_id: "M-1" })).toBe(true);
+    expect(hasSavedMaterialRow(fields, { row0_id: "", row0_qty: 2 })).toBe(false);
+  });
+});
+
+describe("getValidatedTotalAmountMaterialIds", () => {
   type ApiMaterial = NonNullable<JobDiagnostic["materials"]>[number];
-  const material = (id: string, unitPrice: number): ApiMaterial => ({
+  const material = (id: string, totalAmount: number): ApiMaterial => ({
     id,
     position: "FR",
     partNumber: "FR",
@@ -516,17 +539,17 @@ describe("getValidatedUnitPriceMaterialIds", () => {
       discount: 0,
       suggestedNetPrice: 0,
       taxAmount: 0,
-      unitPrice,
+      unitPrice: 10,
       netAmount: 0,
       tax: 0,
       grossAmount: 0,
-      totalAmount: 0,
+      totalAmount,
       discountAmount: 0,
     },
   });
 
-  it("returns ids of saved rows with a non-zero unit price", () => {
-    const ids = getValidatedUnitPriceMaterialIds([
+  it("returns ids of saved rows with a non-zero total amount", () => {
+    const ids = getValidatedTotalAmountMaterialIds([
       material("mat-1", 120),
       material("mat-2", 0),
       material("", 50),
@@ -535,6 +558,6 @@ describe("getValidatedUnitPriceMaterialIds", () => {
   });
 
   it("returns an empty set without materials", () => {
-    expect(getValidatedUnitPriceMaterialIds(undefined).size).toBe(0);
+    expect(getValidatedTotalAmountMaterialIds(undefined).size).toBe(0);
   });
 });

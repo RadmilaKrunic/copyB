@@ -12,8 +12,8 @@ export interface DefaultParameterRequest {
   exchangeReason?: string;
 }
 
-/** Allowed unit price of a position (FR, PC). Equal limits = fixed default price. */
-export interface UnitPriceRange {
+/** Allowed price of a position (FR, PC). Equal limits = fixed default price. */
+export interface PriceRange {
   lowestLimit: number | null;
   highestLimit: number | null;
 }
@@ -22,7 +22,9 @@ export interface DefaultParameterByPosition {
   position: string;
   value: number | null;
   serviceUnits: number | null;
-  unitPriceRange?: UnitPriceRange | null;
+  unitPriceRange?: PriceRange | null;
+  /** Allowed total amount of the row; FR / PC rows let the user enter the total within it. */
+  totalAmountPriceRange?: PriceRange | null;
 }
 
 export interface DefaultParameterResponse {
@@ -32,10 +34,10 @@ export interface DefaultParameterResponse {
 /** Default quantity per position (e.g. { LA: 5, FR: 1 }). */
 export type DefaultQuantities = Partial<Record<string, number>>;
 
-/** Unit price range per position with both limits set (e.g. { FR: { lowestLimit: 0, highestLimit: 500 } }). */
-export type DefaultUnitPriceRanges = Partial<Record<string, ResolvedUnitPriceRange>>;
+/** Price range per position with both limits set (e.g. { FR: { lowestLimit: 0, highestLimit: 500 } }). */
+export type DefaultPriceRanges = Partial<Record<string, ResolvedPriceRange>>;
 
-export interface ResolvedUnitPriceRange {
+export interface ResolvedPriceRange {
   lowestLimit: number;
   highestLimit: number;
 }

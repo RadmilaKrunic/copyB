@@ -62,8 +62,11 @@ import {
   isRecalculationValueEmpty,
   mergeRecalculationChanges,
   dropRejectedRecalculationChange,
+  buildHeaderRecalculationChange,
+  hasSavedMaterialRow,
+  type HeaderRecalculationField,
   getSummaryChangeServerValue,
-  getValidatedUnitPriceMaterialIds,
+  getValidatedTotalAmountMaterialIds,
   type SentRecalculationChange,
 } from "./JobOverview.utils";
 import {
@@ -434,9 +437,9 @@ export default function JobOverview() {
   // Loaded rows without a summary show only the total row, all amounts 0. A recalculation
   // without one still hides it, so its cache write is flagged here.
   const isRecalculationWriteRef = useRef(false);
-  // Saved unit prices (load / validate-and-save, never a recalculation): FR / PC rows with a
-  // price range unlock their total once their unit price is validated.
-  const [validatedUnitPriceMaterialIds, setValidatedUnitPriceMaterialIds] = useState<
+  // Saved total amounts (load / validate-and-save, never a recalculation): FR / PC rows with a
+  // total amount range unlock their other price fields once the total is validated.
+  const [validatedTotalAmountMaterialIds, setValidatedTotalAmountMaterialIds] = useState<
     ReadonlySet<string>
   >(() => new Set<string>());
   useEffect(() => {
@@ -446,7 +449,9 @@ export default function JobOverview() {
       setIsZeroSummaryShown(false);
       return;
     }
-    setValidatedUnitPriceMaterialIds(getValidatedUnitPriceMaterialIds(diagnosticData?.materials));
+    setValidatedTotalAmountMaterialIds(
+      getValidatedTotalAmountMaterialIds(diagnosticData?.materials),
+    );
     const hasMaterials = (diagnosticData?.materials?.length ?? 0) > 0;
     if (hasMaterials && isPriceSummaryMissing(diagnosticData?.priceSummaryDetailed)) {
       setIsZeroSummaryShown(true);
@@ -855,10 +860,10 @@ export default function JobOverview() {
       }
       markAllValidated();
       // Set here too: the cache-write effect can miss this write (e.g. after a recalculation
-      // write that changed nothing), and the FR / PC total must unlock after validate.
+      // write that changed nothing), and FR / PC price fields must unlock after validate.
       if (validatedDiagnostic) {
-        setValidatedUnitPriceMaterialIds(
-          getValidatedUnitPriceMaterialIds(validatedDiagnostic.materials),
+        setValidatedTotalAmountMaterialIds(
+          getValidatedTotalAmountMaterialIds(validatedDiagnostic.materials),
         );
       }
       setMessages((prev) => [
@@ -1709,6 +1714,42 @@ export default function JobOverview() {
     ],
   );
 
+  // A fault code or exchange reason change re-prices the saved rows: one recalculate whose change
+  // names the header field (its new quantities are already in the payload). No line, so the
+  // response is never checked for a rejected value.
+  const onRecalculatePricesForHeaderChange = useCallback(
+    (field: HeaderRecalculationField, value: unknown) => {
+      const currentAllFields = allFieldsRef.current;
+      const formValues = formValuesRef.current;
+      if (recalculatePricesMutation.isPending || !currentAllFields) return;
+      if (!hasSavedMaterialRow(currentAllFields, formValues)) return;
+      setArePricesValidated(false);
+      const payloadErrors = getRecalculationPayloadErrors(
+        currentAllFields,
+        validateByAction("validate", formValues),
+      );
+      if (Object.keys(payloadErrors).length > 0) {
+        showFieldErrorsRef.current?.(payloadErrors);
+        scrollToFirstError(Object.keys(payloadErrors));
+        return;
+      }
+      const payload = buildDiagnosticPayload(formValues, currentAllFields);
+      payload.countryCode = jobData?.order?.countryCode;
+      const changes = [buildHeaderRecalculationChange(field, value)];
+      setRecalculatedPricesChanges((prev) => mergeRecalculationChanges(prev, changes));
+      sentRecalculationChangeRef.current = null;
+      payload.changes = changes;
+      recalculatePricesMutation.mutate(payload);
+    },
+    [
+      buildDiagnosticPayload,
+      jobData?.order?.countryCode,
+      recalculatePricesMutation,
+      setRecalculatedPricesChanges,
+      validateByAction,
+    ],
+  );
+
   // Deleting a spare-parts row or restoring one from archived recalculates prices with an empty
   // `changes` list. It runs on the settled rows (rowsChangedVersion bumps once they settle).
   // An invalid payload is skipped without showing errors; validate reports them.
@@ -2246,6 +2287,11 @@ export default function JobOverview() {
         onRecalculatePrices: (fieldName: unknown, value: unknown) => {
           if (typeof fieldName === "string") onRecalculatePrices(fieldName, value);
         },
+        onRecalculatePricesForHeaderChange: (field: unknown, value: unknown) => {
+          if (field === "faultCode" || field === "exchangeReason") {
+            onRecalculatePricesForHeaderChange(field, value);
+          }
+        },
       },
       radioSourceCallbacks: {
         getRadioButtonsForSummaryType: () => summaryTypeOptions,
@@ -2315,6 +2361,7 @@ export default function JobOverview() {
       warrantyPanelInfo,
       isRepairAnswerLocked,
       onRecalculatePrices,
+      onRecalculatePricesForHeaderChange,
     ],
   );
 
@@ -2360,7 +2407,7 @@ export default function JobOverview() {
       discountBase,
       automaticRows,
       isValidating: validateAndSaveMutation.isPending || recalculatePricesMutation.isPending,
-      validatedUnitPriceMaterialIds,
+      validatedTotalAmountMaterialIds,
       defaultParameterJobSource,
     }),
     [
@@ -2394,7 +2441,7 @@ export default function JobOverview() {
       automaticRows,
       validateAndSaveMutation.isPending,
       recalculatePricesMutation.isPending,
-      validatedUnitPriceMaterialIds,
+      validatedTotalAmountMaterialIds,
       defaultParameterJobSource,
     ],
   );

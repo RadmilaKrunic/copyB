@@ -11,7 +11,7 @@ import { isProtectedPosition } from "modules/JobManagement/JobOverview/SparePart
  * Reads a form value as a string. Objects (and empty values) give "" rather than
  * "[object Object]", so they never look like a position or a code.
  */
-const toFieldString = (value: unknown): string =>
+export const toFieldString = (value: unknown): string =>
   typeof value === "string" || typeof value === "number" || typeof value === "boolean"
     ? String(value)
     : "";

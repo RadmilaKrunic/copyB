@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildDefaultParameterRequest,
   toDefaultQuantities,
-  toUnitPriceRanges,
+  toTotalAmountPriceRanges,
 } from "./prices.utils";
 
 describe("buildDefaultParameterRequest", () => {
@@ -94,23 +94,30 @@ describe("toDefaultQuantities", () => {
   });
 });
 
-describe("toUnitPriceRanges", () => {
-  it("returns the range per position and skips positions without one", () => {
+describe("toTotalAmountPriceRanges", () => {
+  it("returns the total amount range per position and ignores the unit price range", () => {
     expect(
-      toUnitPriceRanges({
+      toTotalAmountPriceRanges({
         byPosition: [
           { position: "LA", value: 8, serviceUnits: 8, unitPriceRange: null },
           {
             position: "fr",
             value: 1,
             serviceUnits: null,
-            unitPriceRange: { lowestLimit: 0, highestLimit: 500 },
+            unitPriceRange: { lowestLimit: 1, highestLimit: 2 },
+            totalAmountPriceRange: { lowestLimit: 0, highestLimit: 500 },
           },
           {
             position: "PC",
             value: 1,
             serviceUnits: null,
-            unitPriceRange: { lowestLimit: 467.96, highestLimit: 467.96 },
+            totalAmountPriceRange: { lowestLimit: 467.96, highestLimit: 467.96 },
+          },
+          {
+            position: "SP",
+            value: 1,
+            serviceUnits: null,
+            unitPriceRange: { lowestLimit: 0, highestLimit: 500 },
           },
         ],
       }),
@@ -122,13 +129,13 @@ describe("toUnitPriceRanges", () => {
 
   it("skips a range with a missing limit", () => {
     expect(
-      toUnitPriceRanges({
+      toTotalAmountPriceRanges({
         byPosition: [
           {
             position: "FR",
             value: 1,
             serviceUnits: null,
-            unitPriceRange: { lowestLimit: null, highestLimit: 500 },
+            totalAmountPriceRange: { lowestLimit: null, highestLimit: 500 },
           },
         ],
       }),
@@ -136,6 +143,6 @@ describe("toUnitPriceRanges", () => {
   });
 
   it("returns an empty object without a response", () => {
-    expect(toUnitPriceRanges(null)).toEqual({});
+    expect(toTotalAmountPriceRanges(null)).toEqual({});
   });
 });

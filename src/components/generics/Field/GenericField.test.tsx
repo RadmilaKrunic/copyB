@@ -448,6 +448,7 @@ vi.mock("./GenericField.utils", () => ({
   applyPositionRules: vi.fn(() => Promise.resolve(true)),
   refreshProtectedRowQuantities: vi.fn(() => Promise.resolve([])),
   DEFAULT_PARAMETER_DROPDOWN_FIELDS: new Set(["exchangeReason"]),
+  toFieldString: (value: unknown) => (typeof value === "string" ? value : ""),
 }));
 
 vi.mock("../../ui/AutoComplete/AutoComplete.helper", () => ({
@@ -998,6 +999,67 @@ describe("GenericField", () => {
           resolveDefaultQuantities,
         }),
       );
+    });
+
+    it("recalculates once with the faultCode change when the form has a header recalculation", async () => {
+      const user = userEvent.setup();
+      const headerCalls: unknown[][] = [];
+      const onRecalculatePricesForHeaderChange = (field: unknown, value: unknown) => {
+        headerCalls.push([field, value]);
+      };
+      const onRecalculatePrices = vi.fn();
+      const qtyField: Field = {
+        name: "row0_quantity",
+        label: "Quantity",
+        type: "number",
+        subtype: "diagnosticQuantity",
+        isRequired: false,
+        onBlur: "onRecalculatePrices",
+        fieldMapping: { originalName: "quantity" },
+      };
+      vi.mocked(handleFaultCodeSelection).mockResolvedValueOnce([{ field: qtyField, value: 5 }]);
+
+      renderWithContext(
+        {
+          name: "faultCodeDropdown",
+          label: "Fault Code",
+          type: "dropdown",
+          subtype: "diagnosticFaultCode",
+          isRequired: false,
+          fieldMapping: { originalName: "faultCodeDropdown" },
+        },
+        { actionCallbacks: { onRecalculatePrices, onRecalculatePricesForHeaderChange } },
+      );
+
+      await user.click(screen.getByTestId("raw-option-select-faultCodeDropdown"));
+
+      await waitFor(() => expect(headerCalls).toEqual([["faultCode", "E001"]]));
+      expect(onRecalculatePrices).not.toHaveBeenCalled();
+    });
+
+    it("recalculates once with the exchangeReason change, even without a quantity change", async () => {
+      const user = userEvent.setup();
+      const headerCalls: unknown[][] = [];
+      const onRecalculatePricesForHeaderChange = (field: unknown, value: unknown) => {
+        headerCalls.push([field, value]);
+      };
+      vi.mocked(refreshProtectedRowQuantities).mockResolvedValueOnce([]);
+
+      renderWithContext(
+        {
+          name: "exchangeReason",
+          label: "Exchange reason",
+          type: "dropdown",
+          isRequired: false,
+          options: [{ value: "BROKEN", label: "Broken", name: "Broken" }],
+          fieldMapping: { originalName: "exchangeReason" },
+        },
+        { actionCallbacks: { onRecalculatePricesForHeaderChange } },
+      );
+
+      await user.selectOptions(screen.getByTestId("dropdown-exchangeReason"), "BROKEN");
+
+      await waitFor(() => expect(headerCalls).toEqual([["exchangeReason", "BROKEN"]]));
     });
 
     it("refreshes the row quantity with the new row type, then recalculates once", async () => {

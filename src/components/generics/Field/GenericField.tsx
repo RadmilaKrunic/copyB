@@ -23,6 +23,7 @@ import {
   applyPositionRules,
   refreshProtectedRowQuantities,
   DEFAULT_PARAMETER_DROPDOWN_FIELDS,
+  toFieldString,
   type ChangedQuantityField,
 } from "./GenericField.utils";
 import { useContext, useEffect, useState } from "react";
@@ -421,6 +422,28 @@ async function runChangedQuantityActions(
   }
 }
 
+/** Form action that re-prices the job after a header input (fault code, exchange reason) changed. */
+const HEADER_RECALCULATION_ACTION = "onRecalculatePricesForHeaderChange";
+
+/**
+ * Prices after a fault code or exchange reason change, once the protected-row quantities are
+ * refreshed. A form with a header recalculation (job overview) runs it once, with the header field
+ * as the change; other forms recalculate the quantities that changed, as for a user edit.
+ */
+async function runHeaderChangePriceAction(
+  headerField: "faultCode" | "exchangeReason",
+  value: string,
+  changedQuantities: ChangedQuantityField[] | undefined,
+  actionCallbacks: FieldRenderCtx["actionCallbacks"],
+): Promise<void> {
+  if (typeof actionCallbacks[HEADER_RECALCULATION_ACTION] !== "function") {
+    await runChangedQuantityActions(changedQuantities, actionCallbacks);
+    return;
+  }
+  await waitForFormCommit();
+  invokeFieldAction(actionCallbacks, "onBlur", HEADER_RECALCULATION_ACTION, headerField, value);
+}
+
 /**
  * A spare-parts row's job type is a default-parameter input. A chosen type (not "Select") on a
  * row of a form with the default-parameter API refreshes that row's quantity (LA, FR, PC only).
@@ -543,8 +566,8 @@ function renderDropdownField(ctx: FieldRenderCtx): ReactElement {
           }
           handleChange(name, value);
           // An input of the default-parameter request changed: refresh the protected rows'
-          // quantities (LA, FR, PC) already shown, then recalculate the ones that changed.
-          if (DEFAULT_PARAMETER_DROPDOWN_FIELDS.has(name) && resolveDefaultQuantities) {
+          // quantities (LA, FR, PC) already shown, then re-price.
+          if (DEFAULT_PARAMETER_DROPDOWN_FIELDS.has(name)) {
             void (async () => {
               const changedQuantities = await refreshProtectedRowQuantities({
                 allFields,
@@ -552,7 +575,12 @@ function renderDropdownField(ctx: FieldRenderCtx): ReactElement {
                 setFieldValue,
                 resolveDefaultQuantities,
               });
-              await runChangedQuantityActions(changedQuantities, actionCallbacks);
+              await runHeaderChangePriceAction(
+                "exchangeReason",
+                toFieldString(value),
+                changedQuantities,
+                actionCallbacks,
+              );
             })();
           }
         }}
@@ -568,7 +596,12 @@ function renderDropdownField(ctx: FieldRenderCtx): ReactElement {
                     allowedPositions,
                     resolveDefaultQuantities,
                   );
-                  await runChangedQuantityActions(changedQuantities, actionCallbacks);
+                  await runHeaderChangePriceAction(
+                    "faultCode",
+                    toFieldString(rawItem?.faultCode),
+                    changedQuantities,
+                    actionCallbacks,
+                  );
                 })();
               }
             : undefined

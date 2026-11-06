@@ -6,7 +6,7 @@ import React from "react";
 vi.mock("./action", () => ({ postDefaultParameter: vi.fn() }));
 
 import { postDefaultParameter } from "./action";
-import { useDefaultUnitPriceRanges, useFetchDefaultQuantities } from "./hooks";
+import { useDefaultTotalAmountPriceRanges, useFetchDefaultQuantities } from "./hooks";
 
 const mockPost = vi.mocked(postDefaultParameter);
 
@@ -63,22 +63,22 @@ describe("useFetchDefaultQuantities", () => {
   });
 });
 
-describe("useDefaultUnitPriceRanges", () => {
+describe("useDefaultTotalAmountPriceRanges", () => {
   const renderRanges = (enabled: boolean, requestSource = source) => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const wrapper = ({ children }: { children: React.ReactNode }) =>
       React.createElement(QueryClientProvider, { client: queryClient }, children);
-    return renderHook(() => useDefaultUnitPriceRanges(requestSource, enabled), { wrapper });
+    return renderHook(() => useDefaultTotalAmountPriceRanges(requestSource, enabled), { wrapper });
   };
 
-  it("returns the unit price range per position", async () => {
+  it("returns the total amount range per position", async () => {
     mockPost.mockResolvedValueOnce({
       byPosition: [
         {
           position: "FR",
           value: 1,
           serviceUnits: null,
-          unitPriceRange: { lowestLimit: 0, highestLimit: 500 },
+          totalAmountPriceRange: { lowestLimit: 0, highestLimit: 500 },
         },
       ],
     });
