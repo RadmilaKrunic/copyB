@@ -287,18 +287,28 @@ const isSummaryChange = (change: Record<string, unknown>): boolean => {
   return SUMMARY_CHANGE_TYPES.has(type) || type.endsWith("Material");
 };
 
-/** Row changes collide on line + field; all summary changes share one slot (discount vs amount). */
+/**
+ * Row price changes that set the same price (e.g. an FR / PC or chargeable row's discount vs its
+ * total): like the summary, only the last of them per line is sent.
+ */
+const ROW_PRICE_CHANGE_TYPES = new Set(["discount", "totalAmount", "netAmount"]);
+
+/**
+ * Row changes collide on line + field, and a line's discount / total / net amount share one slot;
+ * all summary changes share one slot (discount vs amount).
+ */
 const getRecalculationChangeKey = (change: Record<string, unknown>): string => {
   if (isSummaryChange(change)) return "summary";
   const lineId = typeof change.lineId === "string" ? change.lineId : "";
   const type = typeof change.type === "string" ? change.type : "";
-  return `${lineId}|${type}`;
+  return `${lineId}|${ROW_PRICE_CHANGE_TYPES.has(type) ? "price" : type}`;
 };
 
 /**
  * Adds recalculation changes to the list sent with validate-and-save. A change replaces any
- * earlier one with the same key, so only the last edit of a row field, and only the last
- * summary edit (discount or amount), is sent.
+ * earlier one with the same key, so only the last edit of a row field, only the last price edit
+ * of a row (discount, total or net amount), and only the last summary edit (discount or amount),
+ * is sent.
  */
 export const mergeRecalculationChanges = (
   previous: Record<string, unknown>[],

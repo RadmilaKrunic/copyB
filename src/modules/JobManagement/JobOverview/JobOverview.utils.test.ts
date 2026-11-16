@@ -302,6 +302,35 @@ describe("mergeRecalculationChanges", () => {
     ]);
   });
 
+  it("keeps only the last price change of a row: discount, total or net amount", () => {
+    let changes: Record<string, unknown>[] = [
+      { type: "quantity", lineId: "L1", value: 2, scope: null },
+    ];
+    changes = mergeRecalculationChanges(changes, [
+      { type: "totalAmount", lineId: "L1", value: 120, scope: null },
+    ]);
+    changes = mergeRecalculationChanges(changes, [
+      { type: "discount", lineId: "L2", value: 5, scope: null },
+    ]);
+    changes = mergeRecalculationChanges(changes, [
+      { type: "discount", lineId: "L1", value: 10, scope: null },
+    ]);
+
+    expect(changes).toEqual([
+      { type: "quantity", lineId: "L1", value: 2, scope: null },
+      { type: "discount", lineId: "L2", value: 5, scope: null },
+      { type: "discount", lineId: "L1", value: 10, scope: null },
+    ]);
+
+    changes = mergeRecalculationChanges(changes, [
+      { type: "netAmount", lineId: "L1", value: 99, scope: null },
+    ]);
+    expect(changes.filter((change) => change.lineId === "L1")).toEqual([
+      { type: "quantity", lineId: "L1", value: 2, scope: null },
+      { type: "netAmount", lineId: "L1", value: 99, scope: null },
+    ]);
+  });
+
   it("keeps only the last summary change, discount or amount", () => {
     let changes: Record<string, unknown>[] = [
       { type: "quantity", lineId: "L1", value: 2, scope: null },
