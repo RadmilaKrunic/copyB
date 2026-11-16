@@ -4,8 +4,10 @@ import type Field from "components/generics/Field/GenericField.types";
 import { GenericFormContext } from "components/generics/Form/GenericForm.context";
 import { useDiagnosticsContext } from "../DiagnosticsContext";
 import {
+  NOT_EDITABLE,
   getRangedTotalAmountEditability,
   hasPriceLimit,
+  isFixedPrice,
   isTotalAmountInRange,
   isTotalEntryPosition,
   type PriceFieldEditability,
@@ -47,7 +49,8 @@ const useTotalAmountLimitCheck = (fields: Field[], limits: PriceLimits | undefin
  * Price fields of a job spare-parts row. FR / PC rows with a total amount range from the
  * default-parameter API (`unitPriceRange`, used as the total amount limit) unlock step by step (see
  * getRangedTotalAmountEditability) and have their total amount checked against the limits;
- * every other row keeps `baseEditability`.
+ * equal non-zero limits fix the price, so all price fields are disabled; every other row keeps
+ * `baseEditability`.
  */
 export const useTotalAmountRangeEditability = ({
   fields,
@@ -75,6 +78,8 @@ export const useTotalAmountRangeEditability = ({
   const limits = isTotalEntryRow ? ranges[position.toUpperCase()] : undefined;
   useTotalAmountLimitCheck(fields, limits);
 
+  // Equal non-zero limits (e.g. ZA): the price is fixed, the user enters nothing.
+  if (isFixedPrice(limits)) return NOT_EDITABLE;
   if (!isTotalAmountInRange(limits)) return baseEditability;
   return getRangedTotalAmountEditability(
     Boolean(materialId),
