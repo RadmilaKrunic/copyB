@@ -4,6 +4,7 @@ import {
   getRangedTotalAmountEditability,
   hasPriceLimit,
   isProtectedPosition,
+  isFixedPrice,
   isSummaryControlledRow,
   isTotalAmountInRange,
   isTotalEntryPosition,
@@ -197,5 +198,14 @@ describe("getRangedTotalAmountEditability", () => {
       netAmount: true,
     });
     expect(getRangedTotalAmountEditability(true, true, otherType)).toEqual(otherType);
+  });
+});
+
+describe("isFixedPrice", () => {
+  it("is true only for equal, non-zero limits", () => {
+    expect(isFixedPrice({ lowestLimit: 467.96, highestLimit: 467.96 })).toBe(true);
+    expect(isFixedPrice({ lowestLimit: 0, highestLimit: 0 })).toBe(false);
+    expect(isFixedPrice({ lowestLimit: 0, highestLimit: 500 })).toBe(false);
+    expect(isFixedPrice(undefined)).toBe(false);
   });
 });

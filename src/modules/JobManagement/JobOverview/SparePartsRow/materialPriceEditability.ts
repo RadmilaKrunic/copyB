@@ -19,7 +19,8 @@ export interface PriceFieldEditability {
   netAmount: boolean;
 }
 
-const NOT_EDITABLE: PriceFieldEditability = {
+/** No row price field editable (e.g. a fixed FR / PC price). */
+export const NOT_EDITABLE: PriceFieldEditability = {
   discount: false,
   totalAmount: false,
   netAmount: false,
@@ -84,12 +85,19 @@ export interface PriceLimits {
 /**
  * True when the row's total amount is entered by the user within a range instead of being a
  * fixed default. Different limits are a range; 0 / 0 means "no limit". Equal non-zero limits are
- * a fixed default price, so the row keeps the usual price behaviour.
+ * a fixed price (see isFixedPrice): nothing is editable.
  */
 export const isTotalAmountInRange = (limits: PriceLimits | undefined): boolean => {
   if (!limits) return false;
   return limits.lowestLimit !== limits.highestLimit || limits.highestLimit === 0;
 };
+
+/**
+ * True when the default-parameter limits fix the price: equal, non-zero limits (e.g. ZA). The user
+ * may not enter anything, so the row's price fields are all disabled. 0 / 0 is "no limit" instead.
+ */
+export const isFixedPrice = (limits: PriceLimits | undefined): boolean =>
+  !!limits && limits.lowestLimit === limits.highestLimit && limits.highestLimit !== 0;
 
 /** True when the limits must be checked (different limits; 0 / 0 has no limit). */
 export const hasPriceLimit = (limits: PriceLimits | undefined): limits is PriceLimits =>
