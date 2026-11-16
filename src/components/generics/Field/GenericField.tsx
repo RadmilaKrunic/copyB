@@ -130,29 +130,58 @@ const fieldValueChanged = async (
   }
 };
 
+type FieldActionTrigger = "onValueChange" | "onBlur";
+
 /**
- * Runs the action a field config names for a trigger. onValueChange handlers declared with a
- * single parameter receive only the value; every other handler gets (name, value).
+ * Calls the action a field config names for a trigger and returns its result. onValueChange
+ * handlers declared with a single parameter receive only the value; every other handler gets
+ * (name, value).
  */
+const callFieldAction = (
+  actionCallbacks: Record<string, ActionCallback>,
+  trigger: FieldActionTrigger,
+  actionName: string | undefined,
+  name: string,
+  newValue: FieldValueType,
+): unknown => {
+  if (!actionName) return undefined;
+  const handler = actionCallbacks[actionName] as ((...args: unknown[]) => unknown) | undefined;
+  if (typeof handler !== "function") return undefined;
+  return trigger === "onValueChange" && handler.length <= 1
+    ? handler(newValue)
+    : handler(name, newValue);
+};
+
+const logFieldActionFailure =
+  (trigger: FieldActionTrigger, actionName: string | undefined) => (error: unknown) => {
+    console.error(`${trigger} ${actionName} failed:`, error);
+  };
+
+/** Runs a field action without waiting for it; an async failure is logged. */
 const invokeFieldAction = (
   actionCallbacks: Record<string, ActionCallback>,
-  trigger: "onValueChange" | "onBlur",
+  trigger: FieldActionTrigger,
   actionName: string | undefined,
   name: string,
   newValue: FieldValueType,
 ): void => {
-  if (!actionName) return;
-  const handler = actionCallbacks[actionName] as ((...args: unknown[]) => unknown) | undefined;
-  if (typeof handler !== "function") return;
-  const result =
-    trigger === "onValueChange" && handler.length <= 1
-      ? handler(newValue)
-      : handler(name, newValue);
-  if (result instanceof Promise) {
-    result.catch((error: unknown) => {
-      console.error(`${trigger} ${actionName} failed:`, error);
-    });
-  }
+  const result = callFieldAction(actionCallbacks, trigger, actionName, name, newValue);
+  if (result instanceof Promise) result.catch(logFieldActionFailure(trigger, actionName));
+};
+
+/**
+ * Runs a field action and resolves once an async one (e.g. a recalculation) settles, so the
+ * next action works on its result. A failure is logged, not thrown.
+ */
+const runFieldAction = async (
+  actionCallbacks: Record<string, ActionCallback>,
+  trigger: FieldActionTrigger,
+  actionName: string | undefined,
+  name: string,
+  newValue: FieldValueType,
+): Promise<void> => {
+  const result = callFieldAction(actionCallbacks, trigger, actionName, name, newValue);
+  if (result instanceof Promise) await result.catch(logFieldActionFailure(trigger, actionName));
 };
 
 /** Lets Formik commit pending setFieldValue calls before an action reads the form values. */
@@ -409,7 +438,8 @@ function renderDatepickerField(ctx: FieldRenderCtx): ReactElement {
 
 /**
  * Runs the action (recalculate) of protected-row quantities that were set programmatically,
- * as for a user edit (a programmatic set fires no blur), once Formik has the new values.
+ * as for a user edit (a programmatic set fires no blur), once Formik has the new values. One
+ * after another: each waits for the previous recalculation, which would otherwise drop it.
  */
 async function runChangedQuantityActions(
   changedQuantities: ChangedQuantityField[] | undefined,
@@ -418,7 +448,7 @@ async function runChangedQuantityActions(
   if (!changedQuantities?.length) return;
   await waitForFormCommit();
   for (const { field: qtyField, value: qty } of changedQuantities) {
-    invokeFieldAction(actionCallbacks, "onBlur", qtyField.onBlur, qtyField.name, qty);
+    await runFieldAction(actionCallbacks, "onBlur", qtyField.onBlur, qtyField.name, qty);
   }
 }
 
@@ -426,12 +456,13 @@ async function runChangedQuantityActions(
 const HEADER_RECALCULATION_ACTION = "onRecalculatePricesForHeaderChange";
 
 /**
- * Prices after a fault code or exchange reason change, once the protected-row quantities are
- * refreshed. A form with a header recalculation (job overview) runs it once, with the header field
- * as the change; other forms recalculate the quantities that changed, as for a user edit.
+ * Prices after an exchange reason change, once the protected-row quantities are refreshed. A form
+ * with a header recalculation (job overview) runs it once, with the header field as the change;
+ * other forms recalculate the quantities that changed, as for a user edit. The fault code has its
+ * own two-step flow (changeFaultCode).
  */
 async function runHeaderChangePriceAction(
-  headerField: "faultCode" | "exchangeReason",
+  headerField: "exchangeReason",
   value: string,
   changedQuantities: ChangedQuantityField[] | undefined,
   actionCallbacks: FieldRenderCtx["actionCallbacks"],
@@ -442,6 +473,52 @@ async function runHeaderChangePriceAction(
   }
   await waitForFormCommit();
   invokeFieldAction(actionCallbacks, "onBlur", HEADER_RECALCULATION_ACTION, headerField, value);
+}
+
+/** Latest fault code selection; an older one still waiting for its recalculation stops there. */
+let faultCodeSelectionCount = 0;
+
+/**
+ * A fault code was chosen. With a header recalculation (job overview) prices follow in two steps:
+ * recalculate for the fault code first, on the rows as they are; once its response is applied,
+ * the protected-row quantities from the default-parameter API are written and only the ones that
+ * changed (LA for TR / ZA; CN keeps 1) are recalculated as quantity edits. A quantity written
+ * before would be overwritten by the first response. Other forms (claim) set the quantities at
+ * once and recalculate the changed ones.
+ */
+async function changeFaultCode(
+  ctx: FieldRenderCtx,
+  rawItem: Record<string, unknown>,
+): Promise<void> {
+  const { actionCallbacks } = ctx;
+  faultCodeSelectionCount += 1;
+  const selection = faultCodeSelectionCount;
+  const faultCode = toFieldString(rawItem?.faultCode);
+  const recalculateFaultCode =
+    typeof actionCallbacks[HEADER_RECALCULATION_ACTION] === "function"
+      ? async () => {
+          await waitForFormCommit();
+          await runFieldAction(
+            actionCallbacks,
+            "onBlur",
+            HEADER_RECALCULATION_ACTION,
+            "faultCode",
+            faultCode,
+          );
+          return selection === faultCodeSelectionCount;
+        }
+      : undefined;
+  const changedQuantities = await handleFaultCodeSelection(
+    rawItem,
+    ctx.setFieldValue,
+    ctx.allFields,
+    ctx.values,
+    ctx.allowedPositions,
+    ctx.resolveDefaultQuantities,
+    recalculateFaultCode,
+  );
+  if (selection !== faultCodeSelectionCount) return;
+  await runChangedQuantityActions(changedQuantities, actionCallbacks);
 }
 
 /**
@@ -587,22 +664,7 @@ function renderDropdownField(ctx: FieldRenderCtx): ReactElement {
         onRawOptionSelect={
           subtype === "diagnosticFaultCode"
             ? (rawItem) => {
-                void (async () => {
-                  const changedQuantities = await handleFaultCodeSelection(
-                    rawItem,
-                    setFieldValue,
-                    allFields,
-                    values,
-                    allowedPositions,
-                    resolveDefaultQuantities,
-                  );
-                  await runHeaderChangePriceAction(
-                    "faultCode",
-                    toFieldString(rawItem?.faultCode),
-                    changedQuantities,
-                    actionCallbacks,
-                  );
-                })();
+                void changeFaultCode(ctx, rawItem);
               }
             : undefined
         }

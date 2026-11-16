@@ -91,7 +91,8 @@ const toFiniteNumber = (value: unknown): number | undefined => {
 };
 
 /**
- * Total amount range (`totalAmountPriceRange`) per position from the response. Entries without
+ * Total amount limits per position from the response. The backend sends no total amount range
+ * yet, so the position's `unitPriceRange` is the limit for the row's total amount. Entries without
  * a range, or with a missing limit, are skipped (the row keeps its usual price behaviour).
  */
 export const toTotalAmountPriceRanges = (
@@ -99,9 +100,9 @@ export const toTotalAmountPriceRanges = (
 ): DefaultPriceRanges => {
   const ranges: DefaultPriceRanges = {};
   for (const entry of response?.byPosition ?? []) {
-    if (!entry?.position || !entry.totalAmountPriceRange) continue;
-    const lowestLimit = toFiniteNumber(entry.totalAmountPriceRange.lowestLimit);
-    const highestLimit = toFiniteNumber(entry.totalAmountPriceRange.highestLimit);
+    if (!entry?.position || !entry.unitPriceRange) continue;
+    const lowestLimit = toFiniteNumber(entry.unitPriceRange.lowestLimit);
+    const highestLimit = toFiniteNumber(entry.unitPriceRange.highestLimit);
     if (lowestLimit === undefined || highestLimit === undefined) continue;
     ranges[entry.position.toUpperCase()] = { lowestLimit, highestLimit };
   }

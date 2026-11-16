@@ -41,7 +41,8 @@ export const useFetchDefaultQuantities = () => {
 const NO_PRICE_RANGES: DefaultPriceRanges = {};
 
 /**
- * Total amount range per position (FR, PC) from the default-parameter API. Shares the cache
+ * Total amount limits per position (FR, PC) from the default-parameter API (`unitPriceRange`,
+ * until the backend sends a total amount range). Shares the cache
  * entry of `useFetchDefaultQuantities`, so rows add no extra call for the same request.
  * Empty while the request is incomplete, loading or failed.
  */

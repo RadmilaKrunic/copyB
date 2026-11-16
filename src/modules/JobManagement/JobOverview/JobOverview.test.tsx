@@ -585,7 +585,15 @@ vi.mock("api/services/jobs/hooks", () => ({
     startDiagnosticMutateMock,
     startDiagnosticMutateMock,
   ),
-  usePostRecalculatePrices: mutationHookMock("recalculate", recalculatePricesMutateMock),
+  // JobOverview sends recalculations with mutateAsync; tests assert them on the mutate mock.
+  usePostRecalculatePrices: mutationHookMock(
+    "recalculate",
+    recalculatePricesMutateMock,
+    (payload: unknown): Promise<unknown> => {
+      const result: unknown = recalculatePricesMutateMock(payload);
+      return result instanceof Promise ? result : Promise.resolve();
+    },
+  ),
   useToggleJobHold: mutationHookMock("toggleJobHold", toggleHoldMutateMock, toggleHoldMutateMock),
   usePostValidateAndSave: mutationHookMock("validateAndSave", validateAndSaveMutateMock),
   usePostDiagnostic: mutationHookMock("silentDiagnostic", vi.fn(), silentDiagnosticMutateAsyncMock),
@@ -3184,6 +3192,20 @@ describe("JobOverview buildDiagnosticPayload branches (validate)", () => {
 
     await waitFor(() => expect(validateAndSaveMutateMock).toHaveBeenCalledTimes(1));
     expect((getValidatePayload().materials as AnyRecord[])[0].id).toBe("M-1");
+    expect(getValidatePayload().changes).toEqual([]);
+  });
+
+  it("sends an actionType change when the action type differs from the saved one", async () => {
+    initialFormValuesMock.value = { actionType: "NEW_TOOL_EXCHANGE", jobType: "CHARGEABLE" };
+    diagnosticDataMock.value = { actionType: "REPAIR", jobType: "CHARGEABLE" };
+    renderWithMessages();
+
+    fireEvent.click(screen.getByRole("button", { name: "Validate" }));
+
+    await waitFor(() => expect(validateAndSaveMutateMock).toHaveBeenCalledTimes(1));
+    expect(getValidatePayload().changes).toEqual([
+      { type: "actionType", lineId: "", value: "NEW_TOOL_EXCHANGE", scope: null },
+    ]);
   });
 
   it("sends material rows as new when only the job type differs from the saved one", async () => {
@@ -3728,6 +3750,32 @@ describe("JobOverview onRecalculatePrices", () => {
       { type: field, lineId: "", value, scope: null },
     ]);
     expect(diagnosticsCtx().arePricesValidated).toBe(false);
+  });
+
+  it("waits for the recalculation in flight, then sends the next header change", async () => {
+    mockDiagnosticMaterials([{ id: "M-1", order: 1, partNumber: "PN-1" }]);
+    renderWithMessages();
+    let finishFirst: () => void = () => undefined;
+    recalculatePricesMutateMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishFirst = resolve;
+        }),
+    );
+
+    recalculateHeader("faultCode", "E001");
+    recalculateHeader("exchangeReason", "BROKEN");
+    expect(recalculatePricesMutateMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      finishFirst();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(recalculatePricesMutateMock).toHaveBeenCalledTimes(2));
+    expect(lastRecalculatePayload().changes).toEqual([
+      { type: "exchangeReason", lineId: "", value: "BROKEN", scope: null },
+    ]);
   });
 
   it("skips a header recalculation without a saved row or for an unknown header field", () => {

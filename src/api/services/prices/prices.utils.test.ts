@@ -95,7 +95,7 @@ describe("toDefaultQuantities", () => {
 });
 
 describe("toTotalAmountPriceRanges", () => {
-  it("returns the total amount range per position and ignores the unit price range", () => {
+  it("returns the unit price range per position as the total amount limit", () => {
     expect(
       toTotalAmountPriceRanges({
         byPosition: [
@@ -104,20 +104,13 @@ describe("toTotalAmountPriceRanges", () => {
             position: "fr",
             value: 1,
             serviceUnits: null,
-            unitPriceRange: { lowestLimit: 1, highestLimit: 2 },
-            totalAmountPriceRange: { lowestLimit: 0, highestLimit: 500 },
+            unitPriceRange: { lowestLimit: 0, highestLimit: 500 },
           },
           {
             position: "PC",
             value: 1,
             serviceUnits: null,
-            totalAmountPriceRange: { lowestLimit: 467.96, highestLimit: 467.96 },
-          },
-          {
-            position: "SP",
-            value: 1,
-            serviceUnits: null,
-            unitPriceRange: { lowestLimit: 0, highestLimit: 500 },
+            unitPriceRange: { lowestLimit: 467.96, highestLimit: 467.96 },
           },
         ],
       }),
@@ -135,7 +128,7 @@ describe("toTotalAmountPriceRanges", () => {
             position: "FR",
             value: 1,
             serviceUnits: null,
-            totalAmountPriceRange: { lowestLimit: null, highestLimit: 500 },
+            unitPriceRange: { lowestLimit: null, highestLimit: 500 },
           },
         ],
       }),

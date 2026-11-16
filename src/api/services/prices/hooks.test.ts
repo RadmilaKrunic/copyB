@@ -78,7 +78,7 @@ describe("useDefaultTotalAmountPriceRanges", () => {
           position: "FR",
           value: 1,
           serviceUnits: null,
-          totalAmountPriceRange: { lowestLimit: 0, highestLimit: 500 },
+          unitPriceRange: { lowestLimit: 0, highestLimit: 500 },
         },
       ],
     });

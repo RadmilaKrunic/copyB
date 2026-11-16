@@ -227,13 +227,15 @@ const RECALCULATION_CHANGE_TYPES: Record<string, string> = {
 };
 
 /**
- * Job header inputs that re-price the rows (default-parameter inputs). Their recalculate change
- * has no line: `{ type, lineId: "", value, scope: null }`. The backend contract is not final, so
- * the change type and value are kept in this one place.
+ * Job header inputs that change the prices. Their change has no line:
+ * `{ type, lineId: "", value, scope: null }`. Fault code and exchange reason re-price at once
+ * (recalculate); an action type change rebuilds the rows and goes with validate-and-save only.
+ * The backend contract is not final, so the change types are kept in this one place.
  */
 export const HEADER_RECALCULATION_CHANGE_TYPES = {
   faultCode: "faultCode",
   exchangeReason: "exchangeReason",
+  actionType: "actionType",
 } as const;
 
 export type HeaderRecalculationField = keyof typeof HEADER_RECALCULATION_CHANGE_TYPES;
@@ -306,6 +308,27 @@ export const mergeRecalculationChanges = (
     const key = getRecalculationChangeKey(change);
     return [...acc.filter((c) => getRecalculationChangeKey(c) !== key), change];
   }, previous);
+
+/**
+ * Keeps the action type change of the validate-and-save `changes` in line with the form: one
+ * `actionType` change while the chosen action type differs from the saved one, none otherwise
+ * (no saved action type yet, or changed back). Returns `changes` itself when nothing changes.
+ */
+export const syncActionTypeChange = (
+  changes: Record<string, unknown>[],
+  savedActionType: string,
+  actionType: string,
+): Record<string, unknown>[] => {
+  const changeType = HEADER_RECALCULATION_CHANGE_TYPES.actionType;
+  const current = changes.find((change) => change.type === changeType);
+  if (!savedActionType || !actionType || actionType === savedActionType) {
+    return current ? changes.filter((change) => change !== current) : changes;
+  }
+  if (current?.value === actionType) return changes;
+  return mergeRecalculationChanges(changes, [
+    buildHeaderRecalculationChange("actionType", actionType),
+  ]);
+};
 
 /**
  * The field and change last sent to recalculate, checked against its response.

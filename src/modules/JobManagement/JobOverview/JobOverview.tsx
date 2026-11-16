@@ -63,6 +63,7 @@ import {
   mergeRecalculationChanges,
   dropRejectedRecalculationChange,
   buildHeaderRecalculationChange,
+  syncActionTypeChange,
   hasSavedMaterialRow,
   type HeaderRecalculationField,
   getSummaryChangeServerValue,
@@ -201,6 +202,8 @@ export default function JobOverview() {
   >([]);
   // The edit last sent to recalculate; its response may reject it (see onSuccess).
   const sentRecalculationChangeRef = useRef<SentRecalculationChange | null>(null);
+  // Recalculate request in flight, settled once its response is applied (or it failed).
+  const recalculationInFlightRef = useRef<Promise<void> | null>(null);
   const [summaryTypeOptions, setSummaryTypeOptions] = useState<{ label: string; value: string }[]>([
     { value: "totalSummary", label: "totalSummary" },
   ]);
@@ -442,6 +445,9 @@ export default function JobOverview() {
   const [validatedTotalAmountMaterialIds, setValidatedTotalAmountMaterialIds] = useState<
     ReadonlySet<string>
   >(() => new Set<string>());
+  // Action type of the saved diagnostic (load / validate-and-save). A recalculation echoes the
+  // form's action type, so it must not count as saved.
+  const [savedActionType, setSavedActionType] = useState("");
   useEffect(() => {
     const isRecalculation = isRecalculationWriteRef.current;
     isRecalculationWriteRef.current = false;
@@ -449,6 +455,7 @@ export default function JobOverview() {
       setIsZeroSummaryShown(false);
       return;
     }
+    setSavedActionType(diagnosticData?.actionType ?? "");
     setValidatedTotalAmountMaterialIds(
       getValidatedTotalAmountMaterialIds(diagnosticData?.materials),
     );
@@ -1065,6 +1072,14 @@ export default function JobOverview() {
     setCurrentJobType((initialFormValues?.jobType as string) || "");
   }, [initialFormValues]);
 
+  // A changed action type goes into the validate-and-save changes (no recalculate: the rows are
+  // rebuilt without prices); changing it back to the saved one removes it again.
+  useEffect(() => {
+    setRecalculatedPricesChanges((prev) =>
+      syncActionTypeChange(prev, savedActionType, currentActionType),
+    );
+  }, [savedActionType, currentActionType]);
+
   // Default quantity of protected spare-parts rows (LA, FR, PC) comes from the backend.
   const fetchDefaultQuantities = useFetchDefaultQuantities();
   const jobCountryCode = jobData?.order?.countryCode;
@@ -1646,11 +1661,26 @@ export default function JobOverview() {
     internalApprovalRequestMutation.mutate({ jobId });
   }, [jobId, internalApprovalRequestMutation, isProductPhotoForExchangeActionValid]);
 
+  // Sends a recalculation and settles after onSuccess applied the response (or onError showed the
+  // failure), so a caller can send a follow-up recalculation on the updated rows.
+  const sendRecalculation = useCallback(
+    async (payload: Record<string, unknown>): Promise<void> => {
+      const request = recalculatePricesMutation.mutateAsync(payload).then(
+        () => undefined,
+        () => undefined,
+      );
+      recalculationInFlightRef.current = request;
+      await request;
+      if (recalculationInFlightRef.current === request) recalculationInFlightRef.current = null;
+    },
+    [recalculatePricesMutation],
+  );
+
   // Server summary before a summary edit: tells a rejected edit from a rounded one.
   const previousSummaryDetailed = jobFullData?.diagnostic?.priceSummaryDetailed;
   const onRecalculatePrices = useCallback(
-    (fieldName: string, value: unknown) => {
-      if (recalculatePricesMutation.isPending) return;
+    async (fieldName: string, value: unknown): Promise<void> => {
+      if (recalculationInFlightRef.current) return;
       if (!allFieldsRef.current) return;
       const field = allFieldsRef.current?.find((f) => f.name === fieldName);
       if (!field) return;
@@ -1702,26 +1732,28 @@ export default function JobOverview() {
         previousValue: getSummaryChangeServerValue(changes[0], previousSummaryDetailed),
       };
       payload.changes = changes;
-      recalculatePricesMutation.mutate(payload);
+      await sendRecalculation(payload);
     },
     [
       buildDiagnosticPayload,
       jobData?.order?.countryCode,
       previousSummaryDetailed,
-      recalculatePricesMutation,
+      sendRecalculation,
       setRecalculatedPricesChanges,
       validateByAction,
     ],
   );
 
   // A fault code or exchange reason change re-prices the saved rows: one recalculate whose change
-  // names the header field (its new quantities are already in the payload). No line, so the
-  // response is never checked for a rejected value.
+  // names the header field. No line, so the response is never checked for a rejected value.
+  // A recalculation still in flight is waited for (not dropped), so the header change is sent
+  // on the rows of its response.
   const onRecalculatePricesForHeaderChange = useCallback(
-    (field: HeaderRecalculationField, value: unknown) => {
+    async (field: HeaderRecalculationField, value: unknown): Promise<void> => {
+      while (recalculationInFlightRef.current) await recalculationInFlightRef.current;
       const currentAllFields = allFieldsRef.current;
       const formValues = formValuesRef.current;
-      if (recalculatePricesMutation.isPending || !currentAllFields) return;
+      if (!currentAllFields) return;
       if (!hasSavedMaterialRow(currentAllFields, formValues)) return;
       setArePricesValidated(false);
       const payloadErrors = getRecalculationPayloadErrors(
@@ -1739,12 +1771,12 @@ export default function JobOverview() {
       setRecalculatedPricesChanges((prev) => mergeRecalculationChanges(prev, changes));
       sentRecalculationChangeRef.current = null;
       payload.changes = changes;
-      recalculatePricesMutation.mutate(payload);
+      await sendRecalculation(payload);
     },
     [
       buildDiagnosticPayload,
       jobData?.order?.countryCode,
-      recalculatePricesMutation,
+      sendRecalculation,
       setRecalculatedPricesChanges,
       validateByAction,
     ],
@@ -1756,7 +1788,7 @@ export default function JobOverview() {
   const onRecalculatePricesAfterRowsChange = useCallback(
     (formValues: Record<string, unknown>) => {
       const currentAllFields = allFieldsRef.current;
-      if (recalculatePricesMutation.isPending || !currentAllFields) return;
+      if (recalculationInFlightRef.current || !currentAllFields) return;
       const payloadErrors = getRecalculationPayloadErrors(
         currentAllFields,
         validateByAction("validate", formValues),
@@ -1767,14 +1799,9 @@ export default function JobOverview() {
       payload.materials ??= [];
       payload.changes = [];
       sentRecalculationChangeRef.current = null;
-      recalculatePricesMutation.mutate(payload);
+      void sendRecalculation(payload);
     },
-    [
-      buildDiagnosticPayload,
-      jobData?.order?.countryCode,
-      recalculatePricesMutation,
-      validateByAction,
-    ],
+    [buildDiagnosticPayload, jobData?.order?.countryCode, sendRecalculation, validateByAction],
   );
 
   const handledRowsChangedVersionRef = useRef(0);
@@ -2284,13 +2311,14 @@ export default function JobOverview() {
         onToolDelivered,
         onCreateCostEstimate,
         // Two named params keep arity 2 so invokeFieldAction passes (name, value).
+        // Both return the request, so a field can wait for it before a follow-up recalculation.
         onRecalculatePrices: (fieldName: unknown, value: unknown) => {
-          if (typeof fieldName === "string") onRecalculatePrices(fieldName, value);
+          if (typeof fieldName !== "string") return undefined;
+          return onRecalculatePrices(fieldName, value);
         },
         onRecalculatePricesForHeaderChange: (field: unknown, value: unknown) => {
-          if (field === "faultCode" || field === "exchangeReason") {
-            onRecalculatePricesForHeaderChange(field, value);
-          }
+          if (field !== "faultCode" && field !== "exchangeReason") return undefined;
+          return onRecalculatePricesForHeaderChange(field, value);
         },
       },
       radioSourceCallbacks: {

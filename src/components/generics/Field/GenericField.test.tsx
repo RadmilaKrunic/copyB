@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Formik } from "formik";
@@ -15,6 +15,7 @@ import {
   handleFaultCodeSelection,
   refreshProtectedRowQuantities,
   updateDependentFields,
+  type ChangedQuantityField,
 } from "./GenericField.utils";
 import type { AllowedPosition } from "api/services/countryConfiguration/countryConfiguration";
 import type { ResolveDefaultQuantities } from "api/services/prices/prices.types";
@@ -890,14 +891,13 @@ describe("GenericField", () => {
       const button = screen.getByTestId("raw-option-select-faultCodeDropdown");
       await user.click(button);
 
-      expect(handleFaultCodeSelection).toHaveBeenCalledWith(
-        { faultCode: "E001", faultCodeLabourQuantity: 3 },
-        expect.anything(),
-        expect.anything(),
-        expect.anything(),
-        allowedPositions,
-        undefined,
-      );
+      const [rawItem, , , , passedPositions, resolveQuantities, beforeQuantityUpdate] =
+        vi.mocked(handleFaultCodeSelection).mock.calls[0] ?? [];
+      expect(rawItem).toEqual({ faultCode: "E001", faultCodeLabourQuantity: 3 });
+      expect(passedPositions).toBe(allowedPositions);
+      expect(resolveQuantities).toBeUndefined();
+      // No header recalculation in this form: quantities are written at once.
+      expect(beforeQuantityUpdate).toBeUndefined();
     });
 
     it("runs the quantity field's blur action for each quantity the fault code changed", async () => {
@@ -1001,13 +1001,15 @@ describe("GenericField", () => {
       );
     });
 
-    it("recalculates once with the faultCode change when the form has a header recalculation", async () => {
-      const user = userEvent.setup();
-      const headerCalls: unknown[][] = [];
-      const onRecalculatePricesForHeaderChange = (field: unknown, value: unknown) => {
-        headerCalls.push([field, value]);
+    describe("fault code with a header recalculation", () => {
+      const faultCodeField: Field = {
+        name: "faultCodeDropdown",
+        label: "Fault Code",
+        type: "dropdown",
+        subtype: "diagnosticFaultCode",
+        isRequired: false,
+        fieldMapping: { originalName: "faultCodeDropdown" },
       };
-      const onRecalculatePrices = vi.fn();
       const qtyField: Field = {
         name: "row0_quantity",
         label: "Quantity",
@@ -1017,24 +1019,104 @@ describe("GenericField", () => {
         onBlur: "onRecalculatePrices",
         fieldMapping: { originalName: "quantity" },
       };
-      vi.mocked(handleFaultCodeSelection).mockResolvedValueOnce([{ field: qtyField, value: 5 }]);
 
-      renderWithContext(
-        {
-          name: "faultCodeDropdown",
-          label: "Fault Code",
-          type: "dropdown",
-          subtype: "diagnosticFaultCode",
-          isRequired: false,
-          fieldMapping: { originalName: "faultCodeDropdown" },
-        },
-        { actionCallbacks: { onRecalculatePrices, onRecalculatePricesForHeaderChange } },
-      );
+      /** handleFaultCodeSelection stand-in: waits for the fault code recalculation, then gives `changed`. */
+      const selectionChanging = (changed: ChangedQuantityField[]) =>
+        vi
+          .mocked(handleFaultCodeSelection)
+          .mockImplementation(
+            async (_rawItem, _setFieldValue, _allFields, _values, _positions, _resolve, before) => {
+              if (before && !(await before())) return [];
+              return changed;
+            },
+          );
 
-      await user.click(screen.getByTestId("raw-option-select-faultCodeDropdown"));
+      /** Header action that settles only when the test resolves it, like a pending request. */
+      const pendingHeaderAction = () => {
+        const calls: unknown[][] = [];
+        const resolvers: (() => void)[] = [];
+        const action = (field: unknown, value: unknown) => {
+          calls.push([field, value]);
+          return new Promise<void>((resolve) => {
+            resolvers.push(resolve);
+          });
+        };
+        return { action, calls, resolvers };
+      };
 
-      await waitFor(() => expect(headerCalls).toEqual([["faultCode", "E001"]]));
-      expect(onRecalculatePrices).not.toHaveBeenCalled();
+      afterEach(() => {
+        vi.mocked(handleFaultCodeSelection).mockReset();
+      });
+
+      it("recalculates the fault code first, then the changed quantity once that response is in", async () => {
+        const user = userEvent.setup();
+        const header = pendingHeaderAction();
+        const onRecalculatePrices = vi.fn(() => Promise.resolve());
+        selectionChanging([{ field: qtyField, value: 5 }]);
+        renderWithContext(faultCodeField, {
+          actionCallbacks: {
+            onRecalculatePrices,
+            onRecalculatePricesForHeaderChange: header.action,
+          },
+        });
+
+        await user.click(screen.getByTestId("raw-option-select-faultCodeDropdown"));
+
+        await waitFor(() => expect(header.calls).toEqual([["faultCode", "E001"]]));
+        expect(onRecalculatePrices).not.toHaveBeenCalled();
+
+        header.resolvers[0]?.();
+
+        await waitFor(() => expect(onRecalculatePrices).toHaveBeenCalledWith("row0_quantity", 5));
+        expect(onRecalculatePrices).toHaveBeenCalledTimes(1);
+      });
+
+      it("makes no second call when the fault code leaves the quantities as they are", async () => {
+        const user = userEvent.setup();
+        const header = pendingHeaderAction();
+        const onRecalculatePrices = vi.fn();
+        selectionChanging([]);
+        renderWithContext(faultCodeField, {
+          actionCallbacks: {
+            onRecalculatePrices,
+            onRecalculatePricesForHeaderChange: header.action,
+          },
+        });
+
+        await user.click(screen.getByTestId("raw-option-select-faultCodeDropdown"));
+        await waitFor(() => expect(header.calls).toHaveLength(1));
+        header.resolvers[0]?.();
+
+        await waitFor(() => expect(handleFaultCodeSelection).toHaveBeenCalledTimes(1));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(onRecalculatePrices).not.toHaveBeenCalled();
+      });
+
+      it("drops the quantity step of a fault code chosen again before its recalculation came back", async () => {
+        const user = userEvent.setup();
+        const header = pendingHeaderAction();
+        const onRecalculatePrices = vi.fn(() => Promise.resolve());
+        selectionChanging([{ field: qtyField, value: 5 }]);
+        renderWithContext(faultCodeField, {
+          actionCallbacks: {
+            onRecalculatePrices,
+            onRecalculatePricesForHeaderChange: header.action,
+          },
+        });
+
+        const option = screen.getByTestId("raw-option-select-faultCodeDropdown");
+        await user.click(option);
+        await waitFor(() => expect(header.calls).toHaveLength(1));
+        await user.click(option);
+        await waitFor(() => expect(header.calls).toHaveLength(2));
+
+        header.resolvers[0]?.();
+        header.resolvers[1]?.();
+
+        await waitFor(() => expect(onRecalculatePrices).toHaveBeenCalledTimes(1));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(onRecalculatePrices).toHaveBeenCalledTimes(1);
+      });
     });
 
     it("recalculates once with the exchangeReason change, even without a quantity change", async () => {
