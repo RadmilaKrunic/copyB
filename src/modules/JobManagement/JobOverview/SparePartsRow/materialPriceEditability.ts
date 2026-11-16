@@ -39,7 +39,7 @@ const getChargeableEditability = (discountBase: discountBase): PriceFieldEditabi
   netAmount: discountBase === "NET_PRICE",
 });
 
-/** FR / PC rows of any other type: only the totalAmount, whatever the discount base. */
+/** FR / PC rows of every type (CHARGEABLE too): only the totalAmount, in both discount bases. */
 const TOTAL_AMOUNT_ONLY: PriceFieldEditability = {
   discount: false,
   totalAmount: true,
@@ -48,8 +48,9 @@ const TOTAL_AMOUNT_ONLY: PriceFieldEditability = {
 
 /**
  * Row price fields the user may edit:
- * - CHARGEABLE LA / FR / PC: discount + totalAmount (GROSS_PRICE) or netAmount (NET_PRICE).
- * - FR / PC of any other type: totalAmount only, in both discount bases.
+ * - FR / PC, any type (CHARGEABLE included): totalAmount only, in both discount bases; the
+ *   discount and netAmount stay disabled.
+ * - CHARGEABLE LA: discount + totalAmount (GROSS_PRICE) or netAmount (NET_PRICE).
  * - Everything else: nothing.
  */
 export function getPriceFieldEditability(
@@ -57,9 +58,10 @@ export function getPriceFieldEditability(
   jobType: string,
   discountBase: discountBase,
 ): PriceFieldEditability {
+  if (isTotalEntryPosition(position)) return TOTAL_AMOUNT_ONLY;
   if (!isProtectedPosition(position)) return NOT_EDITABLE;
   if ((jobType ?? "").toUpperCase() === "CHARGEABLE") return getChargeableEditability(discountBase);
-  return isTotalEntryPosition(position) ? TOTAL_AMOUNT_ONLY : NOT_EDITABLE;
+  return NOT_EDITABLE;
 }
 
 /**
@@ -98,8 +100,8 @@ export const hasPriceLimit = (limits: PriceLimits | undefined): limits is PriceL
  * in steps:
  * 1. Row not saved yet (no materialId): every price field disabled.
  * 2. Saved, no validated total amount yet: only the totalAmount is editable.
- * 3. Total amount validated (saved non-zero): the totalAmount stays editable, and the fields of
- *    the row's usual rules (`baseEditability`, e.g. the CHARGEABLE discount) unlock too.
+ * 3. Total amount validated (saved non-zero): the row's usual rules (`baseEditability`) apply,
+ *    with the totalAmount editable. FR / PC rows only ever edit the total, so this matches step 2.
  */
 export function getRangedTotalAmountEditability(
   hasMaterialId: boolean,
