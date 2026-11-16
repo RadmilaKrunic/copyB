@@ -21,6 +21,7 @@ import {
   getValidatedTotalAmountMaterialIds,
   buildHeaderRecalculationChange,
   hasSavedMaterialRow,
+  syncActionTypeChange,
 } from "./JobOverview.utils";
 
 vi.mock("../CreateJob/CreateJob.warranty.utils", () => ({
@@ -508,6 +509,40 @@ describe("header recalculation helpers", () => {
       scope: null,
     });
     expect(buildHeaderRecalculationChange("exchangeReason", "BROKEN").type).toBe("exchangeReason");
+  });
+
+  describe("syncActionTypeChange", () => {
+    const quantityChange = { type: "quantity", lineId: "M-1", value: 2, scope: null };
+    const actionTypeChange = (value: string) => ({
+      type: "actionType",
+      lineId: "",
+      value,
+      scope: null,
+    });
+
+    it("adds an actionType change when the action type differs from the saved one", () => {
+      expect(syncActionTypeChange([quantityChange], "REPAIR", "NEW_TOOL_EXCHANGE")).toEqual([
+        quantityChange,
+        actionTypeChange("NEW_TOOL_EXCHANGE"),
+      ]);
+    });
+
+    it("replaces an earlier actionType change and keeps the list when it is already current", () => {
+      const changes = [actionTypeChange("NEW_TOOL_EXCHANGE"), quantityChange];
+      expect(syncActionTypeChange(changes, "REPAIR", "NEW_TOOL_EXCHANGE")).toBe(changes);
+      expect(syncActionTypeChange(changes, "REPAIR", "SPARE_PARTS_EXCHANGE")).toEqual([
+        quantityChange,
+        actionTypeChange("SPARE_PARTS_EXCHANGE"),
+      ]);
+    });
+
+    it("removes the actionType change when changed back, and adds none without a saved one", () => {
+      const changes = [actionTypeChange("NEW_TOOL_EXCHANGE"), quantityChange];
+      expect(syncActionTypeChange(changes, "REPAIR", "REPAIR")).toEqual([quantityChange]);
+      expect(syncActionTypeChange([quantityChange], "", "REPAIR")).toEqual([quantityChange]);
+      const unchanged = [quantityChange];
+      expect(syncActionTypeChange(unchanged, "REPAIR", "")).toBe(unchanged);
+    });
   });
 
   it("finds a saved spare-parts row by its material id", () => {

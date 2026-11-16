@@ -585,6 +585,102 @@ describe("handleFaultCodeSelection", () => {
       );
       expect(resolve).not.toHaveBeenCalled();
     });
+
+    it("writes the quantities only after beforeQuantityUpdate settled", async () => {
+      const setFieldValue = vi.fn().mockResolvedValue(undefined);
+      const resolve = vi.fn().mockResolvedValue({ LA: 5 });
+      let finishRecalculation: (keepGoing: boolean) => void = () => undefined;
+      const beforeQuantityUpdate = vi.fn(
+        () =>
+          new Promise<boolean>((resolveBefore) => {
+            finishRecalculation = resolveBefore;
+          }),
+      );
+      const selection = handleFaultCodeSelection(
+        rawItem,
+        setFieldValue,
+        laRow(),
+        { row0_position: "LA", row0_quantity: 2 },
+        defaultSourceLa,
+        resolve,
+        beforeQuantityUpdate,
+      );
+      await Promise.resolve();
+      expect(setFieldValue).toHaveBeenCalledWith("faultCode", "C1");
+      expect(resolve).toHaveBeenCalledTimes(1);
+      expect(beforeQuantityUpdate).toHaveBeenCalledTimes(1);
+      expect(setFieldValue).not.toHaveBeenCalledWith("row0_quantity", expect.anything());
+
+      finishRecalculation(true);
+
+      const changed = await selection;
+      expect(setFieldValue).toHaveBeenCalledWith("row0_quantity", 5);
+      expect(changed.map(({ field, value }) => [field.name, value])).toEqual([
+        ["row0_quantity", 5],
+      ]);
+    });
+
+    it("leaves the quantities alone when beforeQuantityUpdate gives false", async () => {
+      const setFieldValue = vi.fn().mockResolvedValue(undefined);
+      const resolve = vi.fn().mockResolvedValue({ LA: 5 });
+      const changed = await handleFaultCodeSelection(
+        rawItem,
+        setFieldValue,
+        laRow(),
+        { row0_position: "LA", row0_quantity: 2 },
+        defaultSourceLa,
+        resolve,
+        () => Promise.resolve(false),
+      );
+      expect(changed).toEqual([]);
+      expect(setFieldValue).not.toHaveBeenCalledWith("row0_quantity", expect.anything());
+    });
+
+    it("runs beforeQuantityUpdate without protected rows and reports no change (CN: LA stays 1)", async () => {
+      const setFieldValue = vi.fn().mockResolvedValue(undefined);
+      const resolve = vi.fn().mockResolvedValue({ LA: 1 });
+      const beforeQuantityUpdate = vi.fn(() => Promise.resolve(true));
+      expect(
+        await handleFaultCodeSelection(
+          rawItem,
+          setFieldValue,
+          laRow(),
+          { row0_position: "SP" },
+          defaultSourceLa,
+          resolve,
+          beforeQuantityUpdate,
+        ),
+      ).toEqual([]);
+      expect(beforeQuantityUpdate).toHaveBeenCalledTimes(1);
+
+      expect(
+        await handleFaultCodeSelection(
+          rawItem,
+          setFieldValue,
+          laRow(),
+          { row0_position: "LA", row0_quantity: 1 },
+          defaultSourceLa,
+          resolve,
+          beforeQuantityUpdate,
+        ),
+      ).toEqual([]);
+      expect(setFieldValue).toHaveBeenCalledWith("row0_quantity", 1);
+    });
+
+    it("treats a failed default-parameter request as no API quantity", async () => {
+      const setFieldValue = vi.fn().mockResolvedValue(undefined);
+      const resolve = vi.fn().mockRejectedValue(new Error("offline"));
+      await handleFaultCodeSelection(
+        rawItem,
+        setFieldValue,
+        laRow(),
+        { row0_position: "LA" },
+        defaultSourceLa,
+        resolve,
+        () => Promise.resolve(true),
+      );
+      expect(setFieldValue).not.toHaveBeenCalledWith("row0_quantity", expect.anything());
+    });
   });
 });
 

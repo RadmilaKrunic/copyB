@@ -45,7 +45,7 @@ const useTotalAmountLimitCheck = (fields: Field[], limits: PriceLimits | undefin
 
 /**
  * Price fields of a job spare-parts row. FR / PC rows with a total amount range from the
- * default-parameter API (`totalAmountPriceRange`) unlock step by step (see
+ * default-parameter API (`unitPriceRange`, used as the total amount limit) unlock step by step (see
  * getRangedTotalAmountEditability) and have their total amount checked against the limits;
  * every other row keeps `baseEditability`.
  */

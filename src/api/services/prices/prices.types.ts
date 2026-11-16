@@ -22,9 +22,8 @@ export interface DefaultParameterByPosition {
   position: string;
   value: number | null;
   serviceUnits: number | null;
+  /** Also the limit of the FR / PC row's total amount (no separate total amount range yet). */
   unitPriceRange?: PriceRange | null;
-  /** Allowed total amount of the row; FR / PC rows let the user enter the total within it. */
-  totalAmountPriceRange?: PriceRange | null;
 }
 
 export interface DefaultParameterResponse {
