@@ -660,6 +660,52 @@ describe("formValidation", () => {
         expect(validate(10)).toBeUndefined();
       });
 
+      it("checks the typed text of a price field (FR / PC total) against the runtime range", () => {
+        const totalAmountField = createMockField({
+          name: "row0_totalAmount",
+          type: "price",
+          subtype: "diagnosticTotalAmount",
+          minValue: 0,
+          maxValue: 0,
+          fieldMapping: { originalName: "totalAmount" },
+        });
+        const valueRangesRef = { current: { row0_totalAmount: { minValue: 10, maxValue: 500 } } };
+        const validate = (totalAmount: string) => {
+          const errors: ValidationErrors = {};
+          validateByAction({
+            errors,
+            mandatoryFields: [],
+            values: { row0_totalAmount: totalAmount },
+            fields: [totalAmountField],
+            t: mockT,
+            disabledFieldsRef: { current: { row0_totalAmount: false } },
+            valueRangesRef,
+          });
+          return errors.row0_totalAmount;
+        };
+
+        expect(validate("600")).toBe("Value exceeds maximum value 500");
+        expect(validate("5.5")).toBe("Value is less than minimum value 10");
+        expect(validate("500")).toBeUndefined();
+        expect(validate("10")).toBeUndefined();
+      });
+
+      it("does not range-check the text of a text field or non-numeric price text", () => {
+        const errors: ValidationErrors = {};
+        validateByAction({
+          errors,
+          mandatoryFields: [],
+          values: { code: "600", price: "abc" },
+          fields: [
+            createMockField({ name: "code", type: "text", maxValue: 100 }),
+            createMockField({ name: "price", type: "price", maxValue: 100, pattern: "" }),
+          ],
+          t: mockT,
+        });
+        expect(errors.code).toBeUndefined();
+        expect(errors.price).toBeUndefined();
+      });
+
       it("requires a row price or quantity field the screen shows enabled (0 is a value)", () => {
         const rowField = (name: string, subtype: string) =>
           createMockField({ name, subtype, label: name, fieldMapping: { originalName: name } });

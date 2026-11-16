@@ -316,6 +316,22 @@ export const isDisabledRowAmountField = (
 ): boolean =>
   ROW_AMOUNT_SUBTYPES.has(field.subtype ?? "") && disabledFieldsRef?.current[field.name] === true;
 
+/** Field types whose typed value is the input's text ("600") until the API sends a number. */
+const NUMERIC_INPUT_TYPES = new Set(["price", "number"]);
+
+/**
+ * The value checked against min / max: a number, or, for a price / number field, the number its
+ * typed text stands for ("600" while the user edits). Anything else is not range-checked.
+ */
+const toRangeCheckedNumber = (field: Field, value: unknown): number | undefined => {
+  if (typeof value === "number") return value;
+  if (typeof value !== "string" || value.trim() === "" || !NUMERIC_INPUT_TYPES.has(field.type)) {
+    return undefined;
+  }
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : undefined;
+};
+
 function validateLengthAndRange(
   field: Field,
   errors: Record<string, string>,
@@ -333,11 +349,13 @@ function validateLengthAndRange(
     return;
   }
   if (!hasValueRange(field)) return;
-  if (field.minValue !== undefined && typeof value === "number" && value < field.minValue) {
+  const numericValue = toRangeCheckedNumber(field, value);
+  if (numericValue === undefined) return;
+  if (field.minValue !== undefined && numericValue < field.minValue) {
     errors[fieldName] = `${t("valueIsLessThanMinValue")} ${field.minValue}`;
     return;
   }
-  if (field.maxValue && typeof value === "number" && value > field.maxValue) {
+  if (field.maxValue && numericValue > field.maxValue) {
     errors[fieldName] = `${t("valueExceedsMaxValue")} ${field.maxValue}`;
   }
 }
