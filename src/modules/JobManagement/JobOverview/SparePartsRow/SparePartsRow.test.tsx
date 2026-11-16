@@ -2486,19 +2486,22 @@ describe("SparePartsRow FR / PC total amount range", () => {
     expect(screen.getByTestId("field-row0_discount")).toBeDisabled();
   });
 
-  it("chargeable FR total validated: discount and the discount-base total unlock too", () => {
-    totalAmountRangesMock.ranges = { FR: RANGE };
-    renderRangedRow(
-      { row0_position: "FR", row0_type: "CHARGEABLE", row0_materialId: "mat-1" },
-      "NET_PRICE",
-      ["mat-1"],
-    );
+  it.each(["GROSS_PRICE", "NET_PRICE"] as const)(
+    "chargeable FR total validated (%s): still totalAmount only, discount disabled",
+    (discountBase) => {
+      totalAmountRangesMock.ranges = { FR: RANGE };
+      renderRangedRow(
+        { row0_position: "FR", row0_type: "CHARGEABLE", row0_materialId: "mat-1" },
+        discountBase,
+        ["mat-1"],
+      );
 
-    expect(screen.getByTestId("field-row0_totalAmount")).toBeEnabled();
-    expect(screen.getByTestId("field-row0_netAmount")).toBeEnabled();
-    expect(screen.getByTestId("field-row0_discount")).toBeEnabled();
-    expect(screen.getByTestId("field-row0_unitPrice")).toBeDisabled();
-  });
+      expect(screen.getByTestId("field-row0_totalAmount")).toBeEnabled();
+      expect(screen.getByTestId("field-row0_netAmount")).toBeDisabled();
+      expect(screen.getByTestId("field-row0_discount")).toBeDisabled();
+      expect(screen.getByTestId("field-row0_unitPrice")).toBeDisabled();
+    },
+  );
 
   it("warranty FR total validated: totalAmount only, discount stays disabled", () => {
     totalAmountRangesMock.ranges = { FR: RANGE };
@@ -2517,13 +2520,13 @@ describe("SparePartsRow FR / PC total amount range", () => {
     expect(screen.getByTestId("field-row0_discount")).toBeDisabled();
   });
 
-  it("FR with equal non-zero limits keeps the usual rules", () => {
+  it("chargeable FR with equal non-zero limits keeps the usual rules: totalAmount only", () => {
     totalAmountRangesMock.ranges = { FR: { lowestLimit: 467.96, highestLimit: 467.96 } };
     renderRangedRow({ row0_position: "FR", row0_type: "CHARGEABLE", row0_materialId: "mat-1" });
 
     expect(screen.getByTestId("field-row0_unitPrice")).toBeDisabled();
     expect(screen.getByTestId("field-row0_totalAmount")).toBeEnabled();
-    expect(screen.getByTestId("field-row0_discount")).toBeEnabled();
+    expect(screen.getByTestId("field-row0_discount")).toBeDisabled();
   });
 
   it("registers the total amount limits for validation only when they differ", () => {

@@ -31,21 +31,25 @@ describe("isProtectedPosition", () => {
 
 describe("getPriceFieldEditability", () => {
   describe("protected positions (LA / FR / PC)", () => {
-    it.each(["LA", "FR", "PC"])(
-      "CHARGEABLE on %s: discount + totalAmount editable in GROSS_PRICE",
-      (position) => {
-        const result = getPriceFieldEditability(position, "CHARGEABLE", "GROSS_PRICE");
-        expect(result).toEqual({ discount: true, totalAmount: true, netAmount: false });
-      },
-    );
+    it("CHARGEABLE on LA: discount + totalAmount editable in GROSS_PRICE", () => {
+      const result = getPriceFieldEditability("LA", "CHARGEABLE", "GROSS_PRICE");
+      expect(result).toEqual({ discount: true, totalAmount: true, netAmount: false });
+    });
 
-    it.each(["LA", "FR", "PC"])(
-      "CHARGEABLE on %s: discount + netAmount editable in NET_PRICE",
-      (position) => {
-        const result = getPriceFieldEditability(position, "CHARGEABLE", "NET_PRICE");
-        expect(result).toEqual({ discount: true, totalAmount: false, netAmount: true });
-      },
-    );
+    it("CHARGEABLE on LA: discount + netAmount editable in NET_PRICE", () => {
+      const result = getPriceFieldEditability("LA", "CHARGEABLE", "NET_PRICE");
+      expect(result).toEqual({ discount: true, totalAmount: false, netAmount: true });
+    });
+
+    it.each([
+      ["FR", "GROSS_PRICE"],
+      ["FR", "NET_PRICE"],
+      ["PC", "GROSS_PRICE"],
+      ["PC", "NET_PRICE"],
+    ] as const)("CHARGEABLE on %s (%s): only totalAmount, discount disabled", (position, base) => {
+      const result = getPriceFieldEditability(position, "CHARGEABLE", base);
+      expect(result).toEqual({ discount: false, totalAmount: true, netAmount: false });
+    });
 
     it("COMMERCIAL_GOODWILL on LA: nothing editable", () => {
       const result = getPriceFieldEditability("LA", "COMMERCIAL_GOODWILL", "GROSS_PRICE");
