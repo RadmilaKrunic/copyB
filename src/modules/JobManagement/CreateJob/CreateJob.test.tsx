@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -179,7 +179,7 @@ vi.mock("../../../components/generics/Section/GenericSection", () => ({
     };
     isCollapsed?: boolean;
   }) {
-    const { onAreaValueChange, actionCallbacks } = useContext(GenericFormContext);
+    const { onAreaValueChange, actionCallbacks, isSubmitting } = useContext(GenericFormContext);
     const hasTriggeredRef = useRef(false);
 
     useEffect(() => {
@@ -192,7 +192,11 @@ vi.mock("../../../components/generics/Section/GenericSection", () => ({
     }, [onAreaValueChange, section.name]);
 
     return (
-      <div data-testid={`section-${section.label}`} data-collapsed={isCollapsed}>
+      <div
+        data-testid={`section-${section.label}`}
+        data-collapsed={isCollapsed}
+        data-submitting={String(!!isSubmitting)}
+      >
         {children}
         {section.actions && section.actions.length > 0 && (
           <div className="actions">
@@ -699,6 +703,60 @@ describe("CreateJob", () => {
         // The form should render, indicating context is provided
         expect(screen.getByTestId("section-customerAndPaymentData")).toBeInTheDocument();
       });
+    });
+  });
+
+  describe("Attachment lock while the order is being created", () => {
+    const deferCreateOrder = () => {
+      let resolve!: (value: Order) => void;
+      let reject!: (reason: unknown) => void;
+      const pending = new Promise<Order>((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      vi.mocked(ordersApi.createOrder).mockReturnValue(pending);
+      return { resolve, reject };
+    };
+
+    const sectionSubmitting = () =>
+      screen.getByTestId("section-customerAndPaymentData").getAttribute("data-submitting");
+
+    it("locks attachments while createOrder is pending and unlocks after it resolves", async () => {
+      const user = userEvent.setup();
+      const createOrder = deferCreateOrder();
+
+      renderComponent();
+      await user.click(await screen.findByTestId("form-action-saveAsDraft"));
+
+      await waitFor(() => expect(sectionSubmitting()).toBe("true"));
+
+      await act(async () => {
+        createOrder.resolve({} as Order);
+      });
+
+      await waitFor(() => expect(sectionSubmitting()).toBe("false"));
+    });
+
+    it("locks attachments while createOrder is pending and unlocks after it rejects", async () => {
+      const user = userEvent.setup();
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+      const createOrder = deferCreateOrder();
+
+      renderComponent();
+      expect(await screen.findByTestId("section-customerAndPaymentData")).toHaveAttribute(
+        "data-submitting",
+        "false",
+      );
+      await user.click(screen.getByTestId("form-action-saveAsDraft"));
+
+      await waitFor(() => expect(sectionSubmitting()).toBe("true"));
+
+      await act(async () => {
+        createOrder.reject(new Error("API Error"));
+      });
+
+      await waitFor(() => expect(sectionSubmitting()).toBe("false"));
+      consoleError.mockRestore();
     });
   });
 

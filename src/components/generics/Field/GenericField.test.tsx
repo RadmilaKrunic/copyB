@@ -243,15 +243,17 @@ vi.mock("components/ui/FileUpload/FileUpload", () => ({
   default: ({
     name,
     isDisabled,
+    isLocked,
     onFilesSelected,
     initialFiles,
   }: {
     name: string;
     isDisabled?: boolean;
+    isLocked?: boolean;
     onFilesSelected: (files: File[]) => void;
     initialFiles?: Array<{ attachmentId?: string; name?: string; type?: string }>;
   }) => (
-    <div>
+    <div data-testid={`file-upload-wrapper-${name}`} data-locked={String(!!isLocked)}>
       <input
         type="file"
         data-testid={`file-upload-${name}`}
@@ -479,6 +481,7 @@ describe("GenericField", () => {
       | undefined,
     allowedPositions: undefined as AllowedPosition[] | undefined,
     resolveDefaultQuantities: undefined as ResolveDefaultQuantities | undefined,
+    isSubmitting: undefined as boolean | undefined,
   };
 
   const mockInitialValues = {
@@ -1327,6 +1330,30 @@ describe("GenericField", () => {
       renderWithContext(field);
 
       expect(screen.getByTestId("file-upload-testFile")).toBeInTheDocument();
+      expect(screen.getByTestId("file-upload-wrapper-testFile")).toHaveAttribute(
+        "data-locked",
+        "false",
+      );
+    });
+
+    it("locks the file upload while the form is submitting without marking the field disabled", () => {
+      const disabledFields = { current: {} as Record<string, boolean> };
+      const field: Field = {
+        name: "testFile",
+        label: "Test File",
+        type: "upload",
+        isRequired: false,
+        fieldMapping: { originalName: "testFile" },
+      };
+
+      renderWithContext(field, { isSubmitting: true, disabledFields });
+
+      expect(screen.getByTestId("file-upload-wrapper-testFile")).toHaveAttribute(
+        "data-locked",
+        "true",
+      );
+      expect(screen.getByTestId("file-upload-testFile")).toBeEnabled();
+      expect(disabledFields.current).toEqual({ testFile: false });
     });
 
     it("builds a single-entry file list for the logo field when a logoId is present", () => {

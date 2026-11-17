@@ -30,6 +30,8 @@ type DocumentFileProps = Readonly<{
   onDeleteStart?: () => void;
   onDeleteEnd?: () => void;
   hideDelete?: boolean;
+  /** Shows the delete button but blocks it (e.g. while the parent form is submitting). */
+  disableDelete?: boolean;
 }>;
 
 export default function DocumentFile({
@@ -47,6 +49,7 @@ export default function DocumentFile({
   onDeleteStart,
   onDeleteEnd,
   hideDelete = false,
+  disableDelete = false,
 }: DocumentFileProps) {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
   const analytics = useAnalytics();
@@ -120,6 +123,7 @@ export default function DocumentFile({
   });
 
   const handleDelete = () => {
+    if (disableDelete) return;
     if (removeFile) {
       removeFile();
     } else {
@@ -184,6 +188,7 @@ export default function DocumentFile({
           }}
           aria-label={`Delete ${name} document`}
           data-testid={`delete-document-${dataTestid}`}
+          disabled={disableDelete}
           type="button"
         >
           <Icon iconName="delete" aria-hidden="true" />

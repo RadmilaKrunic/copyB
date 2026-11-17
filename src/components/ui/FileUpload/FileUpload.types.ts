@@ -9,6 +9,8 @@ export interface FileUploadProps {
   multiple?: boolean;
   fileTypeOptions: GenericOptionProps[];
   isDisabled?: boolean;
+  /** Blocks upload and every delete while the parent form is submitting. */
+  isLocked?: boolean;
   initialFiles?: Attachments[];
   existingFiles?: Attachments[];
   onDeleteStart?: () => void;

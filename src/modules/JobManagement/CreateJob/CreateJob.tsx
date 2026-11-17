@@ -926,6 +926,7 @@ function CreateJob() {
       onDeleteEnd: () => setIsDeletingFile(false),
       onAreaValueChange: handleCreateJobAreaValueChange,
       autocompleteValidation: autocompleteValidationRef,
+      isSubmitting: isSubmittingOrder,
     }),
     [
       allFields,
@@ -937,6 +938,7 @@ function CreateJob() {
       onCancelForm,
       onAddMoreTools,
       handleCreateJobAreaValueChange,
+      isSubmittingOrder,
     ],
   );
 

@@ -79,6 +79,8 @@ interface FieldRenderCtx {
   isAmountField: boolean;
   onDeleteStart?: () => void;
   onDeleteEnd?: () => void;
+  /** Form submit in flight: locks attachment upload/delete without disabling the field. */
+  isSubmitting?: boolean;
   autocompleteValidation?: RefObject<Record<string, boolean>>;
   sparePartNotBelongsToTool?: RefObject<Record<string, boolean>>;
   radioSourceCallbacks?: Record<string, () => unknown[]>;
@@ -702,6 +704,7 @@ function renderUploadField(ctx: FieldRenderCtx): ReactElement {
     setFieldValue,
     onDeleteStart,
     onDeleteEnd,
+    isSubmitting,
   } = ctx;
   const { name } = field;
   let currentFiles;
@@ -718,6 +721,7 @@ function renderUploadField(ctx: FieldRenderCtx): ReactElement {
       <FileUpload
         name={name}
         isDisabled={effectiveIsDisabled}
+        isLocked={!!isSubmitting}
         onFilesSelected={(files) => {
           void setFieldValue(name, files);
         }}
@@ -1053,6 +1057,7 @@ function GenericField({ field, className, ...restProps }: Readonly<GenericFieldP
     resolveDefaultQuantities,
     allowedPositions: formAllowedPositions,
     disabledFields,
+    isSubmitting,
   } = useContext(GenericFormContext);
   const { allowedPositions: diagnosticsAllowedPositions, jobStatus } = useDiagnosticsContext();
   // Claim rows follow the claim's own rule; job rows the diagnostics rule.
@@ -1142,6 +1147,7 @@ function GenericField({ field, className, ...restProps }: Readonly<GenericFieldP
     isAmountField,
     onDeleteStart,
     onDeleteEnd,
+    isSubmitting,
     autocompleteValidation,
     sparePartNotBelongsToTool,
     radioSourceCallbacks,

@@ -35,6 +35,7 @@ export default function FileUpload({
   multiple = true,
   fileTypeOptions,
   isDisabled = false,
+  isLocked = false,
   initialFiles = [],
   existingFiles = [],
   onDeleteStart,
@@ -259,7 +260,7 @@ export default function FileUpload({
   });
 
   const isMaxReached = uniqueFiles.size >= maxFilesAllowed;
-  const isUploadAllowed = isDisabled || isMaxReached;
+  const isUploadAllowed = isDisabled || isLocked || isMaxReached;
 
   return (
     <>
@@ -326,7 +327,7 @@ export default function FileUpload({
                     return "Maximum files reached";
                   } else if (isDragging) {
                     return t("dropFilesHere");
-                  } else if (isDisabled) {
+                  } else if (isDisabled || isLocked) {
                     return t("fileUploadDisabled");
                   } else {
                     return (
@@ -357,6 +358,7 @@ export default function FileUpload({
                 dataTestid={file.attachmentId}
                 onDeleteStart={onDeleteStart}
                 onDeleteEnd={onDeleteEnd}
+                disableDelete={isLocked}
               />
             ))}
             {(files.length > 1 || maxFilesAllowed === 1) && (
@@ -368,7 +370,7 @@ export default function FileUpload({
                 icon={{ iconName: "delete", title: "delete" }}
                 label={files.length > 1 ? t("removeAll") : t("remove")}
                 className="action-buttons"
-                disabled={removeFilesMutation.isPending || isDisabled}
+                disabled={removeFilesMutation.isPending || isDisabled || isLocked}
               />
             )}
           </div>

@@ -1,4 +1,102 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import React from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+vi.mock("@/analytics", async () => ({
+  ...(await vi.importActual<Record<string, unknown>>("@/analytics")),
+  useAnalytics: () => ({ trackDocumentAction: vi.fn(), trackActionFailed: vi.fn() }),
+}));
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+
+vi.mock("@bosch/react-frok", () => ({
+  Icon: ({ iconName }: { iconName: string }) =>
+    React.createElement("span", { "data-testid": `icon-${iconName}` }),
+  Button: ({
+    label,
+    onClick,
+    disabled,
+  }: {
+    label: string;
+    onClick?: () => void;
+    disabled?: boolean;
+  }) => React.createElement("button", { type: "button", onClick, disabled }, label),
+  Dialog: ({ children }: { children: React.ReactNode }) =>
+    React.createElement("div", null, children),
+  Notification: ({ children }: { children: React.ReactNode }) =>
+    React.createElement("div", null, children),
+}));
+
+vi.mock("../../../api/services/file/action", () => ({
+  deleteFileFromServer: vi.fn().mockResolvedValue(undefined),
+  downloadFileFromServer: vi.fn().mockResolvedValue(new Blob(["data"])),
+  uploadFileToServer: vi.fn().mockResolvedValue({ attachments: [] }),
+}));
+
+vi.mock("./FilePreview/FilePreview", () => ({
+  default: () => null,
+}));
+
+vi.mock("../../../api/services/jobs/action", () => ({
+  deleteJobAttachment: vi.fn().mockResolvedValue([]),
+}));
+
+import FileUpload from "./FileUpload";
+import { deleteFileFromServer } from "../../../api/services/file/action";
+
+const uploadedFiles = [
+  { name: "a.pdf", type: "INVOICE", attachmentId: "att-1" },
+  { name: "b.pdf", type: "INVOICE", attachmentId: "att-2" },
+];
+
+function renderFileUpload(props: Record<string, unknown> = {}) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    React.createElement(
+      QueryClientProvider,
+      { client: qc },
+      React.createElement(FileUpload, {
+        name: "attachments",
+        fileTypeOptions: [],
+        initialFiles: uploadedFiles,
+        ...props,
+      }),
+    ),
+  );
+}
+
+describe("FileUpload locked state", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("keeps upload, per-row delete and remove all available when not locked", () => {
+    renderFileUpload();
+    expect(screen.getByLabelText(/dragAndDropFilesHere/)).toBeEnabled();
+    expect(screen.getByTestId("delete-document-att-1")).toBeEnabled();
+    expect(screen.getByTestId("delete-document-att-2")).toBeEnabled();
+    expect(screen.getByRole("button", { name: "removeAll" })).toBeEnabled();
+  });
+
+  it("disables upload, per-row delete and remove all while locked", async () => {
+    renderFileUpload({ isLocked: true });
+    expect(screen.getByLabelText("fileUploadDisabled")).toBeDisabled();
+    expect(screen.getByTestId("delete-document-att-1")).toBeDisabled();
+    expect(screen.getByTestId("delete-document-att-2")).toBeDisabled();
+    const removeAll = screen.getByRole("button", { name: "removeAll" });
+    expect(removeAll).toBeDisabled();
+
+    await userEvent.click(screen.getByTestId("delete-document-att-1"));
+    await userEvent.click(removeAll);
+    expect(deleteFileFromServer).not.toHaveBeenCalled();
+    expect(screen.getByTestId("document-file-att-1")).toBeInTheDocument();
+    expect(screen.getByTestId("document-file-att-2")).toBeInTheDocument();
+  });
+});
 
 /**
  * Tests for FileUpload validation logic.

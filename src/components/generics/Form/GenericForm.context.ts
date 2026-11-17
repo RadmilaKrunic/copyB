@@ -65,6 +65,11 @@ export interface GenericFormContextType {
   fieldValueRanges?: React.RefObject<Record<string, FieldValueRange>>;
   warrantyPanelInfo?: WarrantyPanelInfo;
   isRepairAnswerLocked?: boolean;
+  /**
+   * True while the form's submit request is in flight. Locks attachment upload/delete only; it
+   * is not part of a field's disabled state, so validation is unchanged.
+   */
+  isSubmitting?: boolean;
   /** Default quantity of protected spare-parts rows from the backend (job & claim). */
   resolveDefaultQuantities?: ResolveDefaultQuantities;
   /**
@@ -93,6 +98,7 @@ export const GenericFormContext = createContext<GenericFormContextType>({
   fieldValueRanges: undefined,
   warrantyPanelInfo: undefined,
   isRepairAnswerLocked: undefined,
+  isSubmitting: undefined,
   resolveDefaultQuantities: undefined,
   allowedPositions: undefined,
   selectedLaborRepairRule: undefined,

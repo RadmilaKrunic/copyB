@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
@@ -32,7 +32,11 @@ vi.mock("../../../api/services/jobs/action", () => ({
 }));
 
 import DocumentFile from "./DocumentFile";
-import { downloadFileFromServer } from "../../../api/services/file/action";
+import { deleteFileFromServer, downloadFileFromServer } from "../../../api/services/file/action";
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 function renderDocumentFile(props: Record<string, unknown> = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -88,6 +92,35 @@ describe("DocumentFile", () => {
     renderDocumentFile({ removeFile });
     await userEvent.click(screen.getByTestId("delete-document-test-doc"));
     expect(removeFile).toHaveBeenCalled();
+  });
+
+  it("disables delete and does not delete from the server when disableDelete=true", async () => {
+    renderDocumentFile({ disableDelete: true });
+    const deleteButton = screen.getByTestId("delete-document-test-doc");
+    expect(deleteButton).toBeDisabled();
+    await userEvent.click(deleteButton);
+    expect(deleteFileFromServer).not.toHaveBeenCalled();
+  });
+
+  it("does not call removeFile when disableDelete=true", async () => {
+    const removeFile = vi.fn();
+    renderDocumentFile({ disableDelete: true, removeFile });
+    await userEvent.click(screen.getByTestId("delete-document-test-doc"));
+    expect(removeFile).not.toHaveBeenCalled();
+  });
+
+  it("keeps download working when disableDelete=true", async () => {
+    renderDocumentFile({ disableDelete: true });
+    await userEvent.click(screen.getByRole("button", { name: "Download document: test.pdf" }));
+    expect(downloadFileFromServer).toHaveBeenCalledWith("file-123", "INVOICE", null);
+  });
+
+  it("deletes from the server when delete is enabled", async () => {
+    renderDocumentFile();
+    const deleteButton = screen.getByTestId("delete-document-test-doc");
+    expect(deleteButton).toBeEnabled();
+    await userEvent.click(deleteButton);
+    await waitFor(() => expect(deleteFileFromServer).toHaveBeenCalledWith("file-123"));
   });
 
   it("renders document icon", () => {
