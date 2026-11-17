@@ -240,7 +240,7 @@ export const handleFaultCodeSelection = async (
   if (beforeQuantityUpdate && !(await beforeQuantityUpdate())) return changedQuantities;
   if (protectedPositions.length === 0) return changedQuantities;
 
-  const serverQuantities = quantitiesRequest ? await quantitiesRequest : null;
+  const serverQuantities = quantitiesRequest === null ? null : await quantitiesRequest;
   return writeFaultCodeQuantities({
     allFields,
     protectedPositions,

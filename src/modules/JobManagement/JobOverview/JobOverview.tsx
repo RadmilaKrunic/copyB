@@ -1697,7 +1697,7 @@ export default function JobOverview() {
   const previousSummaryDetailed = jobFullData?.diagnostic?.priceSummaryDetailed;
   const onRecalculatePrices = useCallback(
     async (fieldName: string, value: unknown): Promise<void> => {
-      if (recalculationInFlightRef.current) return;
+      if (recalculationInFlightRef.current !== null) return;
       if (!allFieldsRef.current) return;
       const field = allFieldsRef.current?.find((f) => f.name === fieldName);
       if (!field) return;
@@ -1767,7 +1767,7 @@ export default function JobOverview() {
   // on the rows of its response.
   const onRecalculatePricesForHeaderChange = useCallback(
     async (field: HeaderRecalculationField, value: unknown): Promise<void> => {
-      while (recalculationInFlightRef.current) await recalculationInFlightRef.current;
+      while (recalculationInFlightRef.current !== null) await recalculationInFlightRef.current;
       const currentAllFields = allFieldsRef.current;
       const formValues = formValuesRef.current;
       if (!currentAllFields) return;
@@ -1805,7 +1805,7 @@ export default function JobOverview() {
   const onRecalculatePricesAfterRowsChange = useCallback(
     (formValues: Record<string, unknown>) => {
       const currentAllFields = allFieldsRef.current;
-      if (recalculationInFlightRef.current || !currentAllFields) return;
+      if (recalculationInFlightRef.current !== null || !currentAllFields) return;
       const payloadErrors = getRecalculationPayloadErrors(
         currentAllFields,
         validateByAction("validate", formValues),
