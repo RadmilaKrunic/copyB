@@ -19,6 +19,8 @@ import {
   getCustomerByLastName,
   getCustomerByDealershipName,
   getCustomerByCompanyName,
+  getCustomerByMobileNumber,
+  getCustomerByEmail,
   getCustomersByAsc,
   getCustomerById,
   getCustomerAssets,
@@ -210,6 +212,42 @@ describe("getCustomerByCompanyName", () => {
     mockGet.mockRejectedValueOnce({ message: "fail" });
     await expect(getCustomerByCompanyName("ASC01", "Company")).rejects.toThrow(
       "Error fetching customer by company name:",
+    );
+  });
+});
+
+describe("getCustomerByMobileNumber", () => {
+  it("returns customers on success", async () => {
+    mockGet.mockResolvedValueOnce({ data: mockCustomers });
+    const result = await getCustomerByMobileNumber("ASC01", "0987654321");
+    expect(result).toEqual(mockCustomers);
+    expect(mockGet).toHaveBeenCalledWith("/search/ASC01", {
+      params: { mobileNumber: "0987654321" },
+    });
+  });
+
+  it("throws error on failure", async () => {
+    mockGet.mockRejectedValueOnce({ message: "fail" });
+    await expect(getCustomerByMobileNumber("ASC01", "0987654321")).rejects.toThrow(
+      "Error fetching customer by mobile number:",
+    );
+  });
+});
+
+describe("getCustomerByEmail", () => {
+  it("returns customers on success", async () => {
+    mockGet.mockResolvedValueOnce({ data: mockCustomers });
+    const result = await getCustomerByEmail("ASC01", "john.doe@example.com");
+    expect(result).toEqual(mockCustomers);
+    expect(mockGet).toHaveBeenCalledWith("/search/ASC01", {
+      params: { email: "john.doe@example.com" },
+    });
+  });
+
+  it("throws error on failure", async () => {
+    mockGet.mockRejectedValueOnce({ message: "fail" });
+    await expect(getCustomerByEmail("ASC01", "john.doe@example.com")).rejects.toThrow(
+      "Error fetching customer by email:",
     );
   });
 });

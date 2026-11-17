@@ -395,6 +395,22 @@ describe("AscOverview", () => {
     expect(screen.getByTestId("loading")).toBeInTheDocument();
   });
 
+  it("refetches ASC data on mount", () => {
+    queryStateRef.current = {
+      data: undefined,
+      isLoading: true,
+    };
+
+    render(<AscOverview />);
+
+    expect(useQueryMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryKey: ["ASC", "ASC-1"],
+        refetchOnMount: "always",
+      }),
+    );
+  });
+
   it("resolves UI configuration using the ASC's default country", () => {
     queryStateRef.current = {
       isLoading: false,

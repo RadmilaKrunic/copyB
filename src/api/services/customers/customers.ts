@@ -46,6 +46,20 @@ export const getCustomerByLastName = async (
   return searchCustomers(ascId, { lastName }, "Error fetching customer by last name:");
 };
 
+export const getCustomerByMobileNumber = async (
+  ascId: string,
+  mobileNumber: string,
+): Promise<Customer[] | null> => {
+  return searchCustomers(ascId, { mobileNumber }, "Error fetching customer by mobile number:");
+};
+
+export const getCustomerByEmail = async (
+  ascId: string,
+  email: string,
+): Promise<Customer[] | null> => {
+  return searchCustomers(ascId, { email }, "Error fetching customer by email:");
+};
+
 export const getCustomerByDealershipName = async (
   ascId: string,
   dealershipName: string,
@@ -95,6 +109,8 @@ export const getCustomerJobs = async (
       searchTerm: query.searchTerm?.trim() || undefined,
       page: query.page ?? 0,
       size: query.size ?? 10,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
     },
   });
   return response.data;

@@ -43,7 +43,11 @@ import {
 import { useResourceUIConfiguration } from "hooks/useUIConfiguration";
 import { User } from "types/user.type";
 import { useClaimDecisionPermissions } from "hooks/useClaimDecisionPermissions";
-import { ImportedMaterial, useDiagnosticsManager } from "hooks/useDiagnosticsManager";
+import {
+  hasWarrantyOrProServiceItems,
+  ImportedMaterial,
+  useDiagnosticsManager,
+} from "hooks/useDiagnosticsManager";
 import { useClaimMaterialsManager } from "hooks/useClaimMaterialsManager";
 import { DiagnosticsContext } from "modules/JobManagement/JobOverview/DiagnosticsContext";
 import { ClaimContext } from "./ClaimContext";
@@ -803,7 +807,56 @@ export default function ClaimOverview() {
       },
     ) => {
       if (!claimId) return;
+
       await handleActionWithValidation("onRequestApproval", formValues, helpers, async () => {
+        const hasWarrantyOrProServiceItem = hasWarrantyOrProServiceItems(
+          allFields ?? [],
+          formValues,
+        );
+
+        if (hasWarrantyOrProServiceItem) {
+          let errorMessage: string | undefined;
+          const jobActionType = claimFullData?.jobType;
+          const isExchangeAction =
+            jobActionType === "NEW_TOOL_EXCHANGE" ||
+            jobActionType === "SPARE_PARTS_EXCHANGE" ||
+            jobActionType === "ACCESSORIES_EXCHANGE";
+
+          const hasProductPhoto = claimData?.job?.asset?.attachments?.some(
+            (file) => file?.type === "PRODUCT_PHOTO",
+          );
+          const serialNumber = claimData?.job?.asset?.serialNumber;
+
+          const isProductPhotoMissing =
+            (isExchangeAction || serialNumber === "999") && !hasProductPhoto;
+
+          const hasInvoiceAttachment = claimData?.job?.asset?.attachments?.some(
+            (file) => file?.type?.toLowerCase() === "invoice",
+          );
+
+          if (isProductPhotoMissing && !hasInvoiceAttachment) {
+            errorMessage = "errorMissingProductPhotoAndInvoice";
+          } else if (isProductPhotoMissing) {
+            errorMessage = "errorMissingProductPhoto";
+          } else if (!hasInvoiceAttachment) {
+            errorMessage = "InvoiceWarrantyValidation";
+          }
+
+          if (errorMessage) {
+            scrollToTop();
+            setMessages((prev) => [
+              ...prev,
+              {
+                text: t(errorMessage),
+                type: "error",
+                duration: 6000,
+              },
+            ]);
+            setSelectedTab("documents");
+            return;
+          }
+        }
+
         try {
           await requestApprovalMutation.mutateAsync({ claimId, jobId: claimData?.jobId });
           scrollToTop();
@@ -828,13 +881,17 @@ export default function ClaimOverview() {
     },
     [
       claimId,
-      claimData?.jobId,
       handleActionWithValidation,
-      requestApprovalMutation,
+      allFields,
+      claimFullData?.jobType,
+      claimData?.job?.asset?.attachments,
+      claimData?.jobId,
       setMessages,
       t,
       analytics,
       getClaimContext,
+      requestApprovalMutation,
+      claimData?.job?.asset?.serialNumber,
     ],
   );
 

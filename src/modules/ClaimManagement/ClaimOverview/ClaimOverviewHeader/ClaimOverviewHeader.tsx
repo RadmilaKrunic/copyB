@@ -45,6 +45,8 @@ function ClaimOverviewHeader() {
         icon: "user-mechanic",
         name: claim.job.assigneeName,
         subtitle: t("technician"),
+        employeeCode: claim.job?.employeeCode,
+        jobId: claim?.jobId,
       }}
       ascName={claim.ascName}
     />

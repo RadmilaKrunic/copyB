@@ -29,6 +29,7 @@ export interface ClientManagementCustomerBillingAddress {
 
 export interface ClientManagementCustomerDetails {
   customerId: string;
+  customerType?: string;
   name: string;
   phoneNumber: string;
   email: string;

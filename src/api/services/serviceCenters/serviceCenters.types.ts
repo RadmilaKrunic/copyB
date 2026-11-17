@@ -97,6 +97,7 @@ export interface ServiceCenter {
   };
   defaultCountry: string;
   preferredSelectedCountry: string;
+  zone: string | null;
   bankAccount: {
     accountId: number;
     accountNumber: string;

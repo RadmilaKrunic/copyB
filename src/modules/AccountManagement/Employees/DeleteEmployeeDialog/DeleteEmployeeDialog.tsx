@@ -31,6 +31,7 @@ function DeleteEmployeeDialog({
 
   return (
     <Dialog
+      modal
       className="confirm-delete"
       cancelLabel={t("cancel")}
       confirmLabel={t("confirm")}

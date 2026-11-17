@@ -54,7 +54,7 @@ const getSelectedLaborExchangeMethod = (
     return undefined;
   }
 
-  return laborCostConfig?.[selectedLaborExchangeFieldValue] as LaborExchangeMethod | undefined;
+  return laborCostConfig?.[selectedLaborExchangeFieldValue];
 };
 
 const getOrderedReasonTypes = (laborCostConfig: LaborCostMethodConfig): string[] => {

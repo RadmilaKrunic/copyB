@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { ClientManagementCustomer } from "api/services/clientManagement/clientManagement.types";
 import { getCustomerNameWithIcon } from "utils/customerUtils";
 
-export type ClientColumnKey = "name" | "email" | "phoneNumber" | "assetsCount";
+export type ClientColumnKey = "name" | "email" | "phoneNumber" | "assetsCount" | "customerType";
 
 export type ClientColumnConfig = {
   key: ClientColumnKey;
@@ -16,7 +16,10 @@ export const getClientColumns = (t: (key: string) => string): ClientColumnConfig
       key: "name",
       label: t("clientName"),
       render: (customer) =>
-        getCustomerNameWithIcon({ customerType: customer.customerType, firstName: customer.name }),
+        getCustomerNameWithIcon({
+          customerType: customer.customerType,
+          firstName: customer.name,
+        }),
     },
     {
       key: "email",
@@ -27,6 +30,11 @@ export const getClientColumns = (t: (key: string) => string): ClientColumnConfig
       key: "phoneNumber",
       label: t("phoneNumber"),
       render: (customer) => customer.phoneNumber || "-",
+    },
+    {
+      key: "customerType",
+      label: t("customerType"),
+      render: (customer) => t(`${customer.customerType}`) || "-",
     },
     {
       key: "assetsCount",

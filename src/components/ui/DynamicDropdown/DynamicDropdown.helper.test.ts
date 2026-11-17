@@ -265,6 +265,12 @@ describe("translateStaticOptions", () => {
     expect(result).toHaveLength(1);
   });
 
+  it("does not prepend a placeholder for zone dropdowns", () => {
+    const opts = [{ value: "A", name: "optionA" }];
+    const result = translateStaticOptions("zone", opts, mockT);
+    expect(result).toHaveLength(1);
+  });
+
   it("does not prepend a placeholder for serviceCenterType dropdowns", () => {
     const opts = [{ value: "ASC", name: "ASC" }];
     const result = translateStaticOptions("serviceCenterType", opts, mockT);

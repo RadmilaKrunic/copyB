@@ -113,6 +113,37 @@ describe("ClientAssetsTab", () => {
     expect(screen.getByText("12 results")).toBeInTheDocument();
   });
 
+  it.each([
+    ["2/2022", "2/2022"],
+    ["3/2021", "3/2021"],
+    ["11/2011", "11/2011"],
+    ["12/2014", "12/2014"],
+    ["999", "999"],
+    ["2024-01-15", "15.01.2024"],
+    ["", "-"],
+  ])("displays manufactured value %s as %s", (manufacturedOn, expected) => {
+    vi.mocked(useCustomerAssets).mockReturnValue({
+      data: {
+        page: { number: 0, totalElements: 1, totalPages: 1, size: 10 },
+        content: [
+          {
+            assetName: "Drill",
+            serialNumber: "SN-1",
+            bareToolNumber: "BT-1",
+            manufacturedOn,
+            purchaseDate: "2024-02-20",
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    } as never);
+
+    render(<ClientAssetsTab clientId="client-123" />);
+
+    expect(screen.getAllByRole("cell")[3]).toHaveTextContent(expected);
+  });
+
   it("requests the selected page and page size", () => {
     vi.mocked(useCustomerAssets).mockReturnValue({
       data: { page: { number: 0, totalElements: 12, totalPages: 3, size: 10 }, content: [] },

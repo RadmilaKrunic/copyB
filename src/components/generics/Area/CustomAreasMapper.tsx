@@ -19,7 +19,7 @@ export const getCustomArea = (area: Area) => {
     return <AccessoryArea area={area} readOnly={isReadOnly} />;
   }
   if (area.name.includes("claimDocumentList")) {
-    return <DocumentTabArea entityType="claim" />;
+    return <DocumentTabArea area={area} entityType="claim" />;
   }
 
   if (area.name.includes("documentList")) {

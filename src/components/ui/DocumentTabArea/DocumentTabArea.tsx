@@ -1,4 +1,4 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Area from "components/generics/Area/GenericArea.types";
 import { GenericFormContext } from "components/generics/Form/GenericForm.context";
 import GenericField from "components/generics/Field/GenericField";
@@ -8,7 +8,8 @@ import { useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import { useFormikContext } from "formik";
-import { useUpdateJobAttachments } from "api/services/jobs/hooks";
+import { useUpdateJobAttachments, useJobById } from "api/services/jobs/hooks";
+import { useClaimById } from "api/services/claims/hooks";
 import { HeaderUserData } from "api/services/header/action";
 import {
   checkActionCondition,
@@ -19,6 +20,8 @@ import "./DocumentTabArea.scss";
 import { scrollToTop } from "utils/scrollToError";
 import { useAnalytics, toFailureReason, AnalyticsEventName, JobSection } from "@/analytics";
 import { getCachedJobContext } from "modules/JobManagement/jobAnalyticsContext";
+import { ClaimItem } from "../../../modules/ClaimManagement/ClaimOverview/Claims.types";
+import { updateClaimAttachments } from "../../../api/services/claims/action";
 
 type WithJobAssetAttachments = {
   job: { asset: { attachments: Attachment[] }; isOnHold?: boolean; jobStatus?: string };
@@ -40,13 +43,27 @@ export default function DocumentTabArea({
   const { setMessages } = useContext(MessagesContext);
   const { values, setFieldValue } = useFormikContext<Record<string, unknown>>();
   const analytics = useAnalytics();
+  const isClaim = entityType === "claim";
 
-  const entityId = entityType === "claim" ? claimId : jobId;
-  const queryKey = [entityType === "claim" ? "claim" : "job", entityId];
+  const entityId = isClaim ? claimId : jobId;
+  const queryKey = [isClaim ? "claim" : "job", entityId];
+
+  // For claims, fetch both the claim and the job separately to ensure we have
+  // complete attachment data. The claim may not include all job details.
+  const claimQueryResult = useClaimById(isClaim ? entityId : "", {
+    enabled: isClaim && !!entityId,
+  });
+  // Fetch the job directly for claims to get complete attachment data
+  const jobQueryResult = useJobById(
+    isClaim && claimQueryResult.data?.jobId ? claimQueryResult.data.jobId : "",
+  );
 
   const saveDocumentsMutation = useUpdateJobAttachments({
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey });
+      if (isClaim && claimQueryResult.data?.jobId) {
+        void queryClient.invalidateQueries({ queryKey: ["job", claimQueryResult.data.jobId] });
+      }
       setMessages((prev) => [
         ...prev,
         { text: t("successSaveDocuments"), type: "success", duration: 3000 },
@@ -72,11 +89,41 @@ export default function DocumentTabArea({
     },
   });
 
-  const data = queryClient.getQueryData<WithJobAssetAttachments>(queryKey);
-  const currentStatus = data?.job?.jobStatus ?? "";
+  const updateClaimDocumentsMutation = useMutation({
+    mutationFn: ({ claimId, attachments }: { claimId: string; attachments: Attachment[] }) =>
+      updateClaimAttachments(claimId, attachments),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey });
+      if (claimQueryResult.data?.jobId) {
+        void queryClient.invalidateQueries({ queryKey: ["job", claimQueryResult.data.jobId] });
+      }
+      setMessages((prev) => [
+        ...prev,
+        { text: t("successSaveDocuments"), type: "success", duration: 3000 },
+      ]);
+      scrollToTop();
+    },
+    onError: () => {
+      setMessages((prev) => [
+        ...prev,
+        { text: t("errorSaveDocuments"), type: "error", duration: 3000 },
+      ]);
+      scrollToTop();
+    },
+  });
+
+  const jobData = isClaim ? null : queryClient.getQueryData<WithJobAssetAttachments>(queryKey);
+  const claimData = isClaim ? claimQueryResult.data : queryClient.getQueryData<ClaimItem>(queryKey);
+  // For claims, prefer job data fetched directly; fall back to claim's job data
+  const jobAttachments = isClaim
+    ? jobQueryResult.data?.job?.asset?.attachments
+    : jobData?.job?.asset?.attachments;
+  const claimJobAttachments = claimData?.job?.asset?.attachments;
+  const attachments = jobAttachments || claimJobAttachments || [];
+  const currentStatus = isClaim ? (claimData?.claimStatus ?? "") : (jobData?.job?.jobStatus ?? "");
 
   const userData = queryClient.getQueryData<HeaderUserData>(["user"]);
-  const isOnHold = data?.job?.isOnHold ?? false;
+  const isOnHold = jobData?.job?.isOnHold ?? false;
 
   const uploadField = area?.fields?.find((f) => f.type === "upload");
   const areaActions = area?.actions ?? [];
@@ -95,9 +142,7 @@ export default function DocumentTabArea({
   const isSaveDocumentsEnabled = saveAction
     ? checkActionCondition(saveAction.dependency?.enableAction, ctx)
     : true;
-  const isDeleteAllowed = entityType === "claim" ? false : !isOnHold && isUploadVisible;
-
-  const attachments = data?.job?.asset?.attachments || [];
+  const isDeleteAllowed = isClaim ? false : !isOnHold && isUploadVisible;
 
   const handleDeleteSuccess = (updatedAttachments: Attachment[]) => {
     setFieldValue("upload", []);
@@ -120,7 +165,11 @@ export default function DocumentTabArea({
 
   const updateEntityAttachments = (attachments: Attachment[]) => {
     if (!entityId || !isSaveDocumentsEnabled) return;
-    saveDocumentsMutation.mutate({ jobId: entityId, attachments });
+    if (isClaim) {
+      updateClaimDocumentsMutation.mutate({ claimId: entityId, attachments });
+    } else {
+      saveDocumentsMutation.mutate({ jobId: entityId, attachments });
+    }
   };
 
   return (

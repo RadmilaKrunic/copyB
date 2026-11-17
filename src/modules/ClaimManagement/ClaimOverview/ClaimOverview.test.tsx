@@ -42,6 +42,7 @@ const h = vi.hoisted(() => {
     useClaimById: vi.fn(),
     useClaimMaterialsManager: vi.fn(),
     useDiagnosticsManager: vi.fn(),
+    hasWarrantyOrProServiceItems: vi.fn(),
     setInitialFormValues: vi.fn(),
     setAllFields: vi.fn(),
     setTabs: vi.fn(),
@@ -221,6 +222,7 @@ vi.mock("hooks/useClaimDecisionPermissions", () => ({
 }));
 vi.mock("hooks/useDiagnosticsManager", () => ({
   useDiagnosticsManager: (args: unknown) => h.useDiagnosticsManager(args),
+  hasWarrantyOrProServiceItems: (...args: unknown[]) => h.hasWarrantyOrProServiceItems(...args),
 }));
 vi.mock("hooks/useClaimMaterialsManager", () => ({
   useClaimMaterialsManager: (args: unknown) => h.useClaimMaterialsManager(args),
@@ -554,6 +556,7 @@ beforeEach(() => {
   h.uiConfig = { isLoading: false, isError: false };
   h.uiConfigCountry = undefined;
   h.requestApproval.mockResolvedValue(undefined);
+  h.hasWarrantyOrProServiceItems.mockReturnValue(false);
   h.areAllActionsDisabled.mockReturnValue(false);
   h.setSectionDisabledState.mockImplementation((section: any, disabled?: boolean) => ({
     ...section,
@@ -1631,6 +1634,105 @@ describe("ClaimOverview request approval", () => {
     });
 
     await waitFor(() => expect(h.requestApproval).toHaveBeenCalledTimes(1));
+  });
+
+  describe("document validation for warranty or service items", () => {
+    const setWarrantyClaim = (
+      attachments: { type: string }[],
+      overrides: Record<string, unknown> = {},
+      serialNumber = "123",
+    ) => {
+      h.hasWarrantyOrProServiceItems.mockReturnValue(true);
+      setClaim(
+        makeClaim({
+          job: { id: "J-1", asset: { serialNumber, attachments } },
+          ...overrides,
+        }),
+      );
+    };
+
+    const expectBlocked = async (text: string) => {
+      await waitFor(() =>
+        expect(messagesFromSetMessages()).toContainEqual({ text, type: "error", duration: 6000 }),
+      );
+      expect(h.requestApproval).not.toHaveBeenCalled();
+      expect(h.scrollToTop).toHaveBeenCalled();
+      expect(h.captured.tabsSelectedValue).toBe("documents");
+    };
+
+    it("skips the document checks when there are no warranty or service items", async () => {
+      setClaim(makeClaim({ job: { id: "J-1", asset: { attachments: [] } } }));
+      renderClaim();
+
+      clickAction("onRequestApproval");
+
+      await waitFor(() => expect(h.requestApproval).toHaveBeenCalledTimes(1));
+    });
+
+    it("requires an invoice", async () => {
+      setWarrantyClaim([{ type: "OTHERS" }]);
+      renderClaim();
+
+      clickAction("onRequestApproval");
+
+      await expectBlocked("InvoiceWarrantyValidation");
+    });
+
+    it("requires an invoice when the job has no attachments", async () => {
+      setWarrantyClaim([]);
+      renderClaim();
+
+      clickAction("onRequestApproval");
+
+      await expectBlocked("InvoiceWarrantyValidation");
+    });
+
+    it("requires a product photo for an exchange job", async () => {
+      setWarrantyClaim([{ type: "INVOICE" }], { jobType: "NEW_TOOL_EXCHANGE" });
+      renderClaim();
+
+      clickAction("onRequestApproval");
+
+      await expectBlocked("errorMissingProductPhoto");
+    });
+
+    it("requires a product photo when the serial number is 999", async () => {
+      setWarrantyClaim([{ type: "INVOICE" }], {}, "999");
+      renderClaim();
+
+      clickAction("onRequestApproval");
+
+      await expectBlocked("errorMissingProductPhoto");
+    });
+
+    it("reports both a missing product photo and a missing invoice", async () => {
+      setWarrantyClaim([], { jobType: "SPARE_PARTS_EXCHANGE" });
+      renderClaim();
+
+      clickAction("onRequestApproval");
+
+      await expectBlocked("errorMissingProductPhotoAndInvoice");
+    });
+
+    it("accepts a lower-case invoice type and requests approval", async () => {
+      setWarrantyClaim([{ type: "invoice" }]);
+      renderClaim();
+
+      clickAction("onRequestApproval");
+
+      await waitFor(() => expect(h.requestApproval).toHaveBeenCalledTimes(1));
+    });
+
+    it("requests approval when exchange documents are complete", async () => {
+      setWarrantyClaim([{ type: "INVOICE" }, { type: "PRODUCT_PHOTO" }], {
+        jobType: "ACCESSORIES_EXCHANGE",
+      });
+      renderClaim();
+
+      clickAction("onRequestApproval");
+
+      await waitFor(() => expect(h.requestApproval).toHaveBeenCalledTimes(1));
+    });
   });
 });
 

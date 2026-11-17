@@ -30,6 +30,7 @@ export interface Job {
   assigneeID: string;
   assigneeName: string;
   ascId: string;
+  employeeCode?: string;
   internalReferenceNumber: string;
   jobStatus: string;
   jobCreationDate: string;

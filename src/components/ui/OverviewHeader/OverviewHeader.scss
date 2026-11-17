@@ -22,12 +22,18 @@
         line-height: 30px;
       }
 
-      .overview-creation-date {
+      .overview-info-item {
         color: var(--bosch-gray-35);
         font-size: 16px;
         font-style: normal;
         font-weight: 400;
         line-height: 30px;
+      }
+
+      .employee-code {
+        color: var(--bosch-gray-35);
+        font-size: 12px;
+        margin-left: 0.5rem;
       }
     }
   }

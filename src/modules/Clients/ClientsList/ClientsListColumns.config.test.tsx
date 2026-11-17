@@ -28,7 +28,13 @@ describe("getClientColumns", () => {
   it("returns exactly 4 columns with the expected keys and order", () => {
     const columns = getClientColumns(t);
 
-    expect(columns.map((c) => c.key)).toEqual(["name", "email", "phoneNumber", "assetsCount"]);
+    expect(columns.map((c) => c.key)).toEqual([
+      "name",
+      "email",
+      "phoneNumber",
+      "customerType",
+      "assetsCount",
+    ]);
   });
 
   it("uses the translation function to build each label", () => {

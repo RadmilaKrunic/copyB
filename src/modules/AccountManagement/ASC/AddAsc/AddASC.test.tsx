@@ -292,6 +292,7 @@ vi.mock("../ASC.utils", async () => {
         args[0] as Parameters<typeof actual.mapLaborCostDetailsToApiPayload>[0],
         args[1] as Parameters<typeof actual.mapLaborCostDetailsToApiPayload>[1],
         args[2] as Parameters<typeof actual.mapLaborCostDetailsToApiPayload>[2],
+        args[3] as Parameters<typeof actual.mapLaborCostDetailsToApiPayload>[3],
       );
     },
     mapExchangeLaborCostTableDataFromFormValues: (...args: unknown[]) => {
@@ -769,6 +770,91 @@ describe("AddASC", () => {
           }),
         }),
       );
+    });
+  });
+
+  it("preserves draft labor tables when submitting without editing them", async () => {
+    useParamsMock.mockReturnValue({ ascId: "ASC-DRAFT" });
+    formikValuesRef.current = {
+      ...formikValuesRef.current,
+      sparePartLaborUnits_0: undefined,
+      sparePartLaborUnits_1: undefined,
+      sparePartLaborUnits_2: undefined,
+      newToolExchangeLaborUnits_0: undefined,
+      newToolExchangeLaborUnits_1: undefined,
+      newToolExchangeLaborUnits_2: undefined,
+      accessoryLaborUnits_0: undefined,
+      accessoryLaborUnits_1: undefined,
+      accessoryLaborUnits_2: undefined,
+    };
+    queryDataRef.current.countryConfiguration.laborCostMethod.repairCostConfiguration.repairCosts[0] =
+      {
+        method: "MATRIX",
+        level: "L1",
+        ranges: [],
+        value: null,
+      };
+    ascQueryDataRef.current = {
+      serviceCenter: {
+        ascId: "ASC-DRAFT",
+        address: {
+          street: "Street",
+          houseNumber: "1",
+          city: "City",
+          stateProvinceRegion: "TR",
+          postalCode: "1000",
+          countryCode: "TR",
+        },
+        laborCostMethod: {
+          repairCosts: [
+            {
+              method: "MATRIX",
+              level: "L1",
+              ranges: [{ labourUnitRange: [0, 10], value: 987 }],
+              value: null,
+            },
+          ],
+          newToolExchange: {
+            prices: [],
+            reasonMapping: [{ reasonType: "REASON_A", matrix: [{ level: "L1", labourUnit: 777 }] }],
+          },
+          accessoryExchange: {
+            prices: [],
+            reasonMapping: [{ reasonType: "REASON_B", matrix: [{ level: "L1", labourUnit: 666 }] }],
+          },
+          sparePartsExchange: {
+            prices: [],
+            reasonMapping: [{ reasonType: "REASON_C", matrix: [{ level: "L1", labourUnit: 555 }] }],
+          },
+        },
+        reimbursementConfig: [],
+      },
+      firstUser: {},
+    };
+    validateByActionMock.mockReturnValue({});
+
+    render(<AddASC />);
+    fireEvent.click(screen.getByTestId("action-submit"));
+
+    await waitFor(() => {
+      expect(mutateMock).toHaveBeenCalled();
+    });
+
+    const submittedPayload = mutateMock.mock.calls[0][0].payload.serviceCenter.laborCostMethod;
+    expect(submittedPayload.repairCosts[0].ranges).toEqual([
+      { labourUnitRange: [0, 10], value: 987 },
+    ]);
+    expect(submittedPayload.newToolExchange.reasonMapping[0].matrix).toContainEqual({
+      level: "L1",
+      labourUnit: 777,
+    });
+    expect(submittedPayload.accessoryExchange.reasonMapping[0].matrix).toContainEqual({
+      level: "L1",
+      labourUnit: 666,
+    });
+    expect(submittedPayload.sparePartsExchange.reasonMapping[0].matrix).toContainEqual({
+      level: "L1",
+      labourUnit: 555,
     });
   });
 

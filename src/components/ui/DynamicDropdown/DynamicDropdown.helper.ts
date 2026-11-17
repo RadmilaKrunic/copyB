@@ -195,7 +195,8 @@ export const translateStaticOptions = (
     !dropDownName.includes("serviceCenterType") &&
     !dropDownName.includes("country") &&
     !dropDownName.includes("preferredSelectedCountry") &&
-    !dropDownName.includes("countryCode");
+    !dropDownName.includes("countryCode") &&
+    !dropDownName.includes("zone");
 
   if (!opts) return [];
   // Some callers (e.g. ClaimSparePartsRow/SparePartsRow position fields) already

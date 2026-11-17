@@ -1,301 +1,153 @@
-import { describe, it, expect } from "vitest";
-import {
-  getCustomerCollapsedTitle,
-  getAssetCollapsedTitle,
-  getMissingAddressFieldLabels,
-  getDeliveryAddressConfirmationInfo,
-} from "../../../modules/JobManagement/CreateJob/CreateJob.utils";
+import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import DeliveryAddressConfirmModal from "./DeliveryAddressConfirmModal";
 
-describe("getCustomerCollapsedTitle", () => {
-  it("builds title from firstName, phone, and email", () => {
-    const values: Record<string, unknown> = {
-      firstName: "John",
-      phoneNumber: "123456789",
-      email: "john@example.com",
-    };
-    expect(getCustomerCollapsedTitle(values)).toBe("John | 123456789 | john@example.com");
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+
+vi.mock("@bosch/react-frok", () => ({
+  Dialog: ({
+    open,
+    title,
+    children,
+    onClose,
+    "data-testid": testId,
+  }: {
+    open: boolean;
+    title: string;
+    children: React.ReactNode;
+    onClose: (event?: React.SyntheticEvent) => void;
+    "data-testid"?: string;
+  }) =>
+    open ? (
+      <div role="dialog" data-testid={testId}>
+        <h2>{title}</h2>
+        <button data-testid="mock-dialog-close" onClick={(event) => onClose(event)}>
+          close
+        </button>
+        {children}
+      </div>
+    ) : null,
+  Button: ({
+    children,
+    onClick,
+    "data-testid": testId,
+  }: {
+    children: React.ReactNode;
+    onClick?: () => void;
+    "data-testid"?: string;
+  }) => (
+    <button onClick={onClick} data-testid={testId}>
+      {children}
+    </button>
+  ),
+}));
+
+const defaultProps = {
+  isOpen: true,
+  missingFieldLabels: [] as string[],
+  isAddressCompletelyEmpty: false,
+  onConfirm: vi.fn(),
+  onCancel: vi.fn(),
+};
+
+function setup(overrides: Partial<typeof defaultProps> = {}) {
+  const props = {
+    ...defaultProps,
+    onConfirm: vi.fn(),
+    onCancel: vi.fn(),
+    ...overrides,
+  };
+  render(<DeliveryAddressConfirmModal {...props} />);
+  return props;
+}
+
+describe("DeliveryAddressConfirmModal", () => {
+  it("does not render the dialog when isOpen is false", () => {
+    setup({ isOpen: false });
+
+    expect(screen.queryByTestId("delivery-address-confirm-modal")).not.toBeInTheDocument();
   });
 
-  it("uses firstNameInPri over firstName", () => {
-    const values: Record<string, unknown> = {
-      firstNameInPri: "Alice",
-      firstName: "Bob",
-      email: "alice@example.com",
-    };
-    expect(getCustomerCollapsedTitle(values)).toContain("Alice");
+  it("renders title and description when open", () => {
+    setup();
+
+    expect(screen.getByTestId("delivery-address-confirm-modal")).toBeInTheDocument();
+    expect(screen.getByText("deliveryAddressConfirmModalTitle")).toBeInTheDocument();
+    expect(screen.getByText("deliveryAddressConfirmModalText")).toBeInTheDocument();
   });
 
-  it("uses companyName when no first name present", () => {
-    const values: Record<string, unknown> = {
-      companyName: "Bosch GmbH",
-      email: "contact@bosch.com",
-    };
-    expect(getCustomerCollapsedTitle(values)).toContain("Bosch GmbH");
+  it("does not render the missing fields list when there are no missing fields", () => {
+    setup({ missingFieldLabels: [] });
+
+    expect(screen.queryByTestId("delivery-address-confirm-missing-list")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("deliveryAddressConfirmModalMissingFieldsLabel"),
+    ).not.toBeInTheDocument();
   });
 
-  it("uses dealershipName as fallback customer name", () => {
-    const values: Record<string, unknown> = { dealershipName: "Tech Dealer" };
-    expect(getCustomerCollapsedTitle(values)).toBe("Tech Dealer");
+  it("renders a list item for every missing field label", () => {
+    setup({ missingFieldLabels: ["neighborhood", "district"] });
+
+    const items = within(screen.getByTestId("delivery-address-confirm-missing-list")).getAllByRole(
+      "listitem",
+    );
+
+    expect(screen.getByText("deliveryAddressConfirmModalMissingFieldsLabel")).toBeInTheDocument();
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveTextContent("neighborhood");
+    expect(items[1]).toHaveTextContent("district");
   });
 
-  it("returns empty string when all values are empty", () => {
-    expect(getCustomerCollapsedTitle({})).toBe("");
+  it("shows 'addDeliveryAddress' on the cancel button when address is completely empty", () => {
+    setup({ isAddressCompletelyEmpty: true });
+
+    expect(screen.getByTestId("delivery-address-confirm-cancel-button")).toHaveTextContent(
+      "addDeliveryAddress",
+    );
   });
 
-  it("uses mobileNumber when phoneNumber is absent", () => {
-    const values: Record<string, unknown> = {
-      firstName: "Jane",
-      mobileNumber: "987654321",
-    };
-    expect(getCustomerCollapsedTitle(values)).toBe("Jane | 987654321");
+  it("shows 'completeDeliveryAddress' on the cancel button when address is partially filled", () => {
+    setup({ isAddressCompletelyEmpty: false });
+
+    expect(screen.getByTestId("delivery-address-confirm-cancel-button")).toHaveTextContent(
+      "completeDeliveryAddress",
+    );
   });
 
-  it("uses phoneNumberInPri when phoneNumber absent", () => {
-    const values: Record<string, unknown> = {
-      firstName: "Jane",
-      phoneNumberInPri: "111222333",
-    };
-    expect(getCustomerCollapsedTitle(values)).toBe("Jane | 111222333");
+  it("shows 'yes' on the confirm button", () => {
+    setup();
+
+    expect(screen.getByTestId("delivery-address-confirm-yes-button")).toHaveTextContent("yes");
   });
 
-  it("uses emailInPri when email absent", () => {
-    const values: Record<string, unknown> = {
-      firstName: "Jane",
-      emailInPri: "jane@pri.com",
-    };
-    expect(getCustomerCollapsedTitle(values)).toBe("Jane | jane@pri.com");
-  });
-});
+  it("calls onConfirm when the confirm button is clicked", () => {
+    const props = setup();
 
-describe("getAssetCollapsedTitle", () => {
-  it("builds title from toolModelName, baretoolNumber, serialNumber", () => {
-    const values: Record<string, unknown> = {
-      "assetData#0_asset_toolModelName": "Model X",
-      "assetData#0_asset_baretoolNumber": "BT-123",
-      "assetData#0_asset_serialNumber": "SN-456",
-    };
-    expect(getAssetCollapsedTitle(values, 0)).toBe("Model X | BT-123 | SN-456");
+    fireEvent.click(screen.getByTestId("delivery-address-confirm-yes-button"));
+
+    expect(props.onConfirm).toHaveBeenCalledTimes(1);
+    expect(props.onCancel).not.toHaveBeenCalled();
   });
 
-  it("uses correct index prefix", () => {
-    const values: Record<string, unknown> = {
-      "assetData#1_asset_toolModelName": "Model Y",
-      "assetData#1_asset_baretoolNumber": "BT-999",
-      "assetData#1_asset_serialNumber": "",
-    };
-    expect(getAssetCollapsedTitle(values, 1)).toBe("Model Y | BT-999");
+  it("calls onCancel when the cancel button is clicked", () => {
+    const props = setup();
+
+    fireEvent.click(screen.getByTestId("delivery-address-confirm-cancel-button"));
+
+    expect(props.onCancel).toHaveBeenCalledTimes(1);
+    expect(props.onConfirm).not.toHaveBeenCalled();
   });
 
-  it("returns empty string when all asset values are empty", () => {
-    expect(getAssetCollapsedTitle({}, 0)).toBe("");
-  });
+  it("calls onCancel and prevents the default event when the dialog is closed", () => {
+    const props = setup();
 
-  it("excludes blank parts from the title", () => {
-    const values: Record<string, unknown> = {
-      "assetData#0_asset_toolModelName": "",
-      "assetData#0_asset_baretoolNumber": "BT-001",
-      "assetData#0_asset_serialNumber": "",
-    };
-    expect(getAssetCollapsedTitle(values, 0)).toBe("BT-001");
-  });
-});
+    // fireEvent returns false when preventDefault was called on the event
+    const notPrevented = fireEvent.click(screen.getByTestId("mock-dialog-close"));
 
-describe("getMissingAddressFieldLabels", () => {
-  it("checks delivery address fields when useBillingAddressForDelivery is false", () => {
-    const values: Record<string, unknown> = {
-      useBillingAddressForDelivery: false,
-      deliveryStreetName: "Main St",
-      deliveryHouseNumber: "12",
-      deliveryPostalCode: "10000",
-      deliveryCity: "Istanbul",
-      deliveryCountry: "TR",
-    };
-
-    const result = getMissingAddressFieldLabels(values);
-
-    expect(result).toEqual(["neighborhood", "district"]);
-  });
-
-  it("checks billing address fields when useBillingAddressForDelivery is true", () => {
-    const values: Record<string, unknown> = {
-      useBillingAddressForDelivery: true,
-      streetName: "Billing St",
-      houseNumber: "5",
-      postalCode: "34000",
-      city: "Ankara",
-      countryCode: "TR",
-    };
-
-    const result = getMissingAddressFieldLabels(values);
-
-    expect(result).toEqual(["neighborhood", "district"]);
-  });
-
-  it("returns empty array when all relevant fields are filled", () => {
-    const values: Record<string, unknown> = {
-      useBillingAddressForDelivery: false,
-      deliveryStreetName: "Main St",
-      deliveryHouseNumber: "12",
-      deliveryNeighborhood: "Center",
-      deliveryPostalCode: "10000",
-      deliveryDistrict: "District 1",
-      deliveryCity: "Istanbul",
-      deliveryCountry: "TR",
-    };
-
-    expect(getMissingAddressFieldLabels(values)).toEqual([]);
-  });
-
-  it("returns all field labels when address is completely empty", () => {
-    const values: Record<string, unknown> = {
-      useBillingAddressForDelivery: false,
-    };
-
-    const result = getMissingAddressFieldLabels(values);
-
-    expect(result).toEqual([
-      "streetName",
-      "houseNumber",
-      "neighborhood",
-      "postalCode",
-      "district",
-      "city",
-      "state",
-      "country",
-    ]);
-  });
-
-  it("treats whitespace-only string values as empty", () => {
-    const values: Record<string, unknown> = {
-      useBillingAddressForDelivery: false,
-      deliveryStreetName: "   ",
-      deliveryHouseNumber: "12",
-      deliveryNeighborhood: "Center",
-      deliveryPostalCode: "10000",
-      deliveryDistrict: "District 1",
-      deliveryCity: "Istanbul",
-      deliveryCountry: "TR",
-    };
-
-    expect(getMissingAddressFieldLabels(values)).toEqual(["streetName"]);
-  });
-});
-
-describe("getDeliveryAddressConfirmationInfo", () => {
-  it("returns null when pickupType is not DELIVERY", () => {
-    const values: Record<string, unknown> = {
-      pickupType: "PICKUP_IN_WORKSHOP",
-    };
-
-    expect(getDeliveryAddressConfirmationInfo(values)).toBeNull();
-  });
-
-  it("returns null when delivery address is fully filled and billing not used", () => {
-    const values: Record<string, unknown> = {
-      pickupType: "DELIVERY",
-      useBillingAddressForDelivery: false,
-      deliveryStreetName: "Main St",
-      deliveryHouseNumber: "12",
-      deliveryNeighborhood: "Center",
-      deliveryPostalCode: "10000",
-      deliveryDistrict: "District 1",
-      deliveryCity: "Istanbul",
-      deliveryCountry: "TR",
-    };
-
-    expect(getDeliveryAddressConfirmationInfo(values)).toBeNull();
-  });
-
-  it("returns null when billing address is fully filled and useBillingAddressForDelivery is true", () => {
-    const values: Record<string, unknown> = {
-      pickupType: "DELIVERY",
-      useBillingAddressForDelivery: true,
-      streetName: "Billing St",
-      houseNumber: "5",
-      neighborhood: "Center",
-      postalCode: "34000",
-      district: "District 1",
-      city: "Ankara",
-      countryCode: "TR",
-    };
-
-    expect(getDeliveryAddressConfirmationInfo(values)).toBeNull();
-  });
-
-  it("returns info with isAddressCompletelyEmpty=true when delivery address is fully empty, ignoring default country value", () => {
-    const values: Record<string, unknown> = {
-      pickupType: "DELIVERY",
-      useBillingAddressForDelivery: false,
-      deliveryCountry: "TR",
-    };
-
-    const result = getDeliveryAddressConfirmationInfo(values);
-
-    expect(result).not.toBeNull();
-    expect(result?.isAddressCompletelyEmpty).toBe(true);
-    expect(result?.missingFieldLabels).toEqual([
-      "streetName",
-      "houseNumber",
-      "neighborhood",
-      "postalCode",
-      "district",
-      "city",
-    ]);
-  });
-
-  it("returns info with isAddressCompletelyEmpty=true when billing address is fully empty, ignoring default country value", () => {
-    const values: Record<string, unknown> = {
-      pickupType: "DELIVERY",
-      useBillingAddressForDelivery: true,
-      countryCode: "TR",
-    };
-
-    const result = getDeliveryAddressConfirmationInfo(values);
-
-    expect(result).not.toBeNull();
-    expect(result?.isAddressCompletelyEmpty).toBe(true);
-  });
-
-  it("returns info with isAddressCompletelyEmpty=false when address is partially filled", () => {
-    const values: Record<string, unknown> = {
-      pickupType: "DELIVERY",
-      useBillingAddressForDelivery: false,
-      deliveryStreetName: "Main St",
-      deliveryHouseNumber: "12",
-      deliveryPostalCode: "10000",
-      deliveryCity: "Istanbul",
-      deliveryCountry: "TR",
-    };
-
-    const result = getDeliveryAddressConfirmationInfo(values);
-
-    expect(result).not.toBeNull();
-    expect(result?.isAddressCompletelyEmpty).toBe(false);
-    expect(result?.missingFieldLabels).toEqual(["neighborhood", "district"]);
-  });
-
-  it("switches to checking billing fields when useBillingAddressForDelivery changes from false to true", () => {
-    const deliveryValues: Record<string, unknown> = {
-      pickupType: "DELIVERY",
-      useBillingAddressForDelivery: false,
-      streetName: "Billing St",
-      houseNumber: "5",
-      neighborhood: "Center",
-      postalCode: "34000",
-      district: "District 1",
-      city: "Ankara",
-      countryCode: "TR",
-    };
-
-    const deliveryResult = getDeliveryAddressConfirmationInfo(deliveryValues);
-    expect(deliveryResult).not.toBeNull();
-    expect(deliveryResult?.isAddressCompletelyEmpty).toBe(true);
-
-    const billingValues: Record<string, unknown> = {
-      ...deliveryValues,
-      useBillingAddressForDelivery: true,
-    };
-
-    expect(getDeliveryAddressConfirmationInfo(billingValues)).toBeNull();
+    expect(notPrevented).toBe(false);
+    expect(props.onCancel).toHaveBeenCalledTimes(1);
+    expect(props.onConfirm).not.toHaveBeenCalled();
   });
 });

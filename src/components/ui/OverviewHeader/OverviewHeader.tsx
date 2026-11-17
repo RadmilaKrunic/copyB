@@ -80,12 +80,29 @@ function OverviewHeader({
     <div className="overview-header">
       <div className="overview-meta">
         <div className="overview-info">
-          <div className="overview-id">
-            {idLabel} ({id})
-          </div>
+          {idLabel && id && (
+            <div className="overview-id">
+              {idLabel} ({id})
+            </div>
+          )}
           <div className="overview-creation-date">
             {createdAtLabel}: {createdAt}
           </div>
+          {type === "claim" && assigneeInfo && (
+            <>
+              <div className="overview-info-item">
+                {t("assignee")}: {assigneeInfo.name}
+                {assigneeInfo?.employeeCode && (
+                  <span className="employee-code">
+                    ({t("employeeCode")} {assigneeInfo?.employeeCode})
+                  </span>
+                )}
+              </div>
+              <div className="overview-info-item">
+                {t("jobId")}: {assigneeInfo?.jobId}
+              </div>
+            </>
+          )}
         </div>
         {historyLink && <Link to={historyLink.href}>{historyLink.label}</Link>}
       </div>

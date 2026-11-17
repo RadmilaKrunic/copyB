@@ -4,6 +4,7 @@ import { GenericActions } from "../Action/GenericAction.types";
 interface Area {
   name: string;
   label: string;
+  subtitle?: string;
   position: number;
   fields: Field[];
   dependFieldCondition: string;

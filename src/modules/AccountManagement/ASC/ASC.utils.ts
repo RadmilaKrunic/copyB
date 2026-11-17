@@ -11,7 +11,6 @@ import {
   RepairCosts,
 } from "../../../api/services/laborCost/laborCost";
 import Section from "../../../components/generics/Section/GenericSection.types";
-import { GenericActions } from "../../../components/generics/Action/GenericAction.types";
 import type { LaborExchangeRow } from "./AscLaborRulesExchangeArea/AscLaborRulesExchangeArea.utils";
 import { LABOR_EXCHANGE_RULES_TO_LEVEL } from "./AscLaborRulesExchangeArea/AscLaborRulesExchangeArea.utils";
 
@@ -47,7 +46,7 @@ const LABOR_REPAIR_RULE_TO_LEVEL: Record<string, string> = {
   level3Repair: "L3",
 };
 
-const LABOR_REPAIR_LEVEL_TO_RULE: Record<string, string> = {
+export const LABOR_REPAIR_LEVEL_TO_RULE: Record<string, string> = {
   L1: "level1Repair",
   L2: "level2Repair",
   L3: "level3Repair",
@@ -137,13 +136,13 @@ const updateLaborAreaActions = (
         return {
           ...action,
           mode: "primary",
-        } as GenericActions;
+        };
       }
 
       return {
         ...action,
         mode: action.name === selectedActionName ? "primary" : "secondary",
-      } as GenericActions;
+      };
     }),
   };
 };
@@ -303,6 +302,7 @@ export const mapGeneralInfo = (generalInfo: Record<string, any>) => {
   generalInfoData.companyVATNumber = generalInfo.companyVATNumber;
   generalInfoData.isActive = generalInfo.isActive;
   generalInfoData.preferredSelectedCountry = generalInfo.preferredSelectedCountry;
+  generalInfoData.zone = generalInfo.zone;
   generalInfoData.address = {
     street: generalInfo.streetName,
     houseNumber: generalInfo.houseNumber,

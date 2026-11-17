@@ -3,6 +3,8 @@ import { render, screen, fireEvent, act } from "@testing-library/react";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
+import { Attachment } from "modules/JobManagement/JobList/JobList.types";
+import { Claim } from "./ClaimList.types";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -22,6 +24,12 @@ const { bulkApproveMutate, setMessagesMock } = vi.hoisted(() => ({
   setMessagesMock: vi.fn(),
 }));
 let claimsState: { data: unknown[]; isLoading: boolean } = { data: [], isLoading: false };
+interface DocumentDetail {
+  jobId?: string;
+  job?: { asset: { attachments: Attachment[] } };
+}
+let claimDetail: DocumentDetail | undefined;
+let documentJob: DocumentDetail | undefined;
 let bulkApproveOptions: {
   onSuccess?: (data: unknown, variables: { decision: string; claimIds: string[] }) => void;
   onError?: (error: unknown, variables: { decision: string; claimIds: string[] }) => void;
@@ -38,11 +46,14 @@ vi.mock("@/analytics", async () => ({
 
 vi.mock("api/services/claims/hooks", () => ({
   useClaims: () => claimsState,
-  useClaimById: () => ({ data: null }),
+  useClaimById: vi.fn((claimId: string) => ({ data: claimId ? claimDetail : undefined })),
   useBulkApproveClaims: (options: typeof bulkApproveOptions) => {
     bulkApproveOptions = options;
     return { mutate: bulkApproveMutate, isPending: false };
   },
+}));
+vi.mock("api/services/jobs/hooks", () => ({
+  useJobById: vi.fn((jobId: string) => ({ data: jobId ? documentJob : undefined })),
 }));
 vi.mock("contexts/messagescontext", () => ({
   MessagesContext: React.createContext({ setMessages: setMessagesMock }),
@@ -115,7 +126,15 @@ vi.mock("components/ui/List/Filters/Filters", () => ({
   },
 }));
 vi.mock("components/ui/List/Table/Table", () => ({
-  default: ({ onSelectionChange }: { onSelectionChange?: (rows: string[]) => void }) =>
+  default: ({
+    onSelectionChange,
+    data,
+    renderRowActions,
+  }: {
+    onSelectionChange?: (rows: string[]) => void;
+    data: Claim[];
+    renderRowActions: (claim: Claim) => React.ReactNode;
+  }) =>
     React.createElement(
       "div",
       { "data-testid": "table" },
@@ -124,19 +143,56 @@ vi.mock("components/ui/List/Table/Table", () => ({
         { type: "button", onClick: () => onSelectionChange?.(["claim-1"]) },
         "select-row",
       ),
+      data.map((claim) =>
+        React.createElement("div", { key: claim.claimId }, renderRowActions(claim)),
+      ),
     ),
 }));
 vi.mock("components/ui/Pagination/Pagination", () => ({
   default: () => React.createElement("div", { "data-testid": "pagination" }),
 }));
 vi.mock("components/ui/DocumentsModal/DocumentsModal", () => ({
-  default: () => React.createElement("div", { "data-testid": "docs-modal" }),
+  default: ({
+    attachments,
+    hideDelete,
+    onClose,
+  }: {
+    attachments: Attachment[];
+    hideDelete: boolean;
+    onClose: () => void;
+  }) =>
+    React.createElement(
+      "div",
+      { "data-testid": "docs-modal", "data-hide-delete": String(hideDelete) },
+      attachments.map((attachment) =>
+        React.createElement("div", { key: attachment.attachmentId }, attachment.name),
+      ),
+      React.createElement("button", { onClick: onClose }, "close-documents"),
+    ),
 }));
 vi.mock("components/ui/MessagesModal/MessagesModal", () => ({
   default: () => React.createElement("div", { "data-testid": "messages-modal" }),
 }));
 vi.mock("./ClaimListTable/ClaimActionsFlyout/ClaimActionsFlyout", () => ({
-  default: () => React.createElement("div"),
+  default: ({
+    claim,
+    setSelectedClaimId,
+    setShowDocumentModal,
+  }: {
+    claim: Claim;
+    setSelectedClaimId: (id: string) => void;
+    setShowDocumentModal: (show: boolean) => void;
+  }) =>
+    React.createElement(
+      "button",
+      {
+        onClick: () => {
+          setSelectedClaimId(claim.claimId);
+          setShowDocumentModal(true);
+        },
+      },
+      `documents-${claim.claimId}`,
+    ),
 }));
 vi.mock(
   "components/ui/List/Filters/FiltersOptionsPopup/CustomizeColumnsPopup/CustomizeColumnsPopup",
@@ -148,8 +204,35 @@ vi.mock("./ClaimListExportDialog/ClaimListExportDialog", () => ({
 
 import ClaimList from "./ClaimList";
 import { useHasPermission } from "hooks/useHasPermission";
+import { useClaimById } from "api/services/claims/hooks";
+import { useJobById } from "api/services/jobs/hooks";
 
 const mockedUseHasPermission = vi.mocked(useHasPermission);
+const invoice: Attachment = { attachmentId: "invoice", name: "Invoice.jpeg", type: "INVOICE" };
+const receipt: Attachment = {
+  attachmentId: "receipt",
+  name: "JobReceipt.pdf",
+  type: "SYSTEM_GENERATED_RECEIPT",
+};
+const deliveryNote: Attachment = {
+  attachmentId: "delivery-note",
+  name: "DeliveryNote.pdf",
+  type: "SYSTEM_GENERATED_RECEIPT",
+};
+const documentClaim: Claim = {
+  claimId: "CA0000181",
+  jobId: "JA0001251",
+  createdOn: "2026-09-25",
+  countryCode: "TR",
+  ascId: "ASC1",
+  ascName: "ASC",
+  toolModelName: "GBH 2600",
+  baretoolNumber: "0611254803",
+  jobAction: "REPAIR",
+  jobType: "WARRANTY",
+  totalCost: 0,
+  status: "PENDING",
+};
 
 function renderClaimList() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -167,7 +250,70 @@ describe("ClaimList", () => {
     vi.clearAllMocks();
     sessionStorage.clear();
     claimsState = { data: [], isLoading: false };
+    claimDetail = undefined;
+    documentJob = undefined;
     mockedUseHasPermission.mockReturnValue(true);
+  });
+
+  it("shows all linked job documents in the read-only claim documents modal", () => {
+    claimsState.data = [documentClaim];
+    claimDetail = { jobId: documentClaim.jobId, job: { asset: { attachments: [invoice] } } };
+    documentJob = { job: { asset: { attachments: [invoice, receipt, deliveryNote] } } };
+
+    renderClaimList();
+
+    expect(useClaimById).toHaveBeenLastCalledWith("");
+    expect(useJobById).toHaveBeenLastCalledWith("");
+    expect(screen.queryByTestId("docs-modal")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "documents-CA0000181" }));
+
+    expect(useClaimById).toHaveBeenLastCalledWith(documentClaim.claimId);
+    expect(useJobById).toHaveBeenLastCalledWith(documentClaim.jobId);
+    expect(screen.getByText("Invoice.jpeg")).toBeInTheDocument();
+    expect(screen.getByText("JobReceipt.pdf")).toBeInTheDocument();
+    expect(screen.getByText("DeliveryNote.pdf")).toBeInTheDocument();
+    expect(screen.getByTestId("docs-modal")).toHaveAttribute("data-hide-delete", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: "close-documents" }));
+
+    expect(screen.queryByTestId("docs-modal")).not.toBeInTheDocument();
+    expect(useClaimById).toHaveBeenLastCalledWith("");
+    expect(useJobById).toHaveBeenLastCalledWith("");
+  });
+
+  it("falls back to claim documents while linked job data is unavailable", () => {
+    claimsState.data = [documentClaim];
+    claimDetail = { jobId: documentClaim.jobId, job: { asset: { attachments: [invoice] } } };
+
+    renderClaimList();
+    fireEvent.click(screen.getByRole("button", { name: "documents-CA0000181" }));
+
+    expect(screen.getByText("Invoice.jpeg")).toBeInTheDocument();
+    expect(useJobById).toHaveBeenLastCalledWith(documentClaim.jobId);
+  });
+
+  it("uses an empty linked job document list rather than stale claim attachments", () => {
+    claimsState.data = [documentClaim];
+    claimDetail = { jobId: documentClaim.jobId, job: { asset: { attachments: [invoice] } } };
+    documentJob = { job: { asset: { attachments: [] } } };
+
+    renderClaimList();
+    fireEvent.click(screen.getByRole("button", { name: "documents-CA0000181" }));
+
+    expect(screen.getByTestId("docs-modal")).toBeInTheDocument();
+    expect(screen.queryByText("Invoice.jpeg")).not.toBeInTheDocument();
+  });
+
+  it("does not fetch a job before claim details are available", () => {
+    claimsState.data = [documentClaim];
+
+    renderClaimList();
+    fireEvent.click(screen.getByRole("button", { name: "documents-CA0000181" }));
+
+    expect(useClaimById).toHaveBeenLastCalledWith(documentClaim.claimId);
+    expect(useJobById).toHaveBeenLastCalledWith("");
+    expect(screen.getByTestId("docs-modal")).toBeInTheDocument();
   });
 
   it("renders export button when user can download claim list", () => {

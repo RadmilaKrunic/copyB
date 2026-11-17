@@ -52,7 +52,7 @@ const BILLING_ADDRESS_FIELDS: AddressFieldConfig[] = [
   { fieldName: "postalCode", labelKey: "postalCode" },
   { fieldName: "district", labelKey: "district" },
   { fieldName: "city", labelKey: "city" },
-  { fieldName: "state", labelKey: "state" },
+  { fieldName: "stateProvinceRegion", labelKey: "state" },
   { fieldName: "countryCode", labelKey: "countryRegion" },
 ];
 
@@ -63,7 +63,7 @@ const DELIVERY_ADDRESS_FIELDS: AddressFieldConfig[] = [
   { fieldName: "deliveryPostalCode", labelKey: "postalCode" },
   { fieldName: "deliveryDistrict", labelKey: "district" },
   { fieldName: "deliveryCity", labelKey: "city" },
-  { fieldName: "deliveryState", labelKey: "state" },
+  { fieldName: "deliveryStateProvinceRegion", labelKey: "state" },
   { fieldName: "deliveryCountry", labelKey: "country" },
 ];
 
@@ -76,7 +76,7 @@ function isValueEmpty(value: unknown): boolean {
   return false;
 }
 
-const STATE_FIELD_NAMES = new Set(["state", "deliveryState"]);
+const STATE_FIELD_NAMES = new Set(["stateProvinceRegion", "deliveryStateProvinceRegion"]);
 
 function filterOutStateFieldsForTurkey(
   fields: AddressFieldConfig[],
@@ -97,6 +97,7 @@ export function getMissingAddressFieldLabels(values: Record<string, unknown>): s
   );
 
   return fieldsToCheck
+    .filter((field) => field.fieldName in values)
     .filter((field) => isValueEmpty(values[field.fieldName]))
     .map((field) => field.labelKey);
 }
@@ -121,13 +122,15 @@ export function getDeliveryAddressConfirmationInfo(
     ? BILLING_FIELDS_WITH_DEFAULTS
     : DELIVERY_FIELDS_WITH_DEFAULTS;
 
-  const missingFieldLabels = fieldsToCheck
+  const existingFieldsToCheck = fieldsToCheck.filter((field) => field.fieldName in values);
+
+  const missingFieldLabels = existingFieldsToCheck
     .filter((field) => isValueEmpty(values[field.fieldName]))
     .map((field) => field.labelKey);
 
   if (missingFieldLabels.length === 0) return null;
 
-  const fieldsWithoutDefaults = fieldsToCheck.filter(
+  const fieldsWithoutDefaults = existingFieldsToCheck.filter(
     (field) => !fieldsWithDefaults.has(field.fieldName),
   );
   const isAddressCompletelyEmpty = fieldsWithoutDefaults.every((field) =>
@@ -138,6 +141,7 @@ export function getDeliveryAddressConfirmationInfo(
 }
 
 const CUSTOMER_FORM_FIELD_SNAPSHOT_MAP: Record<string, (customer: Customer) => unknown> = {
+  typeOfUser: (customer) => customer.customerType,
   firstNameInPri: (customer) => customer.firstName,
   firstName: (customer) => customer.firstName,
   lastNameInPri: (customer) => customer.lastName,
@@ -161,7 +165,7 @@ const CUSTOMER_FORM_FIELD_SNAPSHOT_MAP: Record<string, (customer: Customer) => u
   postalCode: (customer) => customer.billingAddress?.postalCode ?? "",
   district: (customer) => customer.billingAddress?.district ?? "",
   city: (customer) => customer.billingAddress?.city ?? "",
-  state: (customer) => customer.billingAddress?.stateProvinceRegion ?? "",
+  stateProvinceRegion: (customer) => customer.billingAddress?.stateProvinceRegion ?? "",
   countryCode: (customer) => customer.billingAddress?.countryCode ?? "",
   deliveryStreetName: (customer) => customer.deliveryAddress?.street ?? "",
   deliveryHouseNumber: (customer) => customer.deliveryAddress?.houseNumber ?? "",
@@ -169,7 +173,7 @@ const CUSTOMER_FORM_FIELD_SNAPSHOT_MAP: Record<string, (customer: Customer) => u
   deliveryPostalCode: (customer) => customer.deliveryAddress?.postalCode ?? "",
   deliveryDistrict: (customer) => customer.deliveryAddress?.district ?? "",
   deliveryCity: (customer) => customer.deliveryAddress?.city ?? "",
-  deliveryState: (customer) => customer.deliveryAddress?.stateProvinceRegion ?? "",
+  deliveryStateProvinceRegion: (customer) => customer.deliveryAddress?.stateProvinceRegion ?? "",
   deliveryCountry: (customer) => customer.deliveryAddress?.countryCode ?? "",
   addressLineTwo: (customer) => customer.billingAddress?.additionalDetails ?? "",
   addressLineTwoDelivery: (customer) => customer.deliveryAddress?.additionalDetails ?? "",

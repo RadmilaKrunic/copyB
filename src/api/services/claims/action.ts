@@ -7,6 +7,7 @@ import {
 } from "../../../modules/ClaimManagement/ClaimList/ClaimList.types";
 import { ClaimColumnConfiguration } from "modules/ClaimManagement/ClaimList/ClaimListTable/ClaimListColumns.config";
 import { saveColumnPreferences } from "api/services/header/action";
+import { Attachment } from "../../../components/ui/DocumentsModal/DocumentsModal";
 
 export const fetchClaimById = async (claimId: string): Promise<ClaimItem> => {
   try {
@@ -117,6 +118,18 @@ export const saveClaimListColumns = async (columns: ClaimColumnConfiguration[]):
     await saveColumnPreferences("claim", columns);
   } catch (error) {
     console.error("Error saving claim list columns:", error);
+    throw error;
+  }
+};
+
+export const updateClaimAttachments = async (
+  claimId: string,
+  attachments: Attachment[],
+): Promise<void> => {
+  try {
+    await axiosClient.put(`/v1/claims/${claimId}/attachments`, { attachments });
+  } catch (error) {
+    console.error(`Error updating attachments for claim ${claimId}:`, error);
     throw error;
   }
 };

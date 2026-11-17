@@ -45,6 +45,15 @@ vi.mock("../../../utils/queryConstants", () => ({
   DEFAULT_STALE_TIME_MS: 60000,
 }));
 
+vi.mock("../../../utils/dateFormatter", () => ({
+  formatDateToDisplay: (value: string) => (value ? `formatted-${value}` : ""),
+}));
+
+vi.mock("@/utils/customerUtils", () => ({
+  getCustomerTypeIcon: (args: { customerType?: string }) => `icon-${args?.customerType ?? "none"}`,
+  getCustomerDisplayName: vi.fn(),
+}));
+
 vi.mock("../../../hooks/useBreadcrumbs", () => ({
   useBreadcrumbs: vi.fn(),
 }));
@@ -56,11 +65,14 @@ vi.mock("../../../components/ui/ActivityIndicatorWithDelay/ActivityIndicatorWith
 vi.mock("../../../components/ui/OverviewHeader/OverviewHeader", () => ({
   default: (props: any) => (
     <div data-testid="overview-header">
-      <span data-testid="header-id">{props.id}</span>
+      <span data-testid="header-created-at">{props.createdAt}</span>
       {props.items.map((item: any, idx: number) => (
-        <div key={idx} data-testid={`header-item-${idx}`}>
-          {item.title} | {item.subtitle}
-        </div>
+        <React.Fragment key={idx}>
+          <span data-testid={`header-item-icon-${idx}`}>{item.icon}</span>
+          <div data-testid={`header-item-${idx}`}>
+            {item.title} | {item.subtitle}
+          </div>
+        </React.Fragment>
       ))}
     </div>
   ),
@@ -81,9 +93,6 @@ vi.mock("./ClientJobsTab/ClientJobsTab", () => ({
       <span data-testid="jobs-tab-client-id">{props.clientId}</span>
       <button data-testid="jobs-row" onClick={() => props.onRowClick({ jobId: "job-42" })}>
         row
-      </button>
-      <button data-testid="jobs-create" onClick={props.onCreateJob}>
-        create
       </button>
     </div>
   ),
@@ -124,8 +133,7 @@ vi.mock("@bosch/react-frok", () => ({
   ),
 }));
 
-// ClientOverview mutates the form/field objects it receives (isDisabled flags),
-// so every test gets fresh copies instead of shared module-level objects.
+// Fresh copies per test so no state can leak between tests.
 const createBaseFields = () => [
   { name: "firstName", isDisabled: true },
   { name: "lastName", isDisabled: true },
@@ -198,7 +206,10 @@ vi.mock("../../../components/generics/Section/GenericSection", () => ({
   default: (props: any) => {
     const ctx = useContext(GenericFormContext);
     return (
-      <div data-testid={`section-${props.section.name}`}>
+      <div
+        data-testid={`section-${props.section.name}`}
+        data-disabled={String(props.section.isDisabled)}
+      >
         <button data-testid={`edit-${props.section.name}`} onClick={props.onEdit}>
           edit
         </button>
@@ -226,8 +237,11 @@ vi.mock("../../../components/generics/Section/GenericSection", () => ({
 }));
 
 const mockMapValuesToAPI = vi.fn();
+const mockToggleSectionFieldsDisabled = vi.fn();
+const mockSetSectionDisabledState = vi.fn();
 vi.mock("../../../components/generics/utils", () => ({
-  toggleSectionFieldsDisabled: (allFields: unknown[]) => allFields,
+  toggleSectionFieldsDisabled: (...args: unknown[]) => mockToggleSectionFieldsDisabled(...args),
+  setSectionDisabledState: (...args: unknown[]) => mockSetSectionDisabledState(...args),
   convertAPIDataToFormValues: () => ({ firstName: "Jane", lastName: "Doe" }),
   mapValuesToAPI: (...args: unknown[]) => mockMapValuesToAPI(...args),
 }));
@@ -292,7 +306,7 @@ const mockClient = {
   lastName: "Doe",
   isActive: true,
   assetsCount: 3,
-  createdOn: "2024-01-01",
+  createdAt: "2024-01-01",
   billingAddress: { street: "Main St", city: "Springfield", stateProvinceRegion: "IL" },
   deliveryAddress: { street: "Side St", city: "Springfield" },
   phoneNumber: "555-0000",
@@ -316,7 +330,7 @@ const mockCustomerDetails: ClientManagementCustomerDetails = {
   createdAt: "2024-01-01",
 };
 
-// "CLDE" is PERMISSIONS.CLIENT.CAN_DELETE_CLIENT.
+// "CLDE" is PERMISSIONS.CLIENT.CAN_DELETE_CLIENT, "CL_E" is CAN_EDIT_CLIENT_DETAILS.
 function createQueryClient(roles = ["ASC_MANAGER"], permissions = ["CLDE"]) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -368,6 +382,11 @@ describe("ClientOverview", () => {
     };
     mockUseClientManagementCustomerDetails.mockReturnValue({ data: mockCustomerDetails });
     mockMapValuesToAPI.mockReturnValue({});
+    mockToggleSectionFieldsDisabled.mockImplementation((allFields: unknown[]) => allFields);
+    mockSetSectionDisabledState.mockImplementation((section: any, disabled: boolean) => ({
+      ...section,
+      isDisabled: disabled,
+    }));
   });
 
   it("shows loading indicator while fetching the client", () => {
@@ -393,13 +412,56 @@ describe("ClientOverview", () => {
     renderWithProviders(createQueryClient());
 
     expect(await screen.findByTestId("overview-header")).toBeInTheDocument();
-    expect(screen.getByTestId("header-id")).toHaveTextContent("client-123");
     expect(screen.getByTestId("header-item-0")).toHaveTextContent(
       "Jane Doe | 555-1111 | jane@example.com",
     );
     expect(screen.getByTestId("header-item-1")).toHaveTextContent("Springfield | IL | 62704");
     expect(screen.getByTestId("header-item-2")).toHaveTextContent("3");
     expect(screen.getByTestId("header-item-3")).toHaveTextContent("5");
+  });
+
+  describe("header created date and icon", () => {
+    it("shows the formatted creation date from the customer details", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      renderWithProviders(createQueryClient());
+
+      await screen.findByTestId("overview-header");
+
+      expect(screen.getByTestId("header-created-at")).toHaveTextContent("formatted-2024-01-01");
+    });
+
+    it("shows an empty creation date when customer details have none", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      mockUseClientManagementCustomerDetails.mockReturnValue({
+        data: { ...mockCustomerDetails, createdAt: undefined },
+      });
+      renderWithProviders(createQueryClient());
+
+      await screen.findByTestId("overview-header");
+
+      expect(screen.getByTestId("header-created-at")).toBeEmptyDOMElement();
+    });
+
+    it("uses the customer type from the customer details for the icon", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      mockUseClientManagementCustomerDetails.mockReturnValue({
+        data: { ...mockCustomerDetails, customerType: "BUSINESS" },
+      });
+      renderWithProviders(createQueryClient());
+
+      await screen.findByTestId("overview-header");
+
+      expect(screen.getByTestId("header-item-icon-0")).toHaveTextContent("icon-BUSINESS");
+    });
+
+    it("falls back to the client customer type for the icon", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      renderWithProviders(createQueryClient());
+
+      await screen.findByTestId("overview-header");
+
+      expect(screen.getByTestId("header-item-icon-0")).toHaveTextContent("icon-PRIVATE");
+    });
   });
 
   describe("header fallbacks", () => {
@@ -512,19 +574,6 @@ describe("ClientOverview", () => {
       expect(mockNavigate).toHaveBeenCalledWith("/job-overview/job-42");
     });
 
-    it("navigates to create-job with the client prefilled when creating a job from the jobs tab", async () => {
-      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
-      renderWithProviders(createQueryClient());
-
-      await screen.findByTestId("section-clientInfo");
-      fireEvent.click(screen.getByTestId("tab-Jobs"));
-      fireEvent.click(screen.getByTestId("jobs-create"));
-
-      expect(mockNavigate).toHaveBeenCalledWith("/create-job", {
-        state: { prefillCustomer: mockClient },
-      });
-    });
-
     it("swallows a rejected navigation promise when opening a job", async () => {
       vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
       mockNavigate.mockImplementationOnce(() => Promise.reject(new Error("nav failed")));
@@ -536,16 +585,45 @@ describe("ClientOverview", () => {
       expect(() => fireEvent.click(screen.getByTestId("jobs-row"))).not.toThrow();
       await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/job-overview/job-42"));
     });
+  });
 
-    it("swallows a rejected navigation promise when creating a job", async () => {
+  describe("edit flow", () => {
+    it("keeps the client info section disabled until editing is started", async () => {
       vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
-      mockNavigate.mockImplementationOnce(() => Promise.reject(new Error("nav failed")));
-      renderWithProviders(createQueryClient());
+      renderWithProviders(createQueryClient(["ASC_MANAGER"], ["CLDE", "CL_E"]));
 
-      await screen.findByText("onCreateJob");
+      await screen.findByTestId("section-clientInfo");
 
-      expect(() => fireEvent.click(screen.getByText("onCreateJob"))).not.toThrow();
-      await waitFor(() => expect(mockNavigate).toHaveBeenCalledTimes(1));
+      expect(screen.getByTestId("section-clientInfo")).toHaveAttribute("data-disabled", "true");
+      expect(mockToggleSectionFieldsDisabled).not.toHaveBeenCalled();
+    });
+
+    it("enables the client info section and its fields when the user can edit", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      renderWithProviders(createQueryClient(["ASC_MANAGER"], ["CLDE", "CL_E"]));
+
+      await screen.findByTestId("section-clientInfo");
+      fireEvent.click(screen.getByTestId("edit-clientInfo"));
+
+      expect(mockToggleSectionFieldsDisabled).toHaveBeenCalledWith(
+        formInitResult.allFields,
+        expect.objectContaining({ name: "clientInfo" }),
+        false,
+      );
+      expect(formInitResult.setAllFields).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("section-clientInfo")).toHaveAttribute("data-disabled", "false");
+    });
+
+    it("does not enable editing without the edit permission", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      renderWithProviders(createQueryClient(["ASC_MANAGER"], ["CLDE"]));
+
+      await screen.findByTestId("section-clientInfo");
+      fireEvent.click(screen.getByTestId("edit-clientInfo"));
+
+      expect(mockToggleSectionFieldsDisabled).not.toHaveBeenCalled();
+      expect(formInitResult.setAllFields).not.toHaveBeenCalled();
+      expect(screen.getByTestId("section-clientInfo")).toHaveAttribute("data-disabled", "true");
     });
   });
 
@@ -621,7 +699,66 @@ describe("ClientOverview", () => {
       });
     });
 
-    it("invalidates the client queries and shows a success message on successful update", async () => {
+    it("sends an empty string for cleared top-level fields", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      formInitResult.allFields = [
+        { name: "addressLineTwo", fieldMapping: { map: "addressLine2" } }, // "" in the form
+        { name: "neighborhood", fieldMapping: { map: "neighborhood", parentMap: [] } }, // empty parentMap
+        { name: "missingValue", fieldMapping: { map: "missingValue" } }, // undefined in the form
+        { fieldMapping: { map: "unnamed" } }, // field without a name
+      ];
+      renderWithProviders(createQueryClient());
+
+      await screen.findByTestId("trigger-save");
+      fireEvent.click(screen.getByTestId("trigger-save"));
+
+      expect(mockMutate).toHaveBeenCalledWith({
+        payload: expect.objectContaining({
+          addressLine2: "",
+          neighborhood: "",
+          missingValue: "",
+          unnamed: "",
+        }),
+        query: expectedQuery,
+      });
+    });
+
+    it("does not clear fields that are filled, nested, unmapped or already mapped", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      formInitResult.allFields = [
+        { name: "firstName", fieldMapping: { map: "firstName" } }, // has a value
+        { name: "district", fieldMapping: { map: "district", parentMap: ["billingAddress"] } }, // nested
+        { name: "neighborhood", fieldMapping: { parentMap: [] } }, // no map attribute
+        { name: "lastName" }, // no field mapping at all
+        { name: "addressLineTwo", fieldMapping: { map: "addressLine2" } }, // already mapped
+      ];
+      mockMapValuesToAPI.mockReturnValue({ addressLine2: "Apt 4" });
+      renderWithProviders(createQueryClient());
+
+      await screen.findByTestId("trigger-save");
+      fireEvent.click(screen.getByTestId("trigger-save"));
+
+      const { payload } = mockMutate.mock.calls[0][0];
+      expect(payload).toEqual(
+        expect.objectContaining({ firstName: "Jane", addressLine2: "Apt 4" }),
+      );
+      expect(payload).not.toHaveProperty("district");
+      expect(payload).not.toHaveProperty("neighborhood");
+    });
+
+    it("does not submit when the form fields are not available", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      formInitResult.allFields = undefined;
+      renderWithProviders(createQueryClient());
+
+      await screen.findByTestId("trigger-save");
+      fireEvent.click(screen.getByTestId("trigger-save"));
+
+      expect(mockMapValuesToAPI).not.toHaveBeenCalled();
+      expect(mockMutate).not.toHaveBeenCalled();
+    });
+
+    it("locks the section, invalidates the client queries and shows a success message on successful update", async () => {
       vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
       const queryClient = createQueryClient();
       const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
@@ -632,10 +769,17 @@ describe("ClientOverview", () => {
         updateCustomerOptions.onSuccess();
       });
 
+      expect(mockToggleSectionFieldsDisabled).toHaveBeenCalledWith(
+        formInitResult.allFields,
+        expect.objectContaining({ name: "clientInfo" }),
+        true,
+      );
+      expect(formInitResult.setAllFields).toHaveBeenCalled();
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["client", "client-123"] });
       expect(invalidateSpy).toHaveBeenCalledWith({
         queryKey: ["clientManagementCustomerDetails", "client-123"],
       });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["clientManagementCustomers"] });
       expect(mockSetMessages).toHaveBeenCalledTimes(1);
       const updater = mockSetMessages.mock.calls[0][0];
       expect(updater([])).toEqual([
@@ -672,6 +816,24 @@ describe("ClientOverview", () => {
       expect(cancelHelpers.setFieldValue).toHaveBeenCalledWith("lastName", "Doe");
       expect(cancelHelpers.setErrors).toHaveBeenCalledWith({});
       expect(cancelHelpers.setTouched).toHaveBeenCalledWith({});
+    });
+
+    it("locks the client info section again after cancelling an edit", async () => {
+      vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+      renderWithProviders(createQueryClient(["ASC_MANAGER"], ["CLDE", "CL_E"]));
+
+      await screen.findByTestId("section-clientInfo");
+      fireEvent.click(screen.getByTestId("edit-clientInfo"));
+      expect(screen.getByTestId("section-clientInfo")).toHaveAttribute("data-disabled", "false");
+
+      fireEvent.click(screen.getByTestId("trigger-cancel"));
+
+      expect(mockToggleSectionFieldsDisabled).toHaveBeenLastCalledWith(
+        formInitResult.allFields,
+        expect.objectContaining({ name: "clientInfo" }),
+        true,
+      );
+      expect(screen.getByTestId("section-clientInfo")).toHaveAttribute("data-disabled", "true");
     });
   });
 
@@ -852,6 +1014,20 @@ describe("ClientOverview", () => {
     });
   });
 
+  it("ignores actions that have no handler", async () => {
+    vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+    const queryClient = createQueryClient();
+    const form = createClientOverviewForm();
+    form.actions.push({ name: "unknownAction" });
+    queryClient.setQueryData(["UIConfiguration", "US"], { forms: [form] });
+    renderWithProviders(queryClient);
+
+    fireEvent.click(await screen.findByText("unknownAction"));
+
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("navigates to the create-job page with the client prefilled", async () => {
     vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
     renderWithProviders(createQueryClient());
@@ -862,5 +1038,20 @@ describe("ClientOverview", () => {
     expect(mockNavigate).toHaveBeenCalledWith("/create-job", {
       state: { prefillCustomer: mockClient },
     });
+  });
+
+  it("swallows a rejected navigation promise when creating a job", async () => {
+    vi.mocked(getCustomerById).mockResolvedValue(mockClient as never);
+    mockNavigate.mockImplementationOnce(() => Promise.reject(new Error("nav failed")));
+    renderWithProviders(createQueryClient());
+
+    await screen.findByText("onCreateJob");
+
+    expect(() => fireEvent.click(screen.getByText("onCreateJob"))).not.toThrow();
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith("/create-job", {
+        state: { prefillCustomer: mockClient },
+      }),
+    );
   });
 });

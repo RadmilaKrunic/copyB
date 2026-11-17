@@ -43,6 +43,8 @@ import {
   mapExchangeLaborCostTableDataFromFormValues,
   LABOR_RULE_DEFAULTS,
   shouldShowAddLaborRuleButton,
+  LABOR_EXCHANGE_UPDATE_TARGET,
+  LABOR_REPAIR_LEVEL_TO_RULE,
 } from "../ASC.utils";
 import ExchangeLaborCostModal from "components/ui/ExchangeLaborCostModal/ExchangeLaborCostModal";
 import { showLaborRulesTable } from "../AscLaborRulesExchangeArea/AscLaborRulesExchangeArea.utils";
@@ -347,6 +349,7 @@ function AddASC() {
       accessoriesIncentive: serviceCenter.accessoriesIncentive,
       packagingCost: serviceCenter.packagingCost,
       defaultCountry: serviceCenter.defaultCountry,
+      zone: serviceCenter.zone,
       preferredSelectedCountry: serviceCenter.preferredSelectedCountry,
       accountRoles: firstUser?.accountRoles?.map((role) => role.id) || [],
       firstName: firstUser?.firstName || "",
@@ -499,15 +502,42 @@ function AddASC() {
 
   const mapFormValuesToApiPayload = useCallback(
     (formValues: Record<string, any>): Record<string, unknown> => {
+      const draftExchangeLaborCostTableDataByRule: Record<string, LaborExchangeRow[]> = {};
+      if (asc?.serviceCenter.laborCostMethod) {
+        LABOR_EXCHANGE_UPDATE_TARGET.actionNames.forEach((rule) => {
+          draftExchangeLaborCostTableDataByRule[rule] = showLaborRulesTable(
+            asc.serviceCenter.laborCostMethod,
+            rule,
+          );
+        });
+      }
+
+      const draftRepairLaborCostMatrixDataByRule = (
+        asc?.serviceCenter.laborCostMethod?.repairCosts ?? []
+      ).reduce(
+        (overrides, repairCost) => {
+          const rule = LABOR_REPAIR_LEVEL_TO_RULE[repairCost.level];
+          if (rule) {
+            overrides[rule] = repairCost;
+          }
+          return overrides;
+        },
+        {} as Record<string, RepairCosts>,
+      );
+
       const exchangeLaborCostTableDataByRuleWithCurrentValues = currentExchangeLaborRule
         ? {
+            ...draftExchangeLaborCostTableDataByRule,
             ...exchangeLaborCostTableDataByRule,
             [currentExchangeLaborRule]: mapExchangeLaborCostTableDataFromFormValues(
               exchangeLaborCostTableData,
               formValues,
             ),
           }
-        : exchangeLaborCostTableDataByRule;
+        : {
+            ...draftExchangeLaborCostTableDataByRule,
+            ...exchangeLaborCostTableDataByRule,
+          };
 
       const apiValues: Record<string, any> = {
         serviceCenter: {
@@ -544,6 +574,7 @@ function AddASC() {
           pkPrice: 0,
           defaultCountry: user?.countryCode,
           preferredSelectedCountry: formValues.preferredSelectedCountry,
+          zone: formValues.zone || null,
           reimbursementConfig: mapReimbursementFormValuesToApiPayload(
             formValues,
             countryConfiguration?.reimbursementConfig || [],
@@ -552,7 +583,10 @@ function AddASC() {
             laborCostConfig,
             formValues,
             exchangeLaborCostTableDataByRuleWithCurrentValues,
-            repairLaborCostMatrixDataByRule,
+            {
+              ...draftRepairLaborCostMatrixDataByRule,
+              ...repairLaborCostMatrixDataByRule,
+            },
           ),
           freightCostDetails: laborCostConfigResponse?.freightCostDetails,
           packagingCostDetails: laborCostConfigResponse?.packagingCostDetails,

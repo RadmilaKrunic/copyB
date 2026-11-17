@@ -49,7 +49,12 @@ function ClientAssetsTab({ clientId }: Readonly<ClientAssetsTabProps>) {
       {
         key: "manufacturedOn",
         label: t("manufacturedOn"),
-        render: (asset) => (asset.manufacturedOn ? formatDateToDisplay(asset.manufacturedOn) : "-"),
+        render: (asset) => {
+          const value = asset.manufacturedOn;
+          if (!value) return "-";
+          if (value === "999" || /^\d{1,2}\/\d{4}$/.test(value)) return value;
+          return formatDateToDisplay(value);
+        },
       },
       {
         key: "purchaseDate",

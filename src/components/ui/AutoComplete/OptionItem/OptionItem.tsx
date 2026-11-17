@@ -36,6 +36,11 @@ function OptionItem({ type, option, onSelect, isHighlighted = false }: Readonly<
     "lastName",
     "dealershipName",
     "companyName",
+    "phoneNumber",
+    "mobileNumberInPri",
+    "mobileNumber",
+    "emailInPri",
+    "email",
   ];
 
   if (customerTypes.includes(type)) {

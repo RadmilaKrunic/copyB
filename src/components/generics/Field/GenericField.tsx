@@ -58,6 +58,8 @@ interface FieldRenderCtx {
   restProps: React.HTMLAttributes<HTMLSpanElement>;
   displayLabel: string;
   effectiveIsDisabled: boolean;
+  /** isRequired resolved against requiredDependentFields and the current form values. */
+  effectiveIsRequired: boolean;
   values: Record<string, any>;
   setFieldValue: (
     field: string,
@@ -397,15 +399,24 @@ function renderInfoIconField(ctx: FieldRenderCtx): ReactElement {
 }
 
 function renderCheckboxField(ctx: FieldRenderCtx): ReactElement {
-  const { field, fullWidth, className, restProps, effectiveIsDisabled, values, t, handleChange } =
-    ctx;
+  const {
+    field,
+    fullWidth,
+    className,
+    restProps,
+    effectiveIsDisabled,
+    effectiveIsRequired,
+    values,
+    t,
+    handleChange,
+  } = ctx;
   const { name, label } = field;
 
   return (
     <span className={`${fullWidth} ${className || ""}`} {...restProps}>
       <Checkbox
         id={name}
-        label={`${label ? t(label) : ""} ${field.isRequired ? "*" : ""}`}
+        label={`${label ? t(label) : ""} ${effectiveIsRequired ? "*" : ""}`}
         checked={(values[name] as boolean) || false}
         disabled={effectiveIsDisabled}
         onChange={(e) => {
@@ -575,6 +586,7 @@ function renderDropdownField(ctx: FieldRenderCtx): ReactElement {
     className,
     restProps,
     effectiveIsDisabled,
+    effectiveIsRequired,
     values,
     setFieldValue,
     allFields,
@@ -670,7 +682,7 @@ function renderDropdownField(ctx: FieldRenderCtx): ReactElement {
         }
         optionsEndpoint={field.optionsEndpoint}
         options={dropdownOptions}
-        required={field.isRequired}
+        required={effectiveIsRequired}
         disabled={effectiveIsDisabled}
         isSearchable={!!field.isSearchable}
       />
@@ -733,6 +745,7 @@ function renderTextareaField(ctx: FieldRenderCtx): ReactElement {
     className,
     restProps,
     effectiveIsDisabled,
+    effectiveIsRequired,
     values,
     t,
     handleChange,
@@ -743,7 +756,7 @@ function renderTextareaField(ctx: FieldRenderCtx): ReactElement {
     <span className={`${fullWidth} ${className || ""}`} {...restProps}>
       <TextArea
         id={name}
-        label={`${label ? t(label) : ""} ${field.isRequired ? "*" : ""}`}
+        label={`${label ? t(label) : ""} ${effectiveIsRequired ? "*" : ""}`}
         name={name}
         disabled={effectiveIsDisabled}
         onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -770,6 +783,7 @@ function renderAutocompleteField(ctx: FieldRenderCtx): ReactElement {
     className,
     restProps,
     effectiveIsDisabled,
+    effectiveIsRequired,
     values,
     setFieldValue,
     allFields,
@@ -781,7 +795,6 @@ function renderAutocompleteField(ctx: FieldRenderCtx): ReactElement {
     actionCallbacks,
   } = ctx;
   const { name, label } = field;
-  const effectiveIsRequired = resolveIsRequired(field, values);
   const { validateForm } = formikContext;
 
   // Extract context parameters for spare parts search
@@ -1072,6 +1085,9 @@ function GenericField({ field, className, ...restProps }: Readonly<GenericFieldP
   const fullWidth = size === "3" ? "full-width" : "";
   const values = formValues;
   const translatedLabel = label ? t(label) : "";
+  // Single source of truth for the required marker: isRequired resolved against
+  // requiredDependentFields (e.g. companyName is required for COMPANY only).
+  const effectiveIsRequired = Boolean(resolveIsRequired(field, values));
 
   let labelSuffix = "";
   if (isPercentageField && !isAmountField) {
@@ -1079,7 +1095,7 @@ function GenericField({ field, className, ...restProps }: Readonly<GenericFieldP
   } else if (isAmountField && currencySymbol) {
     labelSuffix = ` (${currencySymbol})`;
   }
-  const displayLabel = `${translatedLabel}${labelSuffix} ${field.isRequired ? "*" : ""}`;
+  const displayLabel = `${translatedLabel}${labelSuffix} ${effectiveIsRequired ? "*" : ""}`;
 
   const handleChange = (changeName: string, newValue: FieldValueType) =>
     handleFieldChangeAsync(
@@ -1110,6 +1126,7 @@ function GenericField({ field, className, ...restProps }: Readonly<GenericFieldP
     restProps,
     displayLabel,
     effectiveIsDisabled,
+    effectiveIsRequired,
     values,
     setFieldValue,
     allFields,

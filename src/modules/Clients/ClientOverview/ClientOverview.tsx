@@ -4,6 +4,7 @@ import { getCustomerById } from "../../../api/services/customers/customers";
 import { Address, Customer, CustomerJob } from "../../../api/services/customers/customers.types";
 import { useClientManagementCustomerDetails } from "../../../api/services/clientManagement/hooks";
 import { DEFAULT_STALE_TIME_MS } from "../../../utils/queryConstants";
+import { formatDateToDisplay } from "../../../utils/dateFormatter";
 import ActivityIndicatorWithDelay from "../../../components/ui/ActivityIndicatorWithDelay/ActivityIndicatorWithDelay";
 import { useBreadcrumbs } from "../../../hooks/useBreadcrumbs";
 import { useTranslation } from "react-i18next";
@@ -19,6 +20,7 @@ import {
   toggleSectionFieldsDisabled,
   convertAPIDataToFormValues,
   mapValuesToAPI,
+  setSectionDisabledState,
 } from "../../../components/generics/utils";
 import { useDeleteCustomer, useUpdateCustomer } from "../../../api/services/customers/hooks";
 import { useHasPermission } from "../../../hooks/useHasPermission";
@@ -30,6 +32,30 @@ import OverviewContent from "../../../components/ui/OverviewContent/OverviewCont
 import ClientJobsTab from "./ClientJobsTab/ClientJobsTab";
 import ClientOrdersTab from "./ClientOrdersTab/ClientOrdersTab";
 import ClientAssetsTab from "./ClientAssetsTab/ClientAssetsTab";
+import { getCustomerTypeIcon } from "@/utils/customerUtils";
+
+// mapValuesToAPI omits top-level attributes whose form value is empty, null or undefined.
+// The save payload spreads the existing client first, so a field the user cleared would
+// otherwise keep its old value. This returns an empty string for each cleared top-level
+// field so that it overrides the old value.
+const getClearedTopLevelFields = (
+  allFields: Field[],
+  formValues: Record<string, unknown>,
+  mappedCustomer: Record<string, unknown>,
+): Record<string, unknown> => {
+  const clearedFields: Record<string, unknown> = {};
+  for (const field of allFields) {
+    const attr = field.fieldMapping?.map;
+    const isTopLevel = !field.fieldMapping?.parentMap?.length;
+    if (!attr || !isTopLevel) continue;
+    const formValue = formValues[field.name || ""];
+    const isCleared = formValue === "" || formValue === null || formValue === undefined;
+    if (isCleared && !(attr in mappedCustomer)) {
+      clearedFields[attr] = "";
+    }
+  }
+  return clearedFields;
+};
 
 function ClientOverview() {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
@@ -43,7 +69,6 @@ function ClientOverview() {
     queryFn: () => getCustomerById(clientId || ""),
     refetchOnWindowFocus: false,
     staleTime: DEFAULT_STALE_TIME_MS,
-    refetchOnMount: false,
   });
   const { isActive, assetsCount } = client || {};
   const status = isActive ? "ACTIVE" : "INACTIVE";
@@ -108,42 +133,33 @@ function ClientOverview() {
     }
   }, [client, isInitialized, allFields, setInitialFormValues, mapValuesToFormFields]);
 
-  const toggleFieldDisabledState = useCallback(() => {
-    if (clientInfoSection) {
-      let isFieldDisabled = false;
-      clientInfoSection.areas.forEach((area) => {
-        area.fields.forEach((field) => {
-          field.isDisabled = !field.isDisabled;
-          isFieldDisabled = !field.isDisabled;
-        });
-      });
+  const [editingSections, setEditingSections] = useState<Set<string>>(new Set());
 
-      const allFieldsDisabled = toggleSectionFieldsDisabled(
-        allFields || [],
-        clientInfoSection,
-        isFieldDisabled,
-      );
-      setAllFields(allFieldsDisabled);
-    }
-  }, [allFields, clientInfoSection, setAllFields]);
-
-  const setClientInfoDisabled = useCallback(
-    (disabled: boolean) => {
-      if (clientInfoSection) {
-        clientInfoSection.isDisabled = disabled;
-        toggleFieldDisabledState();
+  const enableSectionEditing = useCallback(
+    (sectionName: string) => {
+      if (!clientInfoSection) return;
+      setEditingSections((prev) => new Set(prev).add(sectionName));
+      if (allFields) {
+        setAllFields(toggleSectionFieldsDisabled(allFields, clientInfoSection, false));
       }
     },
-    [clientInfoSection, toggleFieldDisabledState],
+    [clientInfoSection, allFields, setAllFields],
   );
 
-  useEffect(() => {
-    if (clientInfoSection && !clientInfoSection?.isDisabled) {
-      setClientInfoDisabled(true);
-    }
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const disableSectionEditing = useCallback(
+    (sectionName: string) => {
+      if (!clientInfoSection) return;
+      if (allFields) {
+        setAllFields(toggleSectionFieldsDisabled(allFields, clientInfoSection, true));
+      }
+      setEditingSections((prev) => {
+        const updated = new Set(prev);
+        updated.delete(sectionName);
+        return updated;
+      });
+    },
+    [clientInfoSection, allFields, setAllFields],
+  );
 
   const onCancelSaveClient = useMemo(
     () =>
@@ -158,18 +174,18 @@ function ClientOverview() {
         if (!client) {
           return;
         }
-        setClientInfoDisabled(true);
+        disableSectionEditing("clientInfo");
         const oldValues = mapValuesToFormFields(client);
         Object.entries(oldValues).forEach(([key, value]) => setFieldValue(key, value));
         setErrors({});
         setTouched({});
       },
-    [client, mapValuesToFormFields, setClientInfoDisabled],
+    [client, mapValuesToFormFields, disableSectionEditing],
   );
 
   const enableEditSection = (sectionName: string) => {
     if (sectionName === "clientInfo" && canEditClientDetails) {
-      setClientInfoDisabled(false);
+      enableSectionEditing(sectionName);
     }
   };
 
@@ -183,11 +199,12 @@ function ClientOverview() {
 
   const updateCustomerMutation = useUpdateCustomer({
     onSuccess: () => {
-      setClientInfoDisabled(true);
+      disableSectionEditing("clientInfo");
       void queryClient.invalidateQueries({ queryKey: ["client", clientId] });
       void queryClient.invalidateQueries({
         queryKey: ["clientManagementCustomerDetails", clientId],
       });
+      void queryClient.invalidateQueries({ queryKey: ["clientManagementCustomers"] });
       setMessages((prev) => [
         ...prev,
         { text: t("clientUpdatedSuccessfully"), type: "success", duration: 3000 },
@@ -212,6 +229,12 @@ function ClientOverview() {
             return;
           }
           const mappedCustomer = mapValuesToAPI(formValues, allFields) as Record<string, unknown>;
+          const clearedTopLevelFields = getClearedTopLevelFields(
+            allFields,
+            formValues,
+            mappedCustomer,
+          );
+
           const mappedBillingAddress = mappedCustomer["billingAddress"] as
             | Record<string, unknown>
             | undefined;
@@ -220,6 +243,7 @@ function ClientOverview() {
             : (mappedCustomer["deliveryAddress"] as Record<string, unknown> | undefined);
           const payload: Partial<Customer> = {
             ...client,
+            ...clearedTopLevelFields,
             ...mappedCustomer,
             billingAddress: mappedBillingAddress
               ? { ...client.billingAddress, ...mappedBillingAddress }
@@ -232,7 +256,6 @@ function ClientOverview() {
               : null,
             customerId: client.customerId,
             ascId: client.ascId,
-            customerType: client.customerType,
           };
           updateCustomerMutation.mutate({
             payload,
@@ -321,6 +344,11 @@ function ClientOverview() {
   const overviewForm = clientOverviewForm
     ? {
         ...clientOverviewForm,
+        sections: clientOverviewForm.sections.map((section) =>
+          section.name === "clientInfo"
+            ? setSectionDisabledState(section, !editingSections.has("clientInfo"))
+            : section,
+        ),
         actions: (clientOverviewForm.actions || []).filter(
           (action) =>
             (action.onAction !== "onDeleteClient" &&
@@ -363,13 +391,13 @@ function ClientOverview() {
     <div>
       <OverviewHeader
         type="client"
-        createdAt={client?.createdOn || ""}
-        id={clientId || ""}
-        idLabel={t("clientId")}
+        createdAt={formatDateToDisplay(customerDetails?.createdAt || "")}
         createdAtLabel={t("createdAt")}
         items={[
           {
-            icon: "customer",
+            icon: getCustomerTypeIcon({
+              customerType: customerDetails?.customerType || client?.customerType,
+            }),
             title: `${customerDetails?.name || "-"}`,
             subtitle: `${customerDetails?.phoneNumber || "-"} | ${customerDetails?.email || "-"}`,
           },
@@ -406,13 +434,7 @@ function ClientOverview() {
           tabContentOverrides={{
             Assets: <ClientAssetsTab clientId={clientId || ""} />,
             Orders: <ClientOrdersTab clientId={clientId || ""} />,
-            Jobs: (
-              <ClientJobsTab
-                clientId={clientId || ""}
-                onRowClick={onJobRowClick}
-                onCreateJob={onCreateJob}
-              />
-            ),
+            Jobs: <ClientJobsTab clientId={clientId || ""} onRowClick={onJobRowClick} />,
           }}
         />
       </GenericFormContext.Provider>

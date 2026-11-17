@@ -59,7 +59,7 @@ const renderTab = () =>
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
-      <ClientJobsTab clientId="client-123" onRowClick={vi.fn()} onCreateJob={vi.fn()} />
+      <ClientJobsTab clientId="client-123" onRowClick={vi.fn()} />
     </QueryClientProvider>,
   );
 
@@ -92,6 +92,8 @@ describe("ClientJobsTab", () => {
       searchTerm: undefined,
       page: 0,
       size: 10,
+      sortBy: "updatedOn",
+      sortOrder: "desc",
     });
     expect(screen.queryByText("order-1")).not.toBeInTheDocument();
   });
@@ -113,6 +115,8 @@ describe("ClientJobsTab", () => {
         searchTerm: "drill",
         page: 0,
         size: 10,
+        sortBy: "updatedOn",
+        sortOrder: "desc",
       }),
     );
 
@@ -122,6 +126,8 @@ describe("ClientJobsTab", () => {
         searchTerm: "drill",
         page: 1,
         size: 10,
+        sortBy: "updatedOn",
+        sortOrder: "desc",
       }),
     );
 
@@ -131,6 +137,8 @@ describe("ClientJobsTab", () => {
         searchTerm: "drill",
         page: 0,
         size: 20,
+        sortBy: "updatedOn",
+        sortOrder: "desc",
       }),
     );
   });

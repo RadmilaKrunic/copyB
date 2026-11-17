@@ -99,6 +99,7 @@ const baseAsc = (
   reimbursementCreateOn: createdOn,
   reimbursementPeriodType: "MONTH",
   preferredSelectedCountry: "ZA",
+  zone: null,
   address: {
     street: "Street",
     houseNumber: "10",

@@ -297,15 +297,6 @@ describe("ClientsList", () => {
   });
 
   describe("pagination", () => {
-    it("does not show pagination when clients fit on one page", async () => {
-      mockCustomers([{ customerId: "1", name: "John Doe" }]);
-
-      renderWithProviders(createQueryClient());
-
-      await screen.findByTestId("table");
-      expect(screen.queryByTestId("pagination")).not.toBeInTheDocument();
-    });
-
     it("shows pagination when total clients exceed the page size", async () => {
       mockCustomers([{ customerId: "1", name: "John Doe" }], 25);
 

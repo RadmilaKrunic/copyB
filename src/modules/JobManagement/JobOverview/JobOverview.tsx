@@ -555,6 +555,8 @@ export default function JobOverview() {
       void queryClient.invalidateQueries({ queryKey: ["job", jobId] });
       void queryClient.invalidateQueries({ queryKey: ["jobs"] });
       void queryClient.invalidateQueries({ queryKey: ["autocomplete"] });
+      void queryClient.invalidateQueries({ queryKey: ["client"] });
+      void queryClient.invalidateQueries({ queryKey: ["clientManagementCustomerDetails"] });
       setMessages((prev) => [
         ...prev,
         { text: t("successCustomerDataUpdate"), type: "success", duration: 3000 },
@@ -1238,6 +1240,19 @@ export default function JobOverview() {
       const mappedValues = mapValuesToAPI(formValues, allFields) as Record<string, unknown>;
       const mappedOrder = mappedValues["order"] as Record<string, unknown>;
       const mappedCustomer = mappedOrder["customer"] as Record<string, unknown>;
+
+      // mapValuesToAPI strips empty/null/undefined values. Without this, clearing
+      // a customer field (e.g. lastName) would leave it absent from the payload,
+      // letting the backend keep the previous (removed) value instead of clearing it.
+      allFields.forEach((field) => {
+        if (field.fieldMapping?.parentMap?.at(-1) !== "customer" || !field.fieldMapping.map) return;
+        const formValue = formValues[field.name || ""];
+        const isCleared = formValue === "" || formValue === null || formValue === undefined;
+        if (isCleared && !(field.fieldMapping.map in mappedCustomer)) {
+          mappedCustomer[field.fieldMapping.map] = "";
+        }
+      });
+
       if (mappedCustomer["useBillingAddressForDelivery"]) {
         mappedCustomer["deliveryAddress"] = null;
       }
@@ -1427,7 +1442,9 @@ export default function JobOverview() {
         actionType === "NEW_TOOL_EXCHANGE" ||
         actionType === "SPARE_PARTS_EXCHANGE" ||
         actionType === "ACCESSORIES_EXCHANGE";
-      if (isExchangeAction && !hasProductPhoto) {
+      const serialNumber =
+        jobFullData?.job?.asset?.serialNumber ?? jobData?.job?.asset?.serialNumber;
+      if ((isExchangeAction || serialNumber === "999") && !hasProductPhoto) {
         setMessages(() => [
           {
             text: withInvoice

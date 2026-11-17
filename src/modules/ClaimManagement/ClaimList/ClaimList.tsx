@@ -11,6 +11,7 @@ import { QuickFilter, Filter } from "components/ui/List/List.types";
 import GenericForm from "components/generics/Form/GenericForm.types";
 import { HeaderUserData } from "api/services/header/action";
 import { useBulkApproveClaims, useClaimById, useClaims } from "api/services/claims/hooks";
+import { useJobById } from "api/services/jobs/hooks";
 import { MessagesContext } from "contexts/messagescontext";
 import { useHasPermission } from "hooks/useHasPermission";
 import { PERMISSIONS } from "utils/Permissions";
@@ -92,7 +93,9 @@ function ClaimList() {
 
   const documentClaimId = showDocumentModal ? (selectedClaimId ?? "") : "";
   const { data: claimDetail } = useClaimById(documentClaimId);
-  const selectedClaimAttachments = claimDetail?.job?.asset?.attachments ?? [];
+  const { data: documentJob } = useJobById(showDocumentModal ? (claimDetail?.jobId ?? "") : "");
+  const selectedClaimAttachments =
+    documentJob?.job?.asset?.attachments ?? claimDetail?.job?.asset?.attachments ?? [];
 
   const CLAIM_COLUMNS = useMemo(() => getClaimListColumns(t), [t]);
 

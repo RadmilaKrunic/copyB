@@ -1,9 +1,9 @@
-import { Dialog } from "@bosch/react-frok";
+import { ActivityIndicator, Dialog } from "@bosch/react-frok";
 import { Formik, Form } from "formik";
 import GenericField from "../../../../components/generics/Field/GenericField";
 import axiosClient from "../../../../api/axios-client/axiosClient";
 import { API_TIMEOUTS } from "../../../../api/axios-client/timeouts";
-import { useContext } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { MessagesContext } from "../../../../contexts/messagescontext";
 import { useTranslation } from "react-i18next";
 import { useAnalytics, toFailureReason, AnalyticsEventName } from "@/analytics";
@@ -21,6 +21,16 @@ function ClaimListExportDialog({
   const { setMessages } = useContext(MessagesContext);
   const analytics = useAnalytics();
   const { t } = useTranslation("translation", { keyPrefix: "app" });
+  const [isExporting, setIsExporting] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   const exportClaimsCsv = async (
     dateRange: ClaimExportFormValues["dateRange"],
@@ -31,6 +41,10 @@ function ClaimListExportDialog({
       shouldValidate?: boolean,
     ) => Promise<void | object>,
   ) => {
+    if (isExporting) {
+      return;
+    }
+
     const [fromDate = "", toDate = ""] = (dateRange ?? "").split(",");
     if (!fromDate || !toDate) {
       await setFieldTouched("dateRange", true, false);
@@ -39,6 +53,10 @@ function ClaimListExportDialog({
     }
 
     setFieldError("dateRange", undefined);
+    setIsExporting(true);
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     try {
       const response = await axiosClient.post(
@@ -48,6 +66,7 @@ function ClaimListExportDialog({
           responseType: "blob",
           timeout: API_TIMEOUTS.LONG,
           headers: { Accept: "text/csv" },
+          signal: controller.signal,
         },
       );
 
@@ -68,13 +87,20 @@ function ClaimListExportDialog({
 
       analytics.trackListExported();
     } catch (error) {
+      if (controller.signal.aborted || !isMountedRef.current) {
+        return;
+      }
+
       setMessages((prev) => [...prev, { type: "error", text: t("errorExportClaims") }]);
       analytics.trackActionFailed({
         failedAction: AnalyticsEventName.LIST_EXPORTED,
         failureReason: toFailureReason(error),
       });
     } finally {
-      setIsExportOpen(false);
+      if (isMountedRef.current) {
+        setIsExporting(false);
+        setIsExportOpen(false);
+      }
     }
   };
   return (
@@ -83,23 +109,46 @@ function ClaimListExportDialog({
         <Dialog
           className="claim-list-export-dialog"
           cancelLabel={t("cancel")}
+          cancelButton={{ disabled: isExporting }}
           confirmLabel={t("export")}
+          confirmButton={{ disabled: isExporting }}
           title={t("exportClaims")}
-          onCancel={() => setIsExportOpen(false)}
-          onClose={() => setIsExportOpen(false)}
+          onCancel={() => {
+            if (isExporting) {
+              return;
+            }
+
+            setIsExportOpen(false);
+          }}
+          onClose={() => {
+            if (isExporting) {
+              abortControllerRef.current?.abort();
+              return;
+            }
+
+            setIsExportOpen(false);
+          }}
           modal
           onConfirm={() => {
+            if (isExporting) {
+              return;
+            }
+
             void exportClaimsCsv(values.dateRange, setFieldError, setFieldTouched);
           }}
           open={true}
         >
-          <div className="dialog-description">{t("claimExportDescription")}</div>
-          <div className="dialog-instruction">
-            <b>{t("selectDateRange")}</b>
+          <div className="dialog-description">
+            {t(isExporting ? "exportingClaimsLoader" : "claimExportDescription")}
           </div>
-          <Form>
-            <GenericField field={dateRangeField} />
-          </Form>
+          <div className="dialog-instruction">
+            {isExporting ? <ActivityIndicator size="small" /> : <b>{t("selectDateRange")}</b>}
+          </div>
+          {!isExporting && (
+            <Form>
+              <GenericField field={dateRangeField} />
+            </Form>
+          )}
         </Dialog>
       )}
     </Formik>

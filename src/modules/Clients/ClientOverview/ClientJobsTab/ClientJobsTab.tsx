@@ -18,10 +18,9 @@ const EMPTY_JOBS: CustomerJob[] = [];
 interface ClientJobsTabProps {
   clientId: string;
   onRowClick: (job: CustomerJob) => void;
-  onCreateJob: () => void;
 }
 
-function ClientJobsTab({ clientId, onRowClick, onCreateJob }: Readonly<ClientJobsTabProps>) {
+function ClientJobsTab({ clientId, onRowClick }: Readonly<ClientJobsTabProps>) {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
   const [searchValue, setSearchValue] = useState("");
   const [pagination, setPagination] = useState({ page: 1, pageSize: 10 });
@@ -34,6 +33,8 @@ function ClientJobsTab({ clientId, onRowClick, onCreateJob }: Readonly<ClientJob
     searchTerm: searchValue.trim() || undefined,
     page: pagination.page - 1,
     size: pagination.pageSize,
+    sortBy: "updatedOn",
+    sortOrder: "desc",
   });
   const jobs = jobsPage?.content ?? EMPTY_JOBS;
 
@@ -86,11 +87,6 @@ function ClientJobsTab({ clientId, onRowClick, onCreateJob }: Readonly<ClientJob
         searchValue={searchValue}
         onSearchChange={handleSearchChange}
         onSearchReset={() => handleSearchChange("")}
-        actionButton={{
-          icon: "add",
-          label: t("createJob"),
-          onClick: onCreateJob,
-        }}
         type="job"
       />
       {isLoading && <ActivityIndicatorWithDelay delay={500} />}

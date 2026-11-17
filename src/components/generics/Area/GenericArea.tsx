@@ -156,9 +156,12 @@ function GenericArea({
     disarmUserInteraction();
   };
 
+  const { subtitle } = area;
+
   return (
     <div className="generic-area">
       {title && <div className="area-title">{t(title)}</div>}
+      {subtitle && <div className="area-subtitle">{t(subtitle)}</div>}
       <div
         ref={areaFieldsRef}
         className="area-fields"

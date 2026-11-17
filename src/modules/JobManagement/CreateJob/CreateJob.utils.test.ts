@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   getCustomerCollapsedTitle,
   getAssetCollapsedTitle,
@@ -6,7 +6,16 @@ import {
   getDeliveryAddressConfirmationInfo,
   getSelectedCustomerFormSnapshot,
   getCustomerChangeComparisons,
+  getVisibleCustomerFields,
+  buildCustomerChangeConfirmationData,
 } from "./CreateJob.utils";
+
+const mockGetAllFieldsFromSection = vi.fn();
+const mockIsFieldVisible = vi.fn();
+vi.mock("../../../components/generics/utils", () => ({
+  getAllFieldsFromSection: (...args: unknown[]) => mockGetAllFieldsFromSection(...args),
+  isFieldVisible: (...args: unknown[]) => mockIsFieldVisible(...args),
+}));
 
 describe("getCustomerCollapsedTitle", () => {
   it("builds title from firstName, phone, and email", () => {
@@ -107,9 +116,11 @@ describe("getMissingAddressFieldLabels", () => {
       useBillingAddressForDelivery: false,
       deliveryStreetName: "Main St",
       deliveryHouseNumber: "12",
+      deliveryNeighborhood: "",
       deliveryPostalCode: "10000",
+      deliveryDistrict: "",
       deliveryCity: "Istanbul",
-      deliveryState: "Istanbul",
+      deliveryStateProvinceRegion: "Istanbul",
       deliveryCountry: "TR",
     };
 
@@ -123,9 +134,11 @@ describe("getMissingAddressFieldLabels", () => {
       useBillingAddressForDelivery: true,
       streetName: "Billing St",
       houseNumber: "5",
+      neighborhood: "",
       postalCode: "34000",
+      district: "",
       city: "Ankara",
-      state: "Ankara",
+      stateProvinceRegion: "Ankara",
       countryCode: "TR",
     };
 
@@ -143,8 +156,16 @@ describe("getMissingAddressFieldLabels", () => {
       deliveryPostalCode: "10000",
       deliveryDistrict: "District 1",
       deliveryCity: "Istanbul",
-      deliveryState: "Istanbul",
+      deliveryStateProvinceRegion: "Istanbul",
       deliveryCountry: "TR",
+    };
+
+    expect(getMissingAddressFieldLabels(values)).toEqual([]);
+  });
+
+  it("ignores fields that are not present in values", () => {
+    const values: Record<string, unknown> = {
+      useBillingAddressForDelivery: false,
     };
 
     expect(getMissingAddressFieldLabels(values)).toEqual([]);
@@ -153,6 +174,14 @@ describe("getMissingAddressFieldLabels", () => {
   it("returns all field labels when address is completely empty", () => {
     const values: Record<string, unknown> = {
       useBillingAddressForDelivery: false,
+      deliveryStreetName: "",
+      deliveryHouseNumber: "",
+      deliveryNeighborhood: "",
+      deliveryPostalCode: "",
+      deliveryDistrict: "",
+      deliveryCity: "",
+      deliveryStateProvinceRegion: "",
+      deliveryCountry: "",
     };
 
     const result = getMissingAddressFieldLabels(values);
@@ -169,6 +198,38 @@ describe("getMissingAddressFieldLabels", () => {
     ]);
   });
 
+  it("omits state field when delivery country is Turkey", () => {
+    const values: Record<string, unknown> = {
+      useBillingAddressForDelivery: false,
+      deliveryStreetName: "Main St",
+      deliveryHouseNumber: "12",
+      deliveryNeighborhood: "Center",
+      deliveryPostalCode: "10000",
+      deliveryDistrict: "District 1",
+      deliveryCity: "Istanbul",
+      deliveryStateProvinceRegion: "",
+      deliveryCountry: "TR",
+    };
+
+    expect(getMissingAddressFieldLabels(values)).toEqual([]);
+  });
+
+  it("omits state field when billing country is Turkey and billing address is used for delivery", () => {
+    const values: Record<string, unknown> = {
+      useBillingAddressForDelivery: true,
+      streetName: "Billing St",
+      houseNumber: "5",
+      neighborhood: "Center",
+      postalCode: "34000",
+      district: "District 1",
+      city: "Ankara",
+      stateProvinceRegion: "",
+      countryCode: "TR",
+    };
+
+    expect(getMissingAddressFieldLabels(values)).toEqual([]);
+  });
+
   it("treats whitespace-only string values as empty", () => {
     const values: Record<string, unknown> = {
       useBillingAddressForDelivery: false,
@@ -178,7 +239,7 @@ describe("getMissingAddressFieldLabels", () => {
       deliveryPostalCode: "10000",
       deliveryDistrict: "District 1",
       deliveryCity: "Istanbul",
-      deliveryState: "Istanbul",
+      deliveryStateProvinceRegion: "Istanbul",
       deliveryCountry: "TR",
     };
 
@@ -205,7 +266,7 @@ describe("getDeliveryAddressConfirmationInfo", () => {
       deliveryPostalCode: "10000",
       deliveryDistrict: "District 1",
       deliveryCity: "Istanbul",
-      deliveryState: "Istanbul",
+      deliveryStateProvinceRegion: "Istanbul",
       deliveryCountry: "TR",
     };
 
@@ -222,7 +283,7 @@ describe("getDeliveryAddressConfirmationInfo", () => {
       postalCode: "34000",
       district: "District 1",
       city: "Ankara",
-      state: "Ankara",
+      stateProvinceRegion: "Ankara",
       countryCode: "TR",
     };
 
@@ -233,6 +294,13 @@ describe("getDeliveryAddressConfirmationInfo", () => {
     const values: Record<string, unknown> = {
       pickupType: "DELIVERY",
       useBillingAddressForDelivery: false,
+      deliveryStreetName: "",
+      deliveryHouseNumber: "",
+      deliveryNeighborhood: "",
+      deliveryPostalCode: "",
+      deliveryDistrict: "",
+      deliveryCity: "",
+      deliveryStateProvinceRegion: "",
       deliveryCountry: "TR",
     };
 
@@ -254,6 +322,13 @@ describe("getDeliveryAddressConfirmationInfo", () => {
     const values: Record<string, unknown> = {
       pickupType: "DELIVERY",
       useBillingAddressForDelivery: true,
+      streetName: "",
+      houseNumber: "",
+      neighborhood: "",
+      postalCode: "",
+      district: "",
+      city: "",
+      stateProvinceRegion: "",
       countryCode: "TR",
     };
 
@@ -269,9 +344,11 @@ describe("getDeliveryAddressConfirmationInfo", () => {
       useBillingAddressForDelivery: false,
       deliveryStreetName: "Main St",
       deliveryHouseNumber: "12",
+      deliveryNeighborhood: "",
       deliveryPostalCode: "10000",
+      deliveryDistrict: "",
       deliveryCity: "Istanbul",
-      deliveryState: "Istanbul",
+      deliveryStateProvinceRegion: "Istanbul",
       deliveryCountry: "TR",
     };
 
@@ -286,13 +363,21 @@ describe("getDeliveryAddressConfirmationInfo", () => {
     const deliveryValues: Record<string, unknown> = {
       pickupType: "DELIVERY",
       useBillingAddressForDelivery: false,
+      deliveryStreetName: "",
+      deliveryHouseNumber: "",
+      deliveryNeighborhood: "",
+      deliveryPostalCode: "",
+      deliveryDistrict: "",
+      deliveryCity: "",
+      deliveryStateProvinceRegion: "",
+      deliveryCountry: "TR",
       streetName: "Billing St",
       houseNumber: "5",
       neighborhood: "Center",
       postalCode: "34000",
       district: "District 1",
       city: "Ankara",
-      state: "Ankara",
+      stateProvinceRegion: "Ankara",
       countryCode: "TR",
     };
 
@@ -310,7 +395,7 @@ describe("getDeliveryAddressConfirmationInfo", () => {
 });
 
 describe("getMissingAddressFieldLabels - billing address edge cases", () => {
-  it("includes countryRegion label when billing countryCode is missing", () => {
+  it("includes countryRegion label when billing countryCode is empty", () => {
     const values: Record<string, unknown> = {
       useBillingAddressForDelivery: true,
       streetName: "Street",
@@ -319,7 +404,8 @@ describe("getMissingAddressFieldLabels - billing address edge cases", () => {
       postalCode: "10000",
       district: "District",
       city: "City",
-      state: "State",
+      stateProvinceRegion: "State",
+      countryCode: "",
     };
 
     const result = getMissingAddressFieldLabels(values);
@@ -330,6 +416,14 @@ describe("getMissingAddressFieldLabels - billing address edge cases", () => {
   it("returns all billing labels when useBillingAddressForDelivery is true and all fields empty", () => {
     const values: Record<string, unknown> = {
       useBillingAddressForDelivery: true,
+      streetName: "",
+      houseNumber: "",
+      neighborhood: "",
+      postalCode: "",
+      district: "",
+      city: "",
+      stateProvinceRegion: "",
+      countryCode: "",
     };
 
     const result = getMissingAddressFieldLabels(values);
@@ -435,7 +529,6 @@ describe("customer change detection", () => {
       email: snapshot.email,
       streetName: snapshot.streetName,
       deliveryStreetName: snapshot.deliveryStreetName,
-      useBillingAddressForDelivery: snapshot.useBillingAddressForDelivery,
     };
 
     expect(
@@ -453,6 +546,18 @@ describe("customer change detection", () => {
         Object.keys(currentValues).map((fieldName) => ({ fieldName, fieldLabel: fieldName })),
       ),
     ).not.toHaveLength(0);
+  });
+
+  it("ignores changes in fields that are not visible", () => {
+    const snapshot = getSelectedCustomerFormSnapshot(selectedCustomer as never);
+
+    expect(
+      getCustomerChangeComparisons(
+        { ...snapshot, lastName: "Changed" },
+        selectedCustomer as never,
+        [{ fieldName: "firstName", fieldLabel: "firstName" }],
+      ),
+    ).toHaveLength(0);
   });
 
   it("uses provided field labels for comparisons", () => {
@@ -482,5 +587,127 @@ describe("customer change detection", () => {
         currentValue: "jane@example.com",
       },
     ]);
+  });
+
+  it("returns no comparisons when there is no selected customer", () => {
+    expect(getCustomerChangeComparisons({ firstName: "Jane" }, null)).toEqual([]);
+    expect(getCustomerChangeComparisons({ firstName: "Jane" }, undefined)).toEqual([]);
+  });
+
+  it("compares all snapshot fields when no visible fields are provided", () => {
+    const comparisons = getCustomerChangeComparisons(
+      { firstName: "Jane" },
+      selectedCustomer as never,
+    );
+
+    expect(comparisons.find((c) => c.fieldName === "firstName")).toEqual({
+      fieldName: "firstName",
+      fieldLabel: "",
+      originalValue: "John",
+      currentValue: "Jane",
+    });
+    expect(comparisons.length).toBeGreaterThan(1);
+  });
+
+  it("treats undefined, null and empty values as equal", () => {
+    expect(
+      getCustomerChangeComparisons(
+        { addressLineTwo: undefined, addressLineTwoDelivery: null },
+        selectedCustomer as never,
+        [
+          { fieldName: "addressLineTwo", fieldLabel: "addressLineTwo" },
+          { fieldName: "addressLineTwoDelivery", fieldLabel: "addressLineTwoDelivery" },
+        ],
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("getVisibleCustomerFields", () => {
+  beforeEach(() => {
+    mockGetAllFieldsFromSection.mockReset();
+    mockIsFieldVisible.mockReset();
+  });
+
+  it("returns name and label only for visible fields of the customer section", () => {
+    const section = { name: "customer" };
+    const allFields = [{ name: "firstName" }, { name: "hidden" }];
+    const values = { firstName: "Jane" };
+    mockGetAllFieldsFromSection.mockReturnValue([
+      { name: "firstName", label: "First name" },
+      { name: "hidden", label: "Hidden field" },
+    ]);
+    mockIsFieldVisible.mockImplementation((field: { name: string }) => field.name !== "hidden");
+
+    const result = getVisibleCustomerFields(section as never, allFields as never, values);
+
+    expect(result).toEqual([{ fieldName: "firstName", fieldLabel: "First name" }]);
+    expect(mockGetAllFieldsFromSection).toHaveBeenCalledWith(section);
+    expect(mockIsFieldVisible).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "firstName" }),
+      allFields,
+      values,
+    );
+  });
+
+  it("returns an empty array when no field is visible", () => {
+    mockGetAllFieldsFromSection.mockReturnValue([{ name: "hidden", label: "Hidden" }]);
+    mockIsFieldVisible.mockReturnValue(false);
+
+    expect(getVisibleCustomerFields({} as never, [], {})).toEqual([]);
+  });
+});
+
+describe("buildCustomerChangeConfirmationData", () => {
+  beforeEach(() => {
+    mockGetAllFieldsFromSection.mockReset();
+    mockIsFieldVisible.mockReset();
+    mockGetAllFieldsFromSection.mockReturnValue([{ name: "firstName", label: "First name" }]);
+    mockIsFieldVisible.mockReturnValue(true);
+  });
+
+  const customer = { firstName: "John" };
+
+  it("builds comparisons for visible changed fields and a matching signature", () => {
+    const result = buildCustomerChangeConfirmationData(
+      { firstName: "Jane" },
+      customer as never,
+      {} as never,
+      [],
+    );
+
+    const expectedComparisons = [
+      {
+        fieldName: "firstName",
+        fieldLabel: "First name",
+        originalValue: "John",
+        currentValue: "Jane",
+      },
+    ];
+    expect(result.comparisons).toEqual(expectedComparisons);
+    expect(result.signature).toBe(JSON.stringify(expectedComparisons));
+  });
+
+  it("returns empty comparisons and an empty-array signature when nothing changed", () => {
+    const result = buildCustomerChangeConfirmationData(
+      { firstName: "John" },
+      customer as never,
+      {} as never,
+      [],
+    );
+
+    expect(result.comparisons).toEqual([]);
+    expect(result.signature).toBe("[]");
+  });
+
+  it("returns empty comparisons when there is no selected customer", () => {
+    const result = buildCustomerChangeConfirmationData(
+      { firstName: "Jane" },
+      null,
+      {} as never,
+      [],
+    );
+
+    expect(result).toEqual({ comparisons: [], signature: "[]" });
   });
 });

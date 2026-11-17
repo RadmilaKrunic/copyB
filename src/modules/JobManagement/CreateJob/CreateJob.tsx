@@ -516,6 +516,8 @@ function CreateJob() {
           }
           queryClient.setQueryData(["selectedCustomer"], null);
           await queryClient.invalidateQueries({ queryKey: ["jobs"] });
+          await queryClient.invalidateQueries({ queryKey: ["client"] });
+          await queryClient.invalidateQueries({ queryKey: ["clientManagementCustomerDetails"] });
           await navigate("/job-list");
         }
       } catch (error: unknown) {

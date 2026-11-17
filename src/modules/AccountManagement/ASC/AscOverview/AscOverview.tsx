@@ -85,7 +85,7 @@ function AscOverview() {
     queryFn: () => getASCById(ascId),
     refetchOnWindowFocus: false,
     staleTime: DEFAULT_STALE_TIME_MS,
-    refetchOnMount: false,
+    refetchOnMount: "always",
     enabled: Boolean(ascId),
   });
 
@@ -256,6 +256,7 @@ function AscOverview() {
       packagingCost: asc.packagingCost,
       defaultCountry: asc.defaultCountry,
       preferredSelectedCountry: asc.preferredSelectedCountry,
+      zone: asc?.zone,
       reimbursementConfig:
         asc.reimbursementConfig?.map((config) => {
           return {

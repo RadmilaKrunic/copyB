@@ -113,8 +113,6 @@ function ClientsList() {
     setPagination({ page: 1, pageSize: Number(option) });
   };
 
-  const isPaginationVisible = (data?.page?.totalElements || 0) > pagination.pageSize;
-
   const handleRowClick = (client: ClientManagementCustomer) => {
     const navigateResult = navigate(`/client-overview/${client.customerId}`);
     if (navigateResult instanceof Promise) {
@@ -228,15 +226,14 @@ function ClientsList() {
           onConfirm={confirmDeleteClient}
         />
       )}
-      {isPaginationVisible && (
-        <Pagination
-          page={pagination.page}
-          pageSize={pagination.pageSize}
-          onPageChange={handlePageChange}
-          onDropdownOptionChange={handlePageSizeChange}
-          totalResults={data?.page?.totalElements || 0}
-        />
-      )}
+
+      <Pagination
+        page={pagination.page}
+        pageSize={pagination.pageSize}
+        onPageChange={handlePageChange}
+        onDropdownOptionChange={handlePageSizeChange}
+        totalResults={data?.page?.totalElements || 0}
+      />
     </div>
   );
 }

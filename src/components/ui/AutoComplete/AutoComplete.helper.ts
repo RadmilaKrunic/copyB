@@ -2,8 +2,10 @@ import { FormikErrors } from "formik";
 import {
   getCustomerByCompanyName,
   getCustomerByDealershipName,
+  getCustomerByEmail,
   getCustomerByFirstName,
   getCustomerByLastName,
+  getCustomerByMobileNumber,
 } from "../../../api/services/customers/customers";
 import { Customer } from "../../../api/services/customers/customers.types";
 import { AutoCompleteOption } from "./OptionItem/OptionItem";
@@ -266,6 +268,14 @@ const getCustomers = (name: string) => {
     case "companyName":
       getCustomers = getCustomerByCompanyName;
       break;
+    case "mobileNumberInPri":
+    case "mobileNumber":
+      getCustomers = getCustomerByMobileNumber;
+      break;
+    case "emailInPri":
+    case "email":
+      getCustomers = getCustomerByEmail;
+      break;
     default:
       getCustomers = undefined;
   }
@@ -311,6 +321,14 @@ export const setAutocompleteFieldValue = async (
     case "lastName":
       await setFieldValue(name, (option as Customer)?.lastName || "");
       break;
+    case "mobileNumberInPri":
+    case "mobileNumber":
+      await setFieldValue(name, (option as Customer)?.mobileNumber || "");
+      break;
+    case "emailInPri":
+    case "email":
+      await setFieldValue(name, (option as Customer)?.primaryEmail || "");
+      break;
     default:
       await setFieldValue(name, "");
   }
@@ -323,6 +341,10 @@ export const customerAutocompleteFields = [
   "lastName",
   "dealershipName",
   "companyName",
+  "mobileNumberInPri",
+  "mobileNumber",
+  "emailInPri",
+  "email",
 ];
 
 export const getAutofillFieldName = (name: string, fieldName: string) => {

@@ -7,7 +7,11 @@ import { GenericFormContext } from "components/generics/Form/GenericForm.context
 import { MessagesContext } from "contexts/messagescontext";
 import type Field from "components/generics/Field/GenericField.types";
 import type { discountBase } from "api/services/countryConfiguration/countryConfiguration";
-import { mapValuesToAPI, convertAPIDataToFormValues } from "components/generics/utils";
+import {
+  mapValuesToAPI,
+  convertAPIDataToFormValues,
+  setSectionDisabledState,
+} from "components/generics/utils";
 import { DiagnosticsContext } from "./DiagnosticsContext";
 import { getUploadFieldErrors } from "components/generics/Form/formValidation";
 import { getCostEstimationPdf } from "api/services/jobs/action";
@@ -21,6 +25,10 @@ const discountBaseMock = vi.hoisted((): { value: discountBase } => ({ value: "NE
 const triggerValueMock = vi.hoisted((): { value: unknown } => ({ value: 0 }));
 const hasExistingDiagnosticMock = vi.hoisted(() => ({ value: false }));
 const diagnosticLoadingMock = vi.hoisted(() => ({ value: false }));
+/** Per-key pending flags for the mocked mutation hooks (key = name passed to mutationHookMock). */
+const pendingMutationsMock = vi.hoisted((): Record<string, boolean> => ({}));
+const uiConfigStateMock = vi.hoisted(() => ({ isLoading: false, isError: false }));
+const fetchDefaultQuantitiesMock = vi.hoisted(() => vi.fn());
 
 type CapturedMutationOptions = {
   onSuccess?: (data?: unknown, ...rest: unknown[]) => unknown;
@@ -245,7 +253,11 @@ vi.mock("@tanstack/react-query", () => ({
   // Only JobOverview's postMessageMutation uses useMutation directly.
   useMutation: (options: CapturedMutationOptions) => {
     hookOptions.postMessage = options;
-    return { mutate: postMessageMutateMock, mutateAsync: vi.fn(), isPending: false };
+    return {
+      mutate: postMessageMutateMock,
+      mutateAsync: vi.fn(),
+      isPending: pendingMutationsMock.postMessage ?? false,
+    };
   },
 }));
 
@@ -275,7 +287,12 @@ vi.mock("hooks/useFormInitialization", () => ({
 vi.mock("hooks/useUIConfiguration", () => ({
   useResourceUIConfiguration: () => {
     if (!uiConfigEnabledMock.value) {
-      return { uiConfiguration: undefined, countryCode: "ZA", isLoading: false, isError: false };
+      return {
+        uiConfiguration: undefined,
+        countryCode: "ZA",
+        isLoading: uiConfigStateMock.isLoading,
+        isError: uiConfigStateMock.isError,
+      };
     }
     return {
       uiConfiguration: {
@@ -310,8 +327,8 @@ vi.mock("hooks/useUIConfiguration", () => ({
         ],
       },
       countryCode: "ZA",
-      isLoading: false,
-      isError: false,
+      isLoading: uiConfigStateMock.isLoading,
+      isError: uiConfigStateMock.isError,
     };
   },
 }));
@@ -320,6 +337,10 @@ vi.mock("hooks/useActionWithValidation", () => ({
 }));
 vi.mock("hooks/usePositionDropdownSync", () => ({ usePositionDropdownSync: vi.fn() }));
 vi.mock("hooks/usePostRecalculatePrices", () => ({ usePostRecalculatePrices: vi.fn() }));
+
+vi.mock("api/services/prices/hooks", () => ({
+  useFetchDefaultQuantities: () => fetchDefaultQuantitiesMock,
+}));
 
 vi.mock("hooks/useSectionEditing", () => ({
   useSectionEditing: () => ({
@@ -554,7 +575,11 @@ vi.mock("../../../components/ui/ActivityIndicatorWithDelay/ActivityIndicatorWith
 vi.mock("api/services/approvals/hooks", () => ({
   useUpdateApprovalStatus: (options: CapturedMutationOptions) => {
     hookOptions.approvePreApproval = options;
-    return { mutate: approvePreApprovalMutateMock, mutateAsync: vi.fn(), isPending: false };
+    return {
+      mutate: approvePreApprovalMutateMock,
+      mutateAsync: vi.fn(),
+      isPending: pendingMutationsMock.approvePreApproval ?? false,
+    };
   },
 }));
 
@@ -573,7 +598,7 @@ const mutationHookMock = vi.hoisted(
     (key: string, mutate: unknown = vi.fn(), mutateAsync: unknown = vi.fn()) =>
     (options?: CapturedMutationOptions) => {
       hookOptions[key] = options;
-      return { mutate, mutateAsync, isPending: false };
+      return { mutate, mutateAsync, isPending: pendingMutationsMock[key] ?? false };
     },
 );
 vi.mock("api/services/jobs/hooks", () => ({
@@ -660,6 +685,9 @@ beforeEach(() => {
   hasExistingDiagnosticMock.value = false;
   queryCacheMock.value = {};
   for (const key of Object.keys(hookOptions)) delete hookOptions[key];
+  for (const key of Object.keys(pendingMutationsMock)) delete pendingMutationsMock[key];
+  uiConfigStateMock.isLoading = false;
+  uiConfigStateMock.isError = false;
   jobIdMock.value = "J-1";
   managerEnableValidateMock.mockImplementation(() => false);
   permissionMock.value = true;
@@ -3752,38 +3780,6 @@ describe("JobOverview onRecalculatePrices", () => {
     expect(diagnosticsCtx().arePricesValidated).toBe(false);
   });
 
-  // The in-flight request (not the hook's rendered isPending) blocks a new edit: isPending is still
-  // true for one render after a request settles, which would drop the follow-up recalculation of a
-  // fault code change. A test that mocks isPending: true no longer models a pending request.
-  it("does not start another recalculation while one is pending", async () => {
-    mockDiagnosticMaterials([{ id: "M-1", order: 1, partNumber: "PN-1", status: "REVISED" }]);
-    const { rerenderView } = renderWithMessages();
-    let finishFirst: () => void = () => undefined;
-    recalculatePricesMutateMock.mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          finishFirst = resolve;
-        }),
-    );
-
-    recalculate("row0_unitPrice", 5);
-    recalculate("row0_unitPrice", 6);
-    rowsChangedVersionMock.value = 1;
-    rerenderView();
-    expect(recalculatePricesMutateMock).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      finishFirst();
-      await Promise.resolve();
-    });
-
-    recalculate("row0_unitPrice", 7);
-    await waitFor(() => expect(recalculatePricesMutateMock).toHaveBeenCalledTimes(2));
-    expect(lastRecalculatePayload().changes).toEqual([
-      { type: "unitPrice", lineId: "M-1", value: 7, scope: null },
-    ]);
-  });
-
   it("waits for the recalculation in flight, then sends the next header change", async () => {
     mockDiagnosticMaterials([{ id: "M-1", order: 1, partNumber: "PN-1" }]);
     renderWithMessages();
@@ -4315,5 +4311,541 @@ describe("JobOverview validate-and-save and recalculate responses", () => {
     expect(collectMessages(setMessagesMock)).toContainEqual(
       expect.objectContaining({ type: "error", duration: 8000, text: expect.any(String) }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Coverage batch 3: UI configuration states, pending mutations, missing fields,
+// missing job id, warranty branches and remaining fallbacks.
+// ---------------------------------------------------------------------------
+
+describe("JobOverview UI configuration states", () => {
+  it("shows the loading indicator while the UI configuration loads", () => {
+    uiConfigStateMock.isLoading = true;
+    mockJob();
+
+    render(<JobOverview />);
+
+    expect(screen.getByText("loading-indicator")).toBeInTheDocument();
+  });
+
+  it("shows an error when the UI configuration fails to load", () => {
+    uiConfigStateMock.isError = true;
+    mockJob();
+
+    render(<JobOverview />);
+
+    expect(screen.getByText("error")).toBeInTheDocument();
+  });
+});
+
+describe("JobOverview while mutations are pending", () => {
+  const cases: Array<{ key: string; predicate: string; status?: string }> = [
+    { key: "validateAndSave", predicate: "enableValidate" },
+    { key: "postJobStatus", predicate: "enableGoToNextStep" },
+    { key: "toggleJobHold", predicate: "enableHold" },
+    { key: "startRepair", predicate: "enableStartRepair" },
+    { key: "finishRepair", predicate: "enableFinishRepair" },
+    { key: "startReview", predicate: "enableSubmitForReview" },
+    { key: "toolDelivered", predicate: "enableToolDelivered" },
+    { key: "postCustomer", predicate: "enableSaveCustomer" },
+    { key: "patchJob", predicate: "enableSaveAsset" },
+    { key: "postMessage", predicate: "enableSaveNote" },
+    { key: "internalApproval", predicate: "enableRequestApproval" },
+    { key: "repairApproval", predicate: "enableApproveForRepair" },
+    { key: "createCostEstimate", predicate: "enableCreateCostEstimate" },
+    {
+      key: "customerAnswer",
+      predicate: "enableCustomerAnswer",
+      status: "CUSTOMER_APPROVAL_PENDING",
+    },
+  ];
+
+  it.each(cases)("$predicate is false while $key is pending", ({ key, predicate, status }) => {
+    managerEnableValidateMock.mockImplementation(() => true);
+    pendingMock.chargeable = {
+      pendingTypeFields: [{ name: "row0_type" }],
+      hasChargeablePending: true,
+    };
+    pendingMock.bosch = { pendingTypeFields: [], hasBoschInternalPending: true };
+    mockJob({ jobStatus: status ?? "IN_DIAGNOSTICS" });
+    pendingMutationsMock[key] = true;
+    renderWithMessages();
+    setPricesValidated(true);
+
+    expect(callbacks()[predicate]()).toBe(false);
+  });
+
+  it.each(["validateAndSave", "recalculate"])("reports validating while %s is pending", (key) => {
+    pendingMutationsMock[key] = true;
+    mockJob();
+    renderWithMessages();
+
+    expect(diagnosticsCtx().isValidating).toBe(true);
+  });
+
+  it("does not start another recalculation while one is pending", () => {
+    pendingMutationsMock.recalculate = true;
+    allFieldsMock.value = [
+      makeField("row0_unitPrice", "diagnosticUnitPrice", {
+        fieldMapping: { originalName: "unitPrice", nameStartsWith: "row0" },
+      }),
+    ];
+    mockJob();
+    const { rerenderView } = renderWithMessages();
+
+    act(() => {
+      callbacks().onRecalculatePrices("row0_unitPrice", 5);
+    });
+    rowsChangedVersionMock.value = 1;
+    rerenderView();
+
+    expect(recalculatePricesMutateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("JobOverview before the form fields are loaded", () => {
+  beforeEach(() => {
+    allFieldsMock.value = null;
+    mockJob();
+  });
+
+  it("skips the after-delete recalculation", () => {
+    const { rerenderView } = renderWithMessages();
+
+    rowsChangedVersionMock.value = 1;
+    rerenderView();
+
+    expect(recalculatePricesMutateMock).not.toHaveBeenCalled();
+  });
+
+  it("does not validate", async () => {
+    renderWithMessages();
+
+    await act(async () => {
+      await callbacks().onValidate({});
+    });
+
+    expect(validateAndSaveMutateMock).not.toHaveBeenCalled();
+  });
+
+  it("still syncs validate and recalculate responses with an empty field list", async () => {
+    renderWithMessages();
+    vi.mocked(convertAPIDataToFormValues).mockClear();
+    const response = { diagnostic: { jobId: "J-1", materials: [{ id: "M-1" }] } };
+
+    await runOnSuccess("validateAndSave", response);
+    await runOnSuccess("validateAndSave", {});
+    await runOnSuccess("recalculate", response);
+
+    expect(convertAPIDataToFormValues).toHaveBeenCalledWith(
+      expect.anything(),
+      [],
+      expect.anything(),
+    );
+  });
+});
+
+describe("JobOverview validate with unusual focus state", () => {
+  it.each([{ activeElement: null }, { activeElement: {} }])(
+    "validates when the active element is $activeElement",
+    async ({ activeElement }) => {
+      mockJob();
+      renderWithMessages();
+      const spy = vi
+        .spyOn(document, "activeElement", "get")
+        .mockReturnValue(activeElement as unknown as Element | null);
+
+      await act(async () => {
+        await callbacks().onValidate({});
+      });
+      spy.mockRestore();
+
+      expect(validateAndSaveMutateMock).toHaveBeenCalledTimes(1);
+    },
+  );
+});
+
+describe("JobOverview without a job id in mutation callbacks", () => {
+  beforeEach(() => {
+    jobIdMock.value = undefined;
+    mockJob();
+  });
+
+  it("does not fetch the cost estimate PDF", async () => {
+    renderWithMessages();
+
+    await runOnSuccess("createCostEstimate");
+
+    expect(getCostEstimationPdf).not.toHaveBeenCalled();
+  });
+
+  it("does not touch the diagnostic cache", async () => {
+    renderWithMessages();
+
+    await runOnSuccess("validateAndSave", {});
+    await runOnSuccess("validateAndSave", { diagnostic: { jobId: "J-1" } });
+    await runOnSuccess("recalculate", { diagnostic: { jobId: "J-1" } });
+
+    expect(queryClientMock.setQueryData).not.toHaveBeenCalled();
+  });
+});
+
+describe("JobOverview next step", () => {
+  it("opens the diagnostic data tab once diagnostics have started", () => {
+    tabsDataMock.value = [makeTab("assetData", 1), makeTab("diagnosticData", 2)];
+    mockJob({ jobStatus: "READY_FOR_DIAGNOSTIC" });
+    renderWithMessages();
+    expect(screen.getByTestId("active-section")).toHaveTextContent("assetData");
+
+    fireEvent.click(screen.getByRole("button", { name: "Next Step" }));
+    const options = startDiagnosticMutateMock.mock.calls[0][1] as CapturedMutationOptions;
+    act(() => {
+      options.onSuccess?.();
+    });
+
+    expect(screen.getByTestId("active-section")).toHaveTextContent("diagnosticData");
+  });
+});
+
+describe("JobOverview product photo guard for serial 999", () => {
+  beforeEach(() => {
+    tabsDataMock.value = [makeTab("assetData", 1), makeTab("documents", 2)];
+  });
+
+  it("blocks submit for review for serial number 999 without a product photo", () => {
+    mockJob({ asset: { serialNumber: "999", attachments: [] } });
+    const { setMessagesMock } = renderWithMessages();
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit Review" }));
+
+    expect(startReviewMutateMock).not.toHaveBeenCalled();
+    expect(collectMessages(setMessagesMock)).toEqual([
+      { text: "errorMissingProductPhoto", type: "error", duration: 6000 },
+    ]);
+  });
+
+  it("submits an exchange action for review when a product photo exists", () => {
+    initialFormValuesMock.value = { actionType: "NEW_TOOL_EXCHANGE" };
+    mockJob({ asset: { attachments: [{ type: "PRODUCT_PHOTO" }] } });
+    renderWithMessages();
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit Review" }));
+
+    expect(startReviewMutateMock).toHaveBeenCalledWith({ jobId: "J-1" });
+  });
+});
+
+describe("JobOverview repair answer lock", () => {
+  it("disables product details and hides row actions after the customer chose repair", () => {
+    allowedPositionsMock.value = [{ position: "SP", maxCount: 5 }];
+    diagnosticDataMock.value = { customerAnswer: "REPAIR" };
+    mockJob({ jobStatus: "CUSTOMER_APPROVAL_PENDING" });
+    renderWithMessages();
+
+    expect(formCtx().isRepairAnswerLocked).toBe(true);
+    expect(callbacks().enableProductDetails()).toBe(false);
+    expect(callbacks().showProductDetails()).toBe(false);
+    expect(callbacks().showAddRow()).toBe(false);
+  });
+});
+
+describe("JobOverview prices populated from materials", () => {
+  const zero = { unitPrice: 0, netAmount: 0, grossAmount: 0, totalAmount: 0 };
+
+  it.each([
+    { name: "unitPrice", material: { ...zero, unitPrice: 3 }, expected: true },
+    { name: "netAmount", material: { ...zero, netAmount: 3 }, expected: true },
+    { name: "grossAmount", material: { ...zero, grossAmount: 3 }, expected: true },
+    { name: "totalAmount", material: { ...zero, totalAmount: 3 }, expected: true },
+    { name: "nothing", material: zero, expected: false },
+  ])("is $expected when only $name is non-zero", ({ material, expected }) => {
+    diagnosticDataMock.value = {
+      priceSummaryDetailed: { total: { totalAmount: 1 }, byJobType: [] },
+    } as unknown as typeof diagnosticDataMock.value;
+    materialsMock.value = [material];
+    mockJob();
+    renderWithMessages();
+
+    expect(diagnosticsCtx().hasPricesPopulated).toBe(expected);
+  });
+});
+
+describe("JobOverview section state on hold", () => {
+  it("disables a section that has actions when the job is on hold", () => {
+    tabsDataMock.value = [
+      makeTab("assetData", 1, [], {
+        actions: [{ name: "save", onAction: "onSaveAsset", mode: "primary", mandatoryFields: [] }],
+      }),
+    ];
+    mockJob({ isOnHold: true });
+    renderWithMessages();
+
+    expect(setSectionDisabledState).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "assetData" }),
+      true,
+    );
+  });
+});
+
+describe("JobOverview default quantities", () => {
+  const values = {
+    actionType: "REPAIR",
+    jobType: "CHARGEABLE",
+    faultCode: "F-1",
+    faultCodeLabourQuantity: 2,
+    exchangeReason: "R",
+  };
+
+  it("resolves with the job ASC id", () => {
+    useJobByIdMock.mockReturnValue({
+      data: {
+        order: { countryCode: "ZA", ascId: "ORDER-ASC" },
+        job: { jobStatus: "IN_DIAGNOSTICS", isOnHold: false, ascId: "JOB-ASC" },
+      },
+      isLoading: false,
+      error: null,
+    });
+    renderWithMessages();
+
+    formCtx().resolveDefaultQuantities(values);
+
+    expect(fetchDefaultQuantitiesMock).toHaveBeenCalledWith({
+      countryCode: "ZA",
+      ascId: "JOB-ASC",
+      jobId: "J-1",
+      ...values,
+    });
+  });
+
+  it("falls back to the order ASC id", () => {
+    useJobByIdMock.mockReturnValue({
+      data: {
+        order: { countryCode: "ZA", ascId: "ORDER-ASC" },
+        job: { jobStatus: "IN_DIAGNOSTICS", isOnHold: false },
+      },
+      isLoading: false,
+      error: null,
+    });
+    renderWithMessages();
+
+    formCtx().resolveDefaultQuantities(values);
+
+    expect(fetchDefaultQuantitiesMock).toHaveBeenCalledWith(
+      expect.objectContaining({ ascId: "ORDER-ASC" }),
+    );
+  });
+});
+
+describe("JobOverview save customer with cleared fields", () => {
+  it("sends cleared customer fields as empty strings", async () => {
+    const customer = ["order", "customer"];
+    allFieldsMock.value = [
+      makeField("lastName", "text", { fieldMapping: { map: "lastName", parentMap: customer } }),
+      makeField("firstName", "text", { fieldMapping: { map: "firstName", parentMap: customer } }),
+      makeField("fax", "text", { fieldMapping: { map: "fax", parentMap: customer } }),
+      makeField("", "text", { fieldMapping: { map: "unnamed", parentMap: customer } }),
+      makeField("alreadyMapped", "text", {
+        fieldMapping: { map: "alreadyMapped", parentMap: customer },
+      }),
+      makeField("noMap", "text", { fieldMapping: { parentMap: customer } }),
+      makeField("jobNote", "text", { fieldMapping: { map: "jobNote", parentMap: ["job"] } }),
+      makeField("topLevel", "text", { fieldMapping: { map: "topLevel" } }),
+      makeField("noMapping", "text"),
+    ];
+    vi.mocked(mapValuesToAPI).mockReturnValueOnce({
+      order: {
+        customer: {
+          firstName: "Jane",
+          alreadyMapped: "kept",
+          useBillingAddressForDelivery: false,
+        },
+      },
+    });
+    mockJob();
+    renderWithMessages();
+
+    await act(async () => {
+      await callbacks().onSaveCustomer(
+        {
+          lastName: "",
+          firstName: "Jane",
+          fax: null,
+          alreadyMapped: "",
+          jobNote: "",
+          topLevel: "",
+        },
+        {},
+      );
+    });
+
+    expect(postCustomerMutateMock).toHaveBeenCalledWith(
+      {
+        orderId: "O-1",
+        payload: {
+          firstName: "Jane",
+          alreadyMapped: "kept",
+          useBillingAddressForDelivery: false,
+          lastName: "",
+          fax: "",
+          unnamed: "",
+        },
+      },
+      expect.any(Object),
+    );
+  });
+});
+
+describe("JobOverview recalculation of a field that is not a material row", () => {
+  it("ignores a mapped field that has no line id and is not a summary field", () => {
+    allFieldsMock.value = [makeField("jobNote", "text", { fieldMapping: { parentMap: ["job"] } })];
+    validateByActionMock.mockImplementation(() => ({}));
+    mockJob();
+    renderWithMessages();
+
+    act(() => {
+      callbacks().onRecalculatePrices("jobNote", "text");
+    });
+
+    expect(recalculatePricesMutateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("JobOverview warranty check branches", () => {
+  const completeValues = (serialNumber: string) => ({
+    brand: "BOSCH",
+    baretoolNumber: "BT-1",
+    serialNumber,
+    purchaseDate: "2024-06-15",
+  });
+
+  beforeEach(() => {
+    tabsDataMock.value = [makeTab("assetData", 2)];
+    editingSectionsMock.value = new Set(["assetData"]);
+    mockJob({ jobStatus: "READY_FOR_DIAGNOSTIC" });
+  });
+
+  it("does not check the warranty for incomplete asset values", async () => {
+    renderWithMessages();
+
+    await act(async () => {
+      formCtx().onAreaValueChange("asset", {});
+    });
+
+    expect(warrantyMutateAsyncMock).not.toHaveBeenCalled();
+  });
+
+  it("does not repeat the check for identical asset values", async () => {
+    warrantyMutateAsyncMock.mockResolvedValue({
+      evaluationStatus: "ELIGIBLE",
+      supportedWarrantyType: "STANDARD_WARRANTY",
+    });
+    renderWithMessages();
+
+    await act(async () => {
+      formCtx().onAreaValueChange("asset", completeValues("SN-1"));
+    });
+    await act(async () => {
+      formCtx().onAreaValueChange("asset", completeValues("SN-1"));
+    });
+
+    expect(warrantyMutateAsyncMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores an empty warranty response", async () => {
+    warrantyMutateAsyncMock.mockResolvedValue(undefined);
+    renderWithMessages();
+
+    await act(async () => {
+      formCtx().onAreaValueChange("asset", completeValues("SN-2"));
+    });
+
+    expect(setTabsMock).not.toHaveBeenCalled();
+  });
+
+  it("ignores a stale warranty response when the asset values changed meanwhile", async () => {
+    let resolveFirst: (value: unknown) => void = () => {};
+    warrantyMutateAsyncMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockResolvedValueOnce({ evaluationStatus: "INELIGIBLE", reasonKey: "WARRANTY_EXPIRED" });
+    renderWithMessages();
+
+    await act(async () => {
+      formCtx().onAreaValueChange("asset", completeValues("SN-A"));
+    });
+    await act(async () => {
+      formCtx().onAreaValueChange("asset", completeValues("SN-B"));
+    });
+    expect(setTabsMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveFirst({ evaluationStatus: "INELIGIBLE" });
+    });
+
+    expect(setTabsMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears a warranty type that the eligible response does not allow", async () => {
+    initialFormValuesMock.value = { warrantyType: "NOT_A_REAL_TYPE" };
+    warrantyMutateAsyncMock.mockResolvedValue({
+      evaluationStatus: "ELIGIBLE",
+      supportedWarrantyType: "STANDARD_WARRANTY",
+    });
+    renderWithMessages();
+
+    await act(async () => {
+      formCtx().onAreaValueChange("asset", completeValues("SN-3"));
+    });
+
+    await waitFor(() => expect(formikValues().warrantyType).toBe(""));
+  });
+});
+
+describe("JobOverview warranty panel info fallbacks", () => {
+  it("uses defaults for a minimal check result without a purchase date", () => {
+    warrantyCheckDataMock.value = { evaluationStatus: "ELIGIBLE" };
+    mockJob({ asset: { warrantyInformation: null } });
+    renderWithMessages();
+
+    expect(formCtx().warrantyPanelInfo).toMatchObject({
+      supportedWarrantyType: "NONE",
+      isIneligible: true,
+      hasPurchaseDate: false,
+      infoPayload: {
+        validityExpirationDate: "",
+        usedWarrantyRepairCount: 0,
+        allowedWarrantyRepairCount: 0,
+      },
+    });
+  });
+
+  it("treats stored warranty information without a type or status as ineligible", () => {
+    mockJob({ asset: { purchaseDate: "2024-05-10", warrantyInformation: { warrantyType: null } } });
+    renderWithMessages();
+
+    expect(formCtx().warrantyPanelInfo.isIneligible).toBe(true);
+  });
+
+  it("treats stored warranty information with a type as eligible", () => {
+    mockJob({
+      asset: {
+        purchaseDate: "2024-05-10",
+        warrantyInformation: {
+          warrantyType: "STANDARD_WARRANTY",
+          evaluation: { status: "ELIGIBLE" },
+        },
+      },
+    });
+    renderWithMessages();
+
+    expect(formCtx().warrantyPanelInfo).toMatchObject({
+      isIneligible: false,
+      supportedWarrantyType: "STANDARD_WARRANTY",
+    });
   });
 });

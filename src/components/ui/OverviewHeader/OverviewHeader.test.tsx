@@ -89,6 +89,16 @@ describe("OverviewHeader", () => {
     expect(screen.getByText("John Doe")).toBeInTheDocument();
   });
 
+  it("renders claim assignee details and employee code", () => {
+    renderHeader({
+      type: "claim" as const,
+      assigneeInfo: { icon: "user", name: "John Doe", employeeCode: "EMP-42" },
+    });
+
+    expect(screen.getByText("assignee: John Doe")).toBeInTheDocument();
+    expect(screen.getByText("(employeeCode EMP-42)")).toBeInTheDocument();
+  });
+
   it("renders unassigned when assignee name is null", () => {
     renderHeader({ assigneeInfo: { icon: "user", name: null } });
     expect(screen.getByText("unassigned")).toBeInTheDocument();

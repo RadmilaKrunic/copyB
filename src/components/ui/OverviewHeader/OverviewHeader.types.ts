@@ -10,8 +10,8 @@ export interface OverviewHeaderItem {
 
 export interface OverviewHeaderProps {
   type: OverviewType;
-  id: string;
-  idLabel: string;
+  id?: string;
+  idLabel?: string;
   createdAt: string;
   createdAtLabel: string;
   historyLink?: {
@@ -28,6 +28,8 @@ export interface OverviewHeaderProps {
     icon: string;
     name: string | null;
     subtitle?: string;
+    employeeCode?: string;
+    jobId?: string;
   };
   status?: string;
   showStatus?: boolean;

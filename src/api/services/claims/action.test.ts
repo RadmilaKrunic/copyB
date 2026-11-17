@@ -8,6 +8,7 @@ import {
   postClaimRecalculatePrices,
   patchClaimStatusPending,
   saveClaimListColumns,
+  updateClaimAttachments,
 } from "./action";
 
 vi.mock("api/axios-client/axiosClient", () => ({
@@ -176,5 +177,32 @@ describe("saveClaimListColumns", () => {
     await expect(
       saveClaimListColumns([{ key: "claimId", isChecked: true, isFixed: true, order: 0 }]),
     ).rejects.toThrow("save failed");
+  });
+});
+
+describe("updateClaimAttachments", () => {
+  it("sends attachments to the claim attachment endpoint", async () => {
+    const attachments = [
+      { name: "invoice.pdf", type: "application/pdf", attachmentId: "a-1" },
+      { name: "photo.png", type: "image/png", attachmentId: "a-2" },
+    ];
+
+    mockPut.mockResolvedValueOnce(undefined);
+
+    await updateClaimAttachments("C001", attachments);
+
+    expect(mockPut).toHaveBeenCalledWith("/v1/claims/C001/attachments", {
+      attachments,
+    });
+  });
+
+  it("throws on error", async () => {
+    mockPut.mockRejectedValueOnce(new Error("update failed"));
+
+    await expect(
+      updateClaimAttachments("C001", [
+        { name: "invoice.pdf", type: "application/pdf", attachmentId: "a-1" },
+      ]),
+    ).rejects.toThrow("update failed");
   });
 });

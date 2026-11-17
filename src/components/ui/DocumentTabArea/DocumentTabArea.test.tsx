@@ -14,6 +14,7 @@ const documentFileMock = vi.hoisted(() => vi.fn());
 const genericFieldMock = vi.hoisted(() => vi.fn());
 const checkActionConditionMock = vi.hoisted(() => vi.fn(() => true));
 const mutateMock = vi.hoisted(() => vi.fn());
+const claimMutateMock = vi.hoisted(() => vi.fn());
 const getCachedJobContextMock = vi.hoisted(() => vi.fn(() => ({ cached: "context" })));
 const scrollToTopMock = vi.hoisted(() => vi.fn());
 
@@ -21,9 +22,16 @@ let mutationOptions: {
   onSuccess?: () => void;
   onError?: (error: unknown) => void;
 } = {};
+let claimMutationOptions: {
+  onSuccess?: () => void;
+  onError?: (error: unknown) => void;
+} = {};
 let nextDeleteAttachments:
   | Array<{ attachmentId: string; name: string; type: string; sourceReferenceId?: string }>
   | undefined;
+
+let mockClaimByIdResult: { data: unknown } = { data: undefined };
+let mockJobByIdResult: { data: unknown } = { data: undefined };
 
 vi.mock("@/analytics", async () => ({
   ...(await vi.importActual<Record<string, unknown>>("@/analytics")),
@@ -119,7 +127,24 @@ vi.mock("api/services/jobs/hooks", () => ({
     mutationOptions = cfg;
     return { mutate: mutateMock };
   }),
+  useJobById: vi.fn(() => mockJobByIdResult),
 }));
+
+vi.mock("api/services/claims/hooks", () => ({
+  useClaimById: vi.fn(() => mockClaimByIdResult),
+}));
+
+vi.mock("@tanstack/react-query", async () => {
+  const actual =
+    await vi.importActual<typeof import("@tanstack/react-query")>("@tanstack/react-query");
+  return {
+    ...actual,
+    useMutation: vi.fn((cfg: typeof claimMutationOptions) => {
+      claimMutationOptions = cfg;
+      return { mutate: claimMutateMock };
+    }),
+  };
+});
 
 vi.mock("modules/JobManagement/jobAnalyticsContext", () => ({
   getCachedJobContext: getCachedJobContextMock,
@@ -245,7 +270,10 @@ describe("DocumentTabArea", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mutationOptions = {};
+    claimMutationOptions = {};
     nextDeleteAttachments = undefined;
+    mockClaimByIdResult = { data: undefined };
+    mockJobByIdResult = { data: undefined };
     checkActionConditionMock.mockReturnValue(true);
     getCachedJobContextMock.mockReturnValue({ cached: "context" });
   });
@@ -274,6 +302,16 @@ describe("DocumentTabArea", () => {
   });
 
   it("hides delete action for claim entity", () => {
+    mockClaimByIdResult = {
+      data: {
+        job: {
+          asset: { attachments: [{ attachmentId: "A2", name: "n", type: "pdf" }] },
+          jobStatus: "IN_PROGRESS",
+          isOnHold: false,
+        },
+      },
+    };
+
     renderArea({
       entityType: "claim",
       jobData: {
@@ -362,10 +400,33 @@ describe("DocumentTabArea", () => {
 
     fireEvent.click(screen.getByTestId("trigger-upload-update"));
 
-    expect(mutateMock).toHaveBeenCalledWith({
-      jobId: "C1",
+    expect(claimMutateMock).toHaveBeenCalledWith({
+      claimId: "C1",
       attachments: [{ attachmentId: "UP-1", name: "upload.pdf", type: "pdf" }],
     });
+  });
+
+  it("handles claim mutation success by invalidating the claim cache and showing a success message", () => {
+    const { invalidateQueriesSpy, setMessages } = renderArea({
+      entityType: "claim",
+      jobData: { job: { asset: { attachments: [] }, jobStatus: "DRAFT", isOnHold: false } },
+    });
+
+    act(() => {
+      claimMutationOptions.onSuccess?.();
+    });
+
+    expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: ["claim", "C1"] });
+    expect(setMessages).toHaveBeenCalledWith(expect.any(Function));
+    expect(scrollToTopMock).toHaveBeenCalled();
+
+    const updater = setMessages.mock.calls[0]?.[0] as (
+      prev: Array<{ text: string; type: string; duration: number }>,
+    ) => Array<{ text: string; type: string; duration: number }>;
+
+    expect(updater([])).toEqual([
+      { text: "successSaveDocuments", type: "success", duration: 3000 },
+    ]);
   });
 
   it("updates the cached attachments after delete success", () => {
@@ -456,5 +517,49 @@ describe("DocumentTabArea", () => {
     });
 
     expect(screen.queryByTestId("upload-field")).not.toBeInTheDocument();
+  });
+
+  it("invalidates job cache when saving claim documents succeeds", () => {
+    mockClaimByIdResult = {
+      data: {
+        jobId: "J1",
+        claimStatus: "PENDING",
+        job: { asset: { attachments: [] }, jobStatus: "DRAFT", isOnHold: false },
+      } as never,
+    };
+
+    const { invalidateQueriesSpy } = renderArea({
+      entityType: "claim",
+      jobData: { job: { asset: { attachments: [] }, jobStatus: "DRAFT", isOnHold: false } },
+    });
+
+    act(() => {
+      claimMutationOptions.onSuccess?.();
+    });
+
+    expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: ["claim", "C1"] });
+    expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: ["job", "J1"] });
+  });
+
+  it("invalidates job cache when job documents save succeeds for claim", () => {
+    mockClaimByIdResult = {
+      data: {
+        jobId: "J2",
+        claimStatus: "PENDING",
+        job: { asset: { attachments: [] }, jobStatus: "DRAFT", isOnHold: false },
+      } as never,
+    };
+
+    const { invalidateQueriesSpy } = renderArea({
+      entityType: "claim",
+      jobData: { job: { asset: { attachments: [] }, jobStatus: "DRAFT", isOnHold: false } },
+    });
+
+    act(() => {
+      mutationOptions.onSuccess?.();
+    });
+
+    expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: ["claim", "C1"] });
+    expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: ["job", "J2"] });
   });
 });

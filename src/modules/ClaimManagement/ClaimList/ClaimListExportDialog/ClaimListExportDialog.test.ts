@@ -19,6 +19,8 @@ vi.mock("../../../../api/axios-client/axiosClient", () => ({
 }));
 
 vi.mock("@bosch/react-frok", () => ({
+  ActivityIndicator: () =>
+    React.createElement("div", { "data-testid": "activity-indicator" }, "loading"),
   Dialog: ({
     title,
     cancelLabel,
@@ -26,6 +28,8 @@ vi.mock("@bosch/react-frok", () => ({
     onClose,
     onCancel,
     onConfirm,
+    cancelButton,
+    confirmButton,
     children,
   }: {
     title: string;
@@ -34,15 +38,34 @@ vi.mock("@bosch/react-frok", () => ({
     onClose?: () => void;
     onCancel?: () => void;
     onConfirm?: () => void;
+    cancelButton?: { disabled?: boolean };
+    confirmButton?: { disabled?: boolean };
     children: React.ReactNode;
   }) =>
     React.createElement(
       "div",
       null,
       React.createElement("h1", null, title),
-      React.createElement("button", { type: "button", onClick: onClose }, "close"),
-      React.createElement("button", { type: "button", onClick: onCancel }, cancelLabel),
-      React.createElement("button", { type: "button", onClick: onConfirm }, confirmLabel),
+      React.createElement(
+        "button",
+        { type: "button", onClick: onClose, disabled: cancelButton?.disabled },
+        "close",
+      ),
+      React.createElement(
+        "button",
+        { type: "button", onClick: onClose, "data-testid": "manual-close-trigger" },
+        "manual close",
+      ),
+      React.createElement(
+        "button",
+        { type: "button", onClick: onCancel, disabled: cancelButton?.disabled },
+        cancelLabel,
+      ),
+      React.createElement(
+        "button",
+        { type: "button", onClick: onConfirm, disabled: confirmButton?.disabled },
+        confirmLabel,
+      ),
       children,
     ),
 }));
@@ -123,6 +146,43 @@ describe("ClaimListExportDialog", () => {
     expect(setIsExportOpen).toHaveBeenNthCalledWith(2, false);
   });
 
+  it("does not allow closing while export is in progress", async () => {
+    let resolveRequest: (value: { data: Blob; headers: Record<string, string> }) => void;
+    postMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRequest = resolve;
+        }),
+    );
+
+    renderDialog();
+
+    fireEvent.change(screen.getByTestId("date-range-input"), {
+      target: { value: "2026-01-01T00:00:00Z,2026-01-31T00:00:00Z" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "export" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "cancel" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "close" })).toBeDisabled();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: "close" }));
+
+    expect(setIsExportOpen).not.toHaveBeenCalled();
+
+    resolveRequest!({
+      data: new Blob(["csv"], { type: "text/csv" }),
+      headers: { "content-disposition": 'attachment; filename="claims-export.csv"' },
+    });
+
+    await waitFor(() => {
+      expect(setIsExportOpen).toHaveBeenCalledWith(false);
+    });
+  });
+
   it("shows validation error and does not export when date range missing", async () => {
     renderDialog();
 
@@ -131,6 +191,163 @@ describe("ClaimListExportDialog", () => {
     expect(await screen.findByText("dateRangeNotSet")).toBeInTheDocument();
     expect(postMock).not.toHaveBeenCalled();
     expect(setIsExportOpen).not.toHaveBeenCalled();
+  });
+
+  it("ignores aborted export requests without showing an error", async () => {
+    let abortSignal: AbortSignal | undefined;
+
+    postMock.mockImplementation((_url, _payload, config) => {
+      abortSignal = config.signal as AbortSignal | undefined;
+
+      return new Promise((_resolve, reject) => {
+        abortSignal?.addEventListener("abort", () => {
+          reject(new DOMException("The operation was aborted.", "AbortError"));
+        });
+      });
+    });
+
+    renderDialog();
+
+    fireEvent.change(screen.getByTestId("date-range-input"), {
+      target: { value: "2026-01-01T00:00:00Z,2026-01-31T00:00:00Z" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "export" }));
+
+    abortSignal?.dispatchEvent(new Event("abort"));
+
+    await waitFor(() => {
+      expect(setMessages).not.toHaveBeenCalled();
+      expect(setIsExportOpen).not.toHaveBeenCalled();
+    });
+  });
+
+  it("ignores export completion after the dialog unmounts", async () => {
+    let abortSignal: AbortSignal | undefined;
+
+    postMock.mockImplementation((_url, _payload, config) => {
+      abortSignal = config.signal as AbortSignal | undefined;
+
+      return new Promise((_resolve, reject) => {
+        abortSignal?.addEventListener("abort", () => {
+          reject(new DOMException("The operation was aborted.", "AbortError"));
+        });
+      });
+    });
+
+    const { unmount } = renderDialog();
+
+    fireEvent.change(screen.getByTestId("date-range-input"), {
+      target: { value: "2026-01-01T00:00:00Z,2026-01-31T00:00:00Z" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "export" }));
+
+    await waitFor(() => {
+      expect(abortSignal).toBeDefined();
+    });
+
+    unmount();
+
+    await waitFor(() => {
+      expect(setMessages).not.toHaveBeenCalled();
+      expect(setIsExportOpen).not.toHaveBeenCalled();
+    });
+  });
+
+  it("prevents duplicate export requests while already exporting", async () => {
+    let resolveRequest: (value: { data: Blob; headers: Record<string, string> }) => void;
+    postMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRequest = resolve;
+        }),
+    );
+
+    renderDialog();
+
+    fireEvent.change(screen.getByTestId("date-range-input"), {
+      target: { value: "2026-01-01T00:00:00Z,2026-01-31T00:00:00Z" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "export" }));
+
+    await waitFor(() => {
+      expect(postMock).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "export" }));
+
+    expect(postMock).toHaveBeenCalledTimes(1);
+
+    resolveRequest!({
+      data: new Blob(["csv"], { type: "text/csv" }),
+      headers: { "content-disposition": 'attachment; filename="claims-export.csv"' },
+    });
+
+    await waitFor(() => {
+      expect(setIsExportOpen).toHaveBeenCalledWith(false);
+    });
+  });
+
+  it("aborts the active request when the dialog is closed while exporting", async () => {
+    let abortSignal: AbortSignal | undefined;
+    postMock.mockImplementation((_url, _payload, config) => {
+      abortSignal = config.signal as AbortSignal | undefined;
+      return new Promise(() => undefined);
+    });
+
+    renderDialog();
+
+    fireEvent.change(screen.getByTestId("date-range-input"), {
+      target: { value: "2026-01-01T00:00:00Z,2026-01-31T00:00:00Z" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "export" }));
+
+    await waitFor(() => {
+      expect(abortSignal).toBeDefined();
+      expect(abortSignal?.aborted).toBe(false);
+    });
+
+    fireEvent.click(screen.getByTestId("manual-close-trigger"));
+
+    expect(abortSignal?.aborted).toBe(true);
+    expect(setIsExportOpen).not.toHaveBeenCalled();
+  });
+
+  it("disables the export action and shows the loading state while csv export is in progress", async () => {
+    let resolveRequest: (value: { data: Blob; headers: Record<string, string> }) => void;
+    postMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRequest = resolve;
+        }),
+    );
+
+    renderDialog();
+
+    fireEvent.change(screen.getByTestId("date-range-input"), {
+      target: { value: "2026-01-01T00:00:00Z,2026-01-31T00:00:00Z" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "export" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "export" })).toBeDisabled();
+      expect(screen.getByText("exportingClaimsLoader")).toBeInTheDocument();
+      expect(screen.getByTestId("activity-indicator")).toBeInTheDocument();
+      expect(screen.queryByTestId("date-range-input")).not.toBeInTheDocument();
+    });
+
+    resolveRequest!({
+      data: new Blob(["csv"], { type: "text/csv" }),
+      headers: { "content-disposition": 'attachment; filename="claims-export.csv"' },
+    });
+
+    await waitFor(() => {
+      expect(setIsExportOpen).toHaveBeenCalledWith(false);
+    });
   });
 
   it("exports csv and closes dialog when date range is valid", async () => {
@@ -159,11 +376,11 @@ describe("ClaimListExportDialog", () => {
       expect(postMock).toHaveBeenCalledWith(
         "/v1/claims/csv-export",
         { fromDate: "2026-01-01", toDate: "2026-01-31" },
-        {
+        expect.objectContaining({
           responseType: "blob",
           timeout: 120000,
           headers: { Accept: "text/csv" },
-        },
+        }),
       );
     });
 

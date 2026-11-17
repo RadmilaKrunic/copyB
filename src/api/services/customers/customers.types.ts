@@ -21,7 +21,7 @@ export interface Customer {
   assetsCount?: number;
   status?: string;
   isActive?: boolean;
-  createdOn?: string;
+  createdAt?: string;
 }
 
 export interface CustomerJob {
@@ -39,6 +39,8 @@ export interface CustomerJobsQuery {
   searchTerm?: string;
   page?: number;
   size?: number;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
 }
 
 export interface CustomerJobsResponse {
