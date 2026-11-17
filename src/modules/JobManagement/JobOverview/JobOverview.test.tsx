@@ -3752,6 +3752,38 @@ describe("JobOverview onRecalculatePrices", () => {
     expect(diagnosticsCtx().arePricesValidated).toBe(false);
   });
 
+  // The in-flight request (not the hook's rendered isPending) blocks a new edit: isPending is still
+  // true for one render after a request settles, which would drop the follow-up recalculation of a
+  // fault code change. A test that mocks isPending: true no longer models a pending request.
+  it("does not start another recalculation while one is pending", async () => {
+    mockDiagnosticMaterials([{ id: "M-1", order: 1, partNumber: "PN-1", status: "REVISED" }]);
+    const { rerenderView } = renderWithMessages();
+    let finishFirst: () => void = () => undefined;
+    recalculatePricesMutateMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishFirst = resolve;
+        }),
+    );
+
+    recalculate("row0_unitPrice", 5);
+    recalculate("row0_unitPrice", 6);
+    rowsChangedVersionMock.value = 1;
+    rerenderView();
+    expect(recalculatePricesMutateMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      finishFirst();
+      await Promise.resolve();
+    });
+
+    recalculate("row0_unitPrice", 7);
+    await waitFor(() => expect(recalculatePricesMutateMock).toHaveBeenCalledTimes(2));
+    expect(lastRecalculatePayload().changes).toEqual([
+      { type: "unitPrice", lineId: "M-1", value: 7, scope: null },
+    ]);
+  });
+
   it("waits for the recalculation in flight, then sends the next header change", async () => {
     mockDiagnosticMaterials([{ id: "M-1", order: 1, partNumber: "PN-1" }]);
     renderWithMessages();
