@@ -4267,7 +4267,7 @@ describe("JobOverview validate-and-save and recalculate responses", () => {
     materialsMock.value = [{ unitPrice: 10, netAmount: 10, grossAmount: 12, totalAmount: 12 }];
     diagnosticDataMock.value = {
       priceSummaryDetailed,
-    } as unknown as typeof diagnosticDataMock.value;
+    };
     renderWithMessages();
 
     expect(diagnosticsCtx().hasPricesPopulated).toBe(expected);
@@ -4279,7 +4279,7 @@ describe("JobOverview validate-and-save and recalculate responses", () => {
     diagnosticDataMock.value = {
       materials: [{ id: "M-1", price: { unitPrice: 10, totalAmount: 12 } }],
       priceSummaryDetailed: { total: { totalAmount: 12 }, byJobType: [] },
-    } as unknown as typeof diagnosticDataMock.value;
+    };
     renderWithMessages();
 
     expect(diagnosticsCtx().hasPricesPopulated).toBe(true);
@@ -4575,7 +4575,7 @@ describe("JobOverview prices populated from materials", () => {
   ])("is $expected when only $name is non-zero", ({ material, expected }) => {
     diagnosticDataMock.value = {
       priceSummaryDetailed: { total: { totalAmount: 1 }, byJobType: [] },
-    } as unknown as typeof diagnosticDataMock.value;
+    };
     materialsMock.value = [material];
     mockJob();
     renderWithMessages();
