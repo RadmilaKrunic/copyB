@@ -6,8 +6,8 @@
  * the business confirms whether that use case exists. To lift the restriction, delete
  * the REVISED entry (or this whole map); nothing else depends on its contents.
  *
- * Existing rows on such positions are left as they are: their own position stays
- * selectable so the row keeps showing its value.
+ * Blocked positions stay in the position dropdown but are disabled. Existing rows on
+ * such positions (e.g. an FR row coming from the job) stay visible and keep their value.
  */
 const POSITIONS_NOT_ADDABLE_BY_CLAIM_STATUS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
   ["REVISED", new Set(["FR", "PC"])],

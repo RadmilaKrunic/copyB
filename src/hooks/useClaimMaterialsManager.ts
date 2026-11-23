@@ -316,7 +316,8 @@ export const useClaimMaterialsManager = ({
   const blockedPositions = getBlockedClaimPositions(claimStatus);
   const addablePositions = allowedPositions.filter((p) => !blockedPositions.has(p.position));
 
-  const positionDropdownOptions: GenericOptionProps[] = addablePositions.map((p) => ({
+  // Blocked positions stay listed; ClaimSparePartsRow shows them disabled.
+  const positionDropdownOptions: GenericOptionProps[] = allowedPositions.map((p) => ({
     value: p.position,
     name: p.position,
   }));
