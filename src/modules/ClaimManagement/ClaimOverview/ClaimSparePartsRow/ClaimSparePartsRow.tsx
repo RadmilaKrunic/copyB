@@ -65,12 +65,14 @@ function ClaimSparePartsRow({
   const isNewRow = materials[areaIndex]?.isNew === true;
 
   // Quantity follows the job diagnostics rules: position-specific units permission,
-  // and never on an approved row.
+  // and never on an approved row. A position blocked by the claim status (REVISED claim:
+  // FR, PC; see claimPositionRestrictions) keeps its quantity fixed too.
   const quantityPermission = getQuantityEditPermission(positionValue);
   const hasQuantityPermission = useHasPermission(quantityPermission ? [quantityPermission] : []);
   const statusField = fields.find((f) => f.subtype === "diagnosticMaterialStatus");
   const isApprovedRow = statusField ? values[statusField.name] === "APPROVED" : false;
-  const canEditQuantity = hasQuantityPermission && !isApprovedRow;
+  const isBlockedPosition = blockedPositions.has(positionValue);
+  const canEditQuantity = hasQuantityPermission && !isApprovedRow && !isBlockedPosition;
 
   const partNumberField = fields.find((f) => f.subtype === "diagnosticPartNumber");
   const partNumberValue = partNumberField ? ((values[partNumberField.name] as string) ?? "") : "";

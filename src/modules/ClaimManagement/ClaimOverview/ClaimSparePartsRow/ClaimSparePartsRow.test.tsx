@@ -400,6 +400,39 @@ describe("ClaimSparePartsRow", () => {
         expect(capturedApplyFieldPermissions!(partNumberField).isDisabled).toBe(true);
       });
 
+      it.each(["FR", "PC"])(
+        "disables quantity on a %s row of a REVISED claim (blocked position)",
+        (position) => {
+          mockUseHasPermission.mockImplementation(() => true);
+          mockUseClaimContext.mockReturnValue({
+            ...baseClaimContext,
+            materials: [{ isNew: false }],
+            blockedPositions: new Set(["FR", "PC"]),
+          } as never);
+          renderRow({
+            customFields: quantityFields,
+            initialValues: { [positionFieldName]: position, [statusFieldName]: "PENDING" },
+          });
+
+          expect(capturedApplyFieldPermissions!(quantityField).isDisabled).toBe(true);
+        },
+      );
+
+      it("keeps quantity editable on an SP row of a REVISED claim", () => {
+        mockUseHasPermission.mockImplementation(() => true);
+        mockUseClaimContext.mockReturnValue({
+          ...baseClaimContext,
+          materials: [{ isNew: false }],
+          blockedPositions: new Set(["FR", "PC"]),
+        } as never);
+        renderRow({
+          customFields: quantityFields,
+          initialValues: { [positionFieldName]: "SP", [statusFieldName]: "PENDING" },
+        });
+
+        expect(capturedApplyFieldPermissions!(quantityField).isDisabled).toBe(false);
+      });
+
       it("disables quantity when the user lacks the position's units permission", () => {
         mockUseHasPermission.mockImplementation((perms) => !perms?.length);
         renderRow({
