@@ -38,6 +38,7 @@ vi.mock("../ClaimContext", () => ({
     arePricesValidated: true,
     markRowDirty: vi.fn(),
     allowedPositions: [],
+    blockedPositions: new Set<string>(),
     positionDropdownOptions: [],
     discountBase: "GROSS_PRICE",
     canDeleteRows: true,
@@ -90,6 +91,7 @@ const baseClaimContext = {
   arePricesValidated: true,
   markRowDirty: vi.fn(),
   allowedPositions: [] as Array<{ position: string; maxCount: number }>,
+  blockedPositions: new Set<string>(),
   positionDropdownOptions: [] as Array<{ value: string; name: string }>,
   discountBase: "GROSS_PRICE",
   canDeleteRows: true,
@@ -545,6 +547,50 @@ describe("ClaimSparePartsRow", () => {
       expect(posField.options).toContainEqual(
         expect.objectContaining({ value: "SP", name: "Own Spare Part" }),
       );
+    });
+
+    it("drops blocked positions (REVISED claim: FR, PC) from the field's own options", () => {
+      const customFields = [
+        {
+          ...positionField,
+          options: [
+            { value: "SP", name: "SP" },
+            { value: "FR", name: "FR" },
+            { value: "PC", name: "PC" },
+          ],
+        },
+        unitPriceField,
+      ];
+      mockUseClaimContext.mockReturnValue({
+        ...baseClaimContext,
+        blockedPositions: new Set(["FR", "PC"]),
+      } as never);
+      renderRow({ customFields });
+
+      const posField = capturedPositionFields.find((f) => f.subtype === "diagnosticPosition");
+      expect(posField.options.map((o: { value: string }) => o.value)).toEqual(["", "SP"]);
+    });
+
+    it("keeps a blocked position on a row that already holds it", () => {
+      const customFields = [
+        {
+          ...positionField,
+          options: [
+            { value: "SP", name: "SP" },
+            { value: "FR", name: "FR" },
+            { value: "PC", name: "PC" },
+          ],
+        },
+        unitPriceField,
+      ];
+      mockUseClaimContext.mockReturnValue({
+        ...baseClaimContext,
+        blockedPositions: new Set(["FR", "PC"]),
+      } as never);
+      renderRow({ customFields, initialValues: { [positionFieldName]: "FR" } });
+
+      const posField = capturedPositionFields.find((f) => f.subtype === "diagnosticPosition");
+      expect(posField.options.map((o: { value: string }) => o.value)).toEqual(["", "SP", "FR"]);
     });
 
     it("prepends a disabled 'Select' placeholder to the position options", () => {

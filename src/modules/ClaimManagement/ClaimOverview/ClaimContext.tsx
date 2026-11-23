@@ -32,6 +32,8 @@ export interface ClaimContextValue {
   positionDropdownOptions: GenericOptionProps[];
   /** Allowed positions from country diagnostic config */
   allowedPositions: AllowedPosition[];
+  /** Positions a new row may not take in the current claim status (claimPositionRestrictions) */
+  blockedPositions: ReadonlySet<string>;
   /** Returns the set of part numbers already in the form */
   getExistingPartNumbers: (formValues: Record<string, unknown>) => Set<string>;
   /** True after prices have been validated */
@@ -78,6 +80,7 @@ const defaultClaimContextValue: ClaimContextValue = {
   addSpecialMaterialsAllowed: false,
   positionDropdownOptions: [],
   allowedPositions: [],
+  blockedPositions: new Set(),
   getExistingPartNumbers: () => new Set(),
   arePricesValidated: false,
   setArePricesValidated: noop,

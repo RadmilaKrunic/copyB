@@ -90,6 +90,8 @@ import {
 } from "modules/JobManagement/JobOverview/JobOverview.utils";
 import { useFetchDefaultQuantities } from "api/services/prices/hooks";
 import type { ResolveDefaultQuantities } from "api/services/prices/prices.types";
+import { getBlockedClaimPositions } from "./claimPositionRestrictions";
+
 const SPARE_PARTS_PREFIX = "claims_claimSpareParts#";
 function FormikClaimSync({
   setCurrentActionType,
@@ -306,6 +308,8 @@ export default function ClaimOverview() {
 
   const currentStatus = claimData?.claimStatus || "";
   const isClaimPending = currentStatus === "PENDING";
+  // Stable per status (claimPositionRestrictions returns shared sets).
+  const blockedPositions = getBlockedClaimPositions(currentStatus);
   const getClaimContext = useCallback(
     (): ClaimContextPayload => ({
       claimStatus: toClaimStatus(currentStatus),
@@ -407,6 +411,7 @@ export default function ClaimOverview() {
     currentActionType,
     currentJobType,
     claimJobType: claimData?.jobType,
+    claimStatus: currentStatus,
     tabs: tabs || [],
     setTabs,
     allFields,
@@ -977,8 +982,10 @@ export default function ClaimOverview() {
       const val = formValuesRef.current[f.name] as string;
       if (val) positionCounts[val] = (positionCounts[val] ?? 0) + 1;
     });
-    return allowedPositions.some((p) => (positionCounts[p.position] ?? 0) < p.maxCount);
-  }, [allowedPositions, allFields]);
+    return allowedPositions.some(
+      (p) => !blockedPositions.has(p.position) && (positionCounts[p.position] ?? 0) < p.maxCount,
+    );
+  }, [allowedPositions, blockedPositions, allFields]);
 
   const enableAddingSpecialMaterials = useCallback(
     () => addSpecialMaterialsAllowed,
@@ -1230,6 +1237,7 @@ export default function ClaimOverview() {
       addSpecialMaterialsAllowed,
       positionDropdownOptions,
       allowedPositions,
+      blockedPositions,
       automaticRows,
       getExistingPartNumbers,
       arePricesValidated,
@@ -1266,6 +1274,7 @@ export default function ClaimOverview() {
       addSpecialMaterialsAllowed,
       positionDropdownOptions,
       allowedPositions,
+      blockedPositions,
       automaticRows,
       getExistingPartNumbers,
       arePricesValidated,
