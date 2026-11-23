@@ -35,6 +35,7 @@ function ClaimSparePartsRow({
     arePricesValidated,
     markRowDirty,
     allowedPositions,
+    blockedPositions,
     positionDropdownOptions,
     canDeleteRows,
     automaticRows,
@@ -160,7 +161,12 @@ function ClaimSparePartsRow({
           if (val) positionCounts[val] = (positionCounts[val] ?? 0) + 1;
         });
 
-      const updatedOptions = baseOptions.map((opt) => {
+      // A blocked position stays only on a row that already holds it, so it keeps its value.
+      const selectableOptions = baseOptions.filter(
+        (opt) => !blockedPositions.has(opt.value as string) || opt.value === values[thisFieldName],
+      );
+
+      const updatedOptions = selectableOptions.map((opt) => {
         const config = allowedMap.get(opt.value as string);
         if (!config) return opt;
         const usedElsewhere = positionCounts[opt.value as string] ?? 0;
@@ -172,7 +178,7 @@ function ClaimSparePartsRow({
 
       return { ...field, options: withSelect };
     });
-  }, [fields, allFormFields, values, allowedPositions, positionDropdownOptions]);
+  }, [fields, allFormFields, values, allowedPositions, blockedPositions, positionDropdownOptions]);
 
   const fieldsWithTypeOptionsDisabled = useMemo(
     () =>

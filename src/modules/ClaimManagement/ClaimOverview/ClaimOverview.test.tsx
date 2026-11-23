@@ -1856,6 +1856,23 @@ describe("ClaimOverview position enablers", () => {
     expect(h.captured.generic.actionCallbacks.enableAddingSparePart()).toBe(false);
   });
 
+  it("enableAddingSparePart ignores FR and PC capacity on a REVISED claim", () => {
+    withPositions("", 1, "FR");
+    setClaim(makeClaim({ claimStatus: "REVISED" }));
+    renderClaim();
+
+    expect(h.captured.generic.actionCallbacks.enableAddingSparePart()).toBe(false);
+    expect([...h.captured.claim.blockedPositions]).toEqual(["FR", "PC"]);
+  });
+
+  it("enableAddingSparePart counts FR capacity for other claim statuses", () => {
+    withPositions("", 1, "FR");
+    renderClaim();
+
+    expect(h.captured.generic.actionCallbacks.enableAddingSparePart()).toBe(true);
+    expect(h.captured.claim.blockedPositions.size).toBe(0);
+  });
+
   it("enableProductDetails requires an SP position with remaining capacity", () => {
     withPositions("", 1, "OTHER");
     renderClaim();

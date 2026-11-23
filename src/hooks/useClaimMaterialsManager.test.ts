@@ -960,6 +960,7 @@ describe("useClaimMaterialsManager default quantity from the API", () => {
   const renderWithPositions = (
     positions: string[],
     resolveDefaultQuantities: ReturnType<typeof vi.fn>,
+    claimStatus?: string,
   ) => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     queryClient.setQueryData(["user"], { countryCode: "ZA", permissions: [] });
@@ -987,6 +988,7 @@ describe("useClaimMaterialsManager default quantity from the API", () => {
           claimMaterials: undefined,
           currentActionType: "REPAIR",
           currentJobType: "WARRANTY",
+          claimStatus,
           tabs: [claimsTab],
           setTabs: vi.fn(),
           allFields,
@@ -1061,5 +1063,54 @@ describe("useClaimMaterialsManager default quantity from the API", () => {
     expect(result.current.materials).toHaveLength(1);
     expect(result.current.materials[0].position).toBe("");
     expect(resolve).not.toHaveBeenCalled();
+  });
+  describe("REVISED claim (temporary FR/PC restriction)", () => {
+    it("leaves FR and PC out of the position options", () => {
+      const { result } = renderWithPositions(["SP", "LA", "FR", "PC"], vi.fn(), "REVISED");
+
+      expect(result.current.positionDropdownOptions.map((o) => o.value)).toEqual(["SP", "LA"]);
+      // Country config is unchanged: existing FR/PC rows keep their rule.
+      expect(result.current.allowedPositions.map((p) => p.position)).toEqual([
+        "SP",
+        "LA",
+        "FR",
+        "PC",
+      ]);
+    });
+
+    it("keeps FR and PC options for any other status", () => {
+      const { result } = renderWithPositions(["SP", "FR", "PC"], vi.fn(), "PENDING");
+
+      expect(result.current.positionDropdownOptions.map((o) => o.value)).toEqual([
+        "SP",
+        "FR",
+        "PC",
+      ]);
+    });
+
+    it("auto-selects the only addable position instead of FR", () => {
+      const resolve = vi.fn();
+      const { result } = renderWithPositions(["SP", "FR"], resolve, "REVISED");
+
+      act(() => {
+        result.current.onAddRow({});
+      });
+
+      expect(result.current.materials).toHaveLength(1);
+      expect(result.current.materials[0].position).toBe("SP");
+      expect(resolve).not.toHaveBeenCalled();
+    });
+
+    it("adds no row when only FR and PC are configured", () => {
+      const resolve = vi.fn();
+      const { result } = renderWithPositions(["FR", "PC"], resolve, "REVISED");
+
+      act(() => {
+        result.current.onAddRow({});
+      });
+
+      expect(result.current.materials).toHaveLength(0);
+      expect(resolve).not.toHaveBeenCalled();
+    });
   });
 });

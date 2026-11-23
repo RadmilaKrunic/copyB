@@ -26,6 +26,7 @@ import { PERMISSIONS } from "utils/Permissions";
 import type { HeaderUserData } from "api/services/header/action";
 import type { ResolveDefaultQuantities } from "api/services/prices/prices.types";
 import { isProtectedPosition } from "modules/JobManagement/JobOverview/SparePartsRow/materialPriceEditability";
+import { getBlockedClaimPositions } from "modules/ClaimManagement/ClaimOverview/claimPositionRestrictions";
 
 type AreaFields = {
   area: Area;
@@ -175,6 +176,8 @@ export interface UseClaimMaterialsManagerProps {
   currentJobType: string;
   /** The claim's own jobType (claimData.jobType); new rows prefer it over currentJobType. */
   claimJobType?: string;
+  /** The claim's status; some statuses block positions for new rows (claimPositionRestrictions). */
+  claimStatus?: string;
   tabs: Section[];
   setTabs: Dispatch<SetStateAction<Section[]>>;
   allFields: Field[] | null;
@@ -265,6 +268,7 @@ export const useClaimMaterialsManager = ({
   currentActionType,
   currentJobType,
   claimJobType,
+  claimStatus,
   tabs,
   setTabs,
   allFields,
@@ -308,7 +312,11 @@ export const useClaimMaterialsManager = ({
 
   const automaticRows: string[] = matchedRule?.automaticRows ?? [];
 
-  const positionDropdownOptions: GenericOptionProps[] = allowedPositions.map((p) => ({
+  // Positions a new row may take; the claim status can block some (temporary restriction).
+  const blockedPositions = getBlockedClaimPositions(claimStatus);
+  const addablePositions = allowedPositions.filter((p) => !blockedPositions.has(p.position));
+
+  const positionDropdownOptions: GenericOptionProps[] = addablePositions.map((p) => ({
     value: p.position,
     name: p.position,
   }));
@@ -629,7 +637,7 @@ export const useClaimMaterialsManager = ({
   const onAddRow = useCallback(
     (formValues: Record<string, unknown>) => {
       if (readOnly || addRowPendingRef.current) return;
-      if (allowedPositions.length === 0) return;
+      if (addablePositions.length === 0) return;
 
       const current = allFieldsRef.current ?? [];
       const positionCounts: Record<string, number> = {};
@@ -640,12 +648,15 @@ export const useClaimMaterialsManager = ({
           if (val) positionCounts[val] = (positionCounts[val] ?? 0) + 1;
         });
 
-      const totalRows = materialsRef.current.length;
-      const maxTotal = allowedPositions.reduce((s, p) => s + p.maxCount, 0);
+      // Rows on blocked positions don't use up the capacity of the addable ones.
+      const totalRows = materialsRef.current.filter(
+        (m) => !blockedPositions.has(m.position),
+      ).length;
+      const maxTotal = addablePositions.reduce((s, p) => s + p.maxCount, 0);
       if (totalRows >= maxTotal) return;
 
       // Auto-select position if only one has remaining capacity
-      const availablePositions = allowedPositions.filter(
+      const availablePositions = addablePositions.filter(
         (p) => (positionCounts[p.position] ?? 0) < p.maxCount,
       );
       const autoPosition = availablePositions.length === 1 ? availablePositions[0].position : "";
@@ -704,6 +715,8 @@ export const useClaimMaterialsManager = ({
     [
       readOnly,
       allowedPositions,
+      addablePositions,
+      blockedPositions,
       currentJobType,
       claimJobType,
       setArePricesValidated,
