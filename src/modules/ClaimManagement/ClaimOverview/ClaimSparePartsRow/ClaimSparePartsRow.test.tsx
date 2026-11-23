@@ -549,7 +549,7 @@ describe("ClaimSparePartsRow", () => {
       );
     });
 
-    it("drops blocked positions (REVISED claim: FR, PC) from the field's own options", () => {
+    it("shows blocked positions (REVISED claim: FR, PC) disabled", () => {
       const customFields = [
         {
           ...positionField,
@@ -568,10 +568,16 @@ describe("ClaimSparePartsRow", () => {
       renderRow({ customFields });
 
       const posField = capturedPositionFields.find((f) => f.subtype === "diagnosticPosition");
-      expect(posField.options.map((o: { value: string }) => o.value)).toEqual(["", "SP"]);
+      expect(posField.options).toEqual([
+        expect.objectContaining({ value: "", disabled: true }),
+        expect.objectContaining({ value: "SP" }),
+        expect.objectContaining({ value: "FR", disabled: true }),
+        expect.objectContaining({ value: "PC", disabled: true }),
+      ]);
+      expect(posField.options[1].disabled).not.toBe(true);
     });
 
-    it("keeps a blocked position on a row that already holds it", () => {
+    it("keeps a blocked position enabled on a row that already holds it", () => {
       const customFields = [
         {
           ...positionField,
@@ -590,7 +596,10 @@ describe("ClaimSparePartsRow", () => {
       renderRow({ customFields, initialValues: { [positionFieldName]: "FR" } });
 
       const posField = capturedPositionFields.find((f) => f.subtype === "diagnosticPosition");
-      expect(posField.options.map((o: { value: string }) => o.value)).toEqual(["", "SP", "FR"]);
+      const optionByValue = (value: string) =>
+        posField.options.find((o: { value: string }) => o.value === value);
+      expect(optionByValue("FR").disabled).not.toBe(true);
+      expect(optionByValue("PC").disabled).toBe(true);
     });
 
     it("prepends a disabled 'Select' placeholder to the position options", () => {

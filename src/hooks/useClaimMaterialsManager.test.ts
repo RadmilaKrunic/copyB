@@ -1065,10 +1065,15 @@ describe("useClaimMaterialsManager default quantity from the API", () => {
     expect(resolve).not.toHaveBeenCalled();
   });
   describe("REVISED claim (temporary FR/PC restriction)", () => {
-    it("leaves FR and PC out of the position options", () => {
+    it("keeps FR and PC in the position options (the row disables them)", () => {
       const { result } = renderWithPositions(["SP", "LA", "FR", "PC"], vi.fn(), "REVISED");
 
-      expect(result.current.positionDropdownOptions.map((o) => o.value)).toEqual(["SP", "LA"]);
+      expect(result.current.positionDropdownOptions.map((o) => o.value)).toEqual([
+        "SP",
+        "LA",
+        "FR",
+        "PC",
+      ]);
       // Country config is unchanged: existing FR/PC rows keep their rule.
       expect(result.current.allowedPositions.map((p) => p.position)).toEqual([
         "SP",

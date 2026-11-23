@@ -161,12 +161,12 @@ function ClaimSparePartsRow({
           if (val) positionCounts[val] = (positionCounts[val] ?? 0) + 1;
         });
 
-      // A blocked position stays only on a row that already holds it, so it keeps its value.
-      const selectableOptions = baseOptions.filter(
-        (opt) => !blockedPositions.has(opt.value as string) || opt.value === values[thisFieldName],
-      );
-
-      const updatedOptions = selectableOptions.map((opt) => {
+      const updatedOptions = baseOptions.map((opt) => {
+        // A blocked position (REVISED claim: FR, PC) stays visible but can't be picked;
+        // a row that already holds it keeps it.
+        if (blockedPositions.has(opt.value as string) && opt.value !== values[thisFieldName]) {
+          return { ...opt, disabled: true };
+        }
         const config = allowedMap.get(opt.value as string);
         if (!config) return opt;
         const usedElsewhere = positionCounts[opt.value as string] ?? 0;
