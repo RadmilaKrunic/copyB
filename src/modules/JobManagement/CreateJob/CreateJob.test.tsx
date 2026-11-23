@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -11,6 +11,7 @@ import { HeaderUserData } from "../../../api/services/header/action";
 import { GenericFormContext } from "../../../components/generics/Form/GenericForm.context";
 
 const warrantyMutateAsyncMock = vi.hoisted(() => vi.fn());
+const customerChangeConfirmationMock = vi.hoisted(() => vi.fn());
 const deliveryAddressInfoMock = vi.hoisted(() =>
   vi.fn((): null | { missingFieldLabels: string[]; isAddressCompletelyEmpty: boolean } => null),
 );
@@ -20,6 +21,20 @@ const warrantyAreaChangeTrigger = vi.hoisted(
     values: {},
   }),
 );
+const mappedApiPayloadMock = vi.hoisted((): { value: Record<string, unknown> | null } => ({
+  value: null,
+}));
+const locationStateMock = vi.hoisted(() => ({ state: null as Record<string, unknown> | null }));
+const navigateMock = vi.hoisted(() => vi.fn());
+const validationMock = vi.hoisted(() => ({
+  errors: {} as Record<string, string>,
+  visibleErrors: [] as Array<{ name: string }>,
+}));
+const sectionActionHelpersMock = vi.hoisted(() => ({
+  setErrors: vi.fn(),
+  setTouched: vi.fn(async () => undefined),
+  setFieldValue: vi.fn(),
+}));
 const useParamsMock = vi.hoisted(() => ({ orderId: "" }));
 const useOrderByIdReturnMock = vi.hoisted(
   (): { data: unknown; isLoading: boolean; error: unknown } => ({
@@ -74,9 +89,9 @@ vi.mock("react-router", async () => {
   const actual = await vi.importActual("react-router");
   return {
     ...actual,
-    useNavigate: () => vi.fn(),
+    useNavigate: () => navigateMock,
     useParams: () => useParamsMock,
-    useLocation: () => ({ state: null }),
+    useLocation: () => locationStateMock,
   };
 });
 
@@ -94,7 +109,7 @@ vi.mock("../../../api/services/orders/hooks", () => ({
 vi.mock("../../../components/generics/Form/useFormValidation", () => ({
   useFormValidation: () => ({
     validate: vi.fn(),
-    validateByAction: vi.fn(() => ({})),
+    validateByAction: vi.fn(() => validationMock.errors),
     startValidation: vi.fn(),
     stopValidation: vi.fn(),
     setCurrentAction: vi.fn(),
@@ -102,15 +117,25 @@ vi.mock("../../../components/generics/Form/useFormValidation", () => ({
 }));
 
 vi.mock("../../../components/generics/Form/formValidation", () => ({
-  getVisibleFieldsWithErrors: vi.fn(() => []),
+  getVisibleFieldsWithErrors: vi.fn(() => validationMock.visibleErrors),
   getMandatoryFields: vi.fn(() => ({})),
   getUploadFieldErrors: vi.fn(() => ({})),
+}));
+
+vi.mock("../../../utils/scrollToError", () => ({
+  scrollToFirstError: vi.fn(),
 }));
 
 vi.mock("./CreateJob.utils", async () => {
   const actual = await vi.importActual<typeof import("./CreateJob.utils")>("./CreateJob.utils");
   return {
     ...actual,
+    buildCustomerChangeConfirmationData: (
+      ...args: Parameters<typeof actual.buildCustomerChangeConfirmationData>
+    ) =>
+      customerChangeConfirmationMock.getMockImplementation()
+        ? customerChangeConfirmationMock(...args)
+        : actual.buildCustomerChangeConfirmationData(...args),
     getDeliveryAddressConfirmationInfo: deliveryAddressInfoMock,
   };
 });
@@ -170,14 +195,19 @@ vi.mock("../../../components/generics/Section/GenericSection", () => ({
     children,
     section,
     isCollapsed,
+    onDelete,
+    onHeaderClick,
   }: {
     children: React.ReactNode;
     section: {
       name?: string;
+      index?: number;
       label: string;
       actions?: Array<{ name?: string; mode?: string; onAction?: string }> | null;
     };
     isCollapsed?: boolean;
+    onDelete?: () => void;
+    onHeaderClick?: () => void;
   }) {
     const { onAreaValueChange, actionCallbacks, isSubmitting } = useContext(GenericFormContext);
     const hasTriggeredRef = useRef(false);
@@ -197,6 +227,22 @@ vi.mock("../../../components/generics/Section/GenericSection", () => ({
         data-collapsed={isCollapsed}
         data-submitting={String(!!isSubmitting)}
       >
+        <button
+          type="button"
+          data-testid={`toggle-${section.name}-${section.index ?? 0}`}
+          onClick={onHeaderClick}
+        >
+          toggle
+        </button>
+        {onDelete && (
+          <button
+            type="button"
+            data-testid={`delete-${section.name}-${section.index ?? 0}`}
+            onClick={onDelete}
+          >
+            delete
+          </button>
+        )}
         {children}
         {section.actions && section.actions.length > 0 && (
           <div className="actions">
@@ -211,9 +257,9 @@ vi.mock("../../../components/generics/Section/GenericSection", () => ({
                     actionCallbacks[action.onAction]?.(
                       {},
                       {
-                        setErrors: vi.fn(),
-                        setTouched: vi.fn(),
-                        setFieldValue: vi.fn(),
+                        setErrors: sectionActionHelpersMock.setErrors,
+                        setTouched: sectionActionHelpersMock.setTouched,
+                        setFieldValue: sectionActionHelpersMock.setFieldValue,
                       },
                     );
                   }
@@ -282,6 +328,14 @@ const mockCreateJobForm = {
           label: "testArea",
           position: 1,
           fields: [
+            {
+              name: "customerId",
+              label: "customerId",
+              type: "text",
+              isRequired: false,
+              position: 0,
+              fieldMapping: { originalName: "customerId" },
+            },
             {
               name: "firstName",
               label: "firstName",
@@ -394,6 +448,7 @@ const analyticsMock = vi.hoisted(() => ({
   trackJobCreated: vi.fn(),
   trackJobSavedAsDraft: vi.fn(),
   trackActionFailed: vi.fn(),
+  trackDocumentAction: vi.fn(),
   trackWarrantyCheckPerformed: vi.fn(),
   trackCustomerSelected: vi.fn(),
 }));
@@ -419,7 +474,10 @@ vi.mock("../../../components/generics/utils", () => ({
       return acc;
     }, {}),
   ),
-  mapValuesToAPI: vi.fn(() => ({ order: { customer: {} } })),
+  mapValuesToAPI: vi.fn(
+    (values: Record<string, unknown>) =>
+      mappedApiPayloadMock.value ?? { order: { customer: { customerId: values.customerId } } },
+  ),
   mapFieldToFieldMapping: vi.fn((field) => ({
     ...field,
     fieldMapping: field.fieldMapping || { originalName: field.name },
@@ -454,6 +512,12 @@ describe("CreateJob", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mappedApiPayloadMock.value = null;
+    locationStateMock.state = null;
+    navigateMock.mockReset();
+    validationMock.errors = {};
+    validationMock.visibleErrors = [];
+    customerChangeConfirmationMock.mockReset();
     warrantyAreaChangeTrigger.enabled = false;
     warrantyAreaChangeTrigger.values = {};
     deliveryAddressInfoMock.mockReturnValue(null);
@@ -550,6 +614,27 @@ describe("CreateJob", () => {
         expect(screen.getByTestId("section-assetData")).toBeInTheDocument();
       });
     });
+
+    it("applies a prefilled customer before saving a draft", async () => {
+      const user = userEvent.setup();
+      const createOrder = vi.mocked(ordersApi.createOrder);
+      createOrder.mockResolvedValue({} as Order);
+      locationStateMock.state = { prefillCustomer: selectedCustomerMock };
+
+      renderComponent();
+      await user.click(await screen.findByTestId("form-action-saveAsDraft"));
+
+      await waitFor(() => {
+        expect(createOrder).toHaveBeenCalledWith(
+          true,
+          expect.objectContaining({
+            order: expect.objectContaining({
+              customer: expect.objectContaining({ customerId: "customer-1" }),
+            }),
+          }),
+        );
+      });
+    });
   });
 
   describe("Action Buttons", () => {
@@ -567,6 +652,21 @@ describe("CreateJob", () => {
         const submitButton = screen.getByText("Submit");
         expect(submitButton).toBeEnabled();
       });
+    });
+
+    it("marks visible fields touched and stops Next when validation fails", async () => {
+      const user = userEvent.setup();
+      validationMock.errors = { firstName: "required" };
+      validationMock.visibleErrors = [{ name: "firstName" }];
+
+      renderComponent();
+      await user.click(await screen.findByTestId("section-action-next"));
+
+      await waitFor(() => {
+        expect(sectionActionHelpersMock.setErrors).toHaveBeenCalledWith({ firstName: "required" });
+        expect(sectionActionHelpersMock.setTouched).toHaveBeenCalledWith({ firstName: true });
+      });
+      expect(ordersApi.createOrder).not.toHaveBeenCalled();
     });
   });
 
@@ -621,6 +721,24 @@ describe("CreateJob", () => {
       // Button should still be there after click
       expect(addButton).toBeInTheDocument();
     });
+
+    it("deletes an added asset section", async () => {
+      const user = userEvent.setup();
+      renderComponent();
+
+      const addButton = await screen.findByTestId("form-action-addMoreTools");
+      await user.click(addButton);
+      await user.click(addButton);
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId(/section-assetData/)).toHaveLength(3);
+        expect(screen.getByTestId("delete-assetData#0-2")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByTestId("delete-assetData#0-2"));
+
+      await waitFor(() => expect(screen.getAllByTestId(/section-assetData/)).toHaveLength(2));
+    });
   });
 
   describe("Save as Draft", () => {
@@ -661,6 +779,20 @@ describe("CreateJob", () => {
         expect(assetSection).toHaveAttribute("data-collapsed", "true");
       });
     });
+
+    it("toggles an asset section open and closed", async () => {
+      const user = userEvent.setup();
+      renderComponent();
+
+      const assetSection = await screen.findByTestId("section-assetData");
+      const toggle = screen.getByTestId("toggle-assetData#0-0");
+
+      await user.click(toggle);
+      expect(assetSection).toHaveAttribute("data-collapsed", "false");
+
+      await user.click(toggle);
+      expect(assetSection).toHaveAttribute("data-collapsed", "true");
+    });
   });
 
   describe("Cancel Button", () => {
@@ -685,6 +817,38 @@ describe("CreateJob", () => {
 
       // Form should reset (we can verify by checking if sections are still there)
       expect(screen.getByTestId("section-customerAndPaymentData")).toBeInTheDocument();
+    });
+  });
+
+  describe("Customer change confirmation", () => {
+    it("sends a null customerId when creating a customer", async () => {
+      const user = userEvent.setup();
+      customerChangeConfirmationMock.mockReturnValue({
+        comparisons: [
+          {
+            fieldName: "firstName",
+            fieldLabel: "firstName",
+            originalValue: "John",
+            currentValue: "Jane",
+          },
+        ],
+        signature: "customer-changed",
+      });
+      renderComponent();
+
+      await user.click(await screen.findByTestId("form-action-submit"));
+      await user.click(await screen.findByTestId("customer-change-confirm-create"));
+
+      await waitFor(() => {
+        expect(ordersApi.createOrder).toHaveBeenCalledWith(
+          false,
+          expect.objectContaining({
+            order: expect.objectContaining({
+              customer: expect.objectContaining({ customerId: null }),
+            }),
+          }),
+        );
+      });
     });
   });
 
@@ -879,6 +1043,124 @@ describe("CreateJob", () => {
           }),
         );
       });
+    });
+
+    it("normalizes jobs and customer data in the API payload", async () => {
+      const user = userEvent.setup();
+      const mockCreateOrder = vi.mocked(ordersApi.createOrder);
+      mockCreateOrder.mockResolvedValue({} as Order);
+      mappedApiPayloadMock.value = {
+        order: { customer: { useBillingAddressForDelivery: true } },
+        jobs: [
+          {
+            asset: {
+              hasAccessories: false,
+              accessories: [{ accessoryId: "remove" }],
+              isBareTool: 0,
+            },
+          },
+          null,
+          {
+            ascId: "existing-asc",
+            orderId: "existing-order",
+            asset: {
+              hasAccessories: true,
+              accessories: [{ accessoryId: "keep" }],
+              isBareTool: 1,
+            },
+          },
+        ],
+      };
+
+      renderComponent();
+      await user.click(await screen.findByTestId("form-action-saveAsDraft"));
+
+      await waitFor(() => expect(mockCreateOrder).toHaveBeenCalledTimes(1));
+
+      const submittedPayload = mockCreateOrder.mock.calls[0][1] as unknown as {
+        order: {
+          ascId: string;
+          countryCode: string;
+          customer: { ascId: string; deliveryAddress: null };
+        };
+        jobs: Array<{
+          jobStatus: string;
+          ascId: string;
+          orderId?: string;
+          asset: {
+            hasAccessories: boolean;
+            accessories?: Array<{ accessoryId: string }>;
+            isBareTool: boolean;
+          };
+        }>;
+      };
+
+      expect(submittedPayload.order).toMatchObject({
+        ascId: "1",
+        countryCode: "TR",
+        customer: { ascId: "1", deliveryAddress: null },
+      });
+      expect(submittedPayload.jobs).toHaveLength(2);
+      expect(submittedPayload.jobs[0]).toMatchObject({
+        jobStatus: "READY_FOR_DIAGNOSTIC",
+        ascId: "1",
+        asset: { hasAccessories: false, isBareTool: false },
+      });
+      expect(submittedPayload.jobs[0].asset).not.toHaveProperty("accessories");
+      expect(submittedPayload.jobs[1]).toMatchObject({
+        jobStatus: "READY_FOR_DIAGNOSTIC",
+        ascId: "existing-asc",
+        orderId: "existing-order",
+        asset: {
+          hasAccessories: true,
+          accessories: [{ accessoryId: "keep" }],
+          isBareTool: true,
+        },
+      });
+    });
+
+    it("submits through Formik and opens a downloaded order receipt", async () => {
+      const createOrder = vi.mocked(ordersApi.createOrder);
+      const getOrderReceipt = vi.mocked(ordersApi.getOrderReceipt);
+      const receipt = new Blob(["receipt"], { type: "application/pdf" });
+      const createObjectURL = vi.fn(() => "blob:order-receipt");
+      const revokeObjectURL = vi.fn();
+      const originalCreateObjectURL = Object.getOwnPropertyDescriptor(URL, "createObjectURL");
+      const originalRevokeObjectURL = Object.getOwnPropertyDescriptor(URL, "revokeObjectURL");
+      const openWindow = vi.spyOn(window, "open").mockImplementation(() => null);
+      createOrder.mockResolvedValue({ order: { orderId: "O-1" } } as Order);
+      getOrderReceipt.mockResolvedValue(receipt);
+      Object.defineProperty(URL, "createObjectURL", { configurable: true, value: createObjectURL });
+      Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revokeObjectURL });
+      vi.useFakeTimers();
+
+      try {
+        renderComponent();
+        fireEvent.submit((screen.getByTestId("form-action-submit") as HTMLButtonElement).form!);
+        await act(async () => {
+          await vi.runAllTimersAsync();
+        });
+
+        expect(createOrder).toHaveBeenCalledWith(false, expect.any(Object));
+        expect(getOrderReceipt).toHaveBeenCalledWith("O-1");
+        expect(analyticsMock.trackDocumentAction).toHaveBeenCalled();
+        expect(createObjectURL).toHaveBeenCalledWith(receipt);
+        expect(openWindow).toHaveBeenCalledWith("blob:order-receipt", "_blank");
+        expect(revokeObjectURL).toHaveBeenCalledWith("blob:order-receipt");
+      } finally {
+        vi.useRealTimers();
+        if (originalCreateObjectURL) {
+          Object.defineProperty(URL, "createObjectURL", originalCreateObjectURL);
+        } else {
+          Reflect.deleteProperty(URL, "createObjectURL");
+        }
+        if (originalRevokeObjectURL) {
+          Object.defineProperty(URL, "revokeObjectURL", originalRevokeObjectURL);
+        } else {
+          Reflect.deleteProperty(URL, "revokeObjectURL");
+        }
+        openWindow.mockRestore();
+      }
     });
 
     it("handles API success", async () => {
@@ -1155,8 +1437,23 @@ describe("CreateJob", () => {
       });
     });
 
+    it("duplicates asset sections to match all draft jobs", async () => {
+      useParamsMock.orderId = "O-1";
+      useOrderByIdReturnMock.data = {
+        ...draftOrderData,
+        jobs: [draftOrderData.jobs[0], { ...draftOrderData.jobs[0], jobId: "J-2" }],
+      };
+      useOrderByIdReturnMock.isLoading = false;
+      useOrderByIdReturnMock.error = null;
+
+      renderComponent();
+
+      await waitFor(() => expect(screen.getAllByTestId(/section-assetData/)).toHaveLength(2));
+    });
+
     it("does not render form when edit mode order has non-DRAFT job", async () => {
       useParamsMock.orderId = "O-1";
+      navigateMock.mockReturnValue(Promise.resolve());
       useOrderByIdReturnMock.data = {
         orderId: "O-1",
         jobs: [{ jobId: "J-1", jobStatus: "READY_FOR_DIAGNOSTIC" }],
@@ -1170,10 +1467,12 @@ describe("CreateJob", () => {
       await waitFor(() => {
         expect(screen.getByTestId("section-customerAndPaymentData")).toBeInTheDocument();
       });
+      expect(navigateMock).toHaveBeenCalledWith(-1);
     });
 
     it("handles order load error in edit mode", async () => {
       useParamsMock.orderId = "O-1";
+      navigateMock.mockReturnValue(Promise.reject(new Error("navigation failed")));
       useOrderByIdReturnMock.data = undefined;
       useOrderByIdReturnMock.isLoading = false;
       useOrderByIdReturnMock.error = new Error("load failed");
@@ -1183,6 +1482,7 @@ describe("CreateJob", () => {
       await waitFor(() => {
         expect(screen.getByTestId("section-customerAndPaymentData")).toBeInTheDocument();
       });
+      await waitFor(() => expect(navigateMock).toHaveBeenCalledWith("/job-list"));
     });
   });
 

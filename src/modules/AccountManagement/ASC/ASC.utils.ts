@@ -310,6 +310,8 @@ export const mapGeneralInfo = (generalInfo: Record<string, any>) => {
     stateProvinceRegion: generalInfo.state,
     postalCode: generalInfo.postalCode,
     countryCode: generalInfo.country,
+    additionalDetails: generalInfo.addressLineTwo,
+    district: generalInfo.district,
   };
   generalInfoData.logo = generalInfo.logo?.length
     ? {

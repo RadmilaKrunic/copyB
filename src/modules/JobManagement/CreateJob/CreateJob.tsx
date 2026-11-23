@@ -388,8 +388,9 @@ function CreateJob() {
         values: Record<string, unknown>;
         setErrors: (errors: Record<string, string>) => void;
         setTouched: (touched: Record<string, boolean>) => Promise<void | Record<string, string>>;
+        setFieldValue?: (field: string, value: unknown) => void;
       },
-      onSuccess?: () => void | Promise<void>,
+      onSuccess?: (values: Record<string, unknown>) => void | Promise<void>,
       skipCustomerChangeCheck = false,
     ) => {
       if (!allFields) return;
@@ -433,19 +434,16 @@ function CreateJob() {
 
         if (comparisons.length > 0 && signature !== confirmedCustomerChangeSignatureRef.current) {
           customerChangeConfirmationRef.current = { comparisons, signature };
-          pendingActionAfterCustomerChangeConfirmRef.current = (customerIdOverride) =>
-            handleAction(
-              actionName,
-              {
-                ...formikProps,
-                values:
-                  customerIdOverride === null
-                    ? { ...formikProps.values, customerId: null }
-                    : formikProps.values,
-              },
-              onSuccess,
-              true,
-            );
+          pendingActionAfterCustomerChangeConfirmRef.current = (customerIdOverride) => {
+            const values =
+              customerIdOverride === null
+                ? { ...formikProps.values, customerId: null }
+                : formikProps.values;
+            if (customerIdOverride === null) {
+              formikProps.setFieldValue?.("customerId", null);
+            }
+            return handleAction(actionName, { ...formikProps, values }, onSuccess, true);
+          };
           setIsCustomerChangeModalOpen(true);
           return;
         }
@@ -454,7 +452,9 @@ function CreateJob() {
       if (actionName === "next" || actionName === "submit") {
         const confirmationInfo = getDeliveryAddressConfirmationInfo(formikProps.values);
         if (confirmationInfo) {
-          pendingActionAfterDeliveryConfirmRef.current = onSuccess ?? null;
+          pendingActionAfterDeliveryConfirmRef.current = onSuccess
+            ? () => onSuccess(formikProps.values)
+            : null;
           setDeliveryAddressConfirmInfo(confirmationInfo);
           setIsDeliveryAddressModalOpen(true);
           return;
@@ -462,7 +462,7 @@ function CreateJob() {
       }
 
       if (onSuccess) {
-        await onSuccess();
+        await onSuccess(formikProps.values);
       }
     },
     [
@@ -694,6 +694,9 @@ function CreateJob() {
               const result = await helpers.setTouched(touched);
               return result as void | Record<string, string>;
             },
+            setFieldValue: (field: string, value: unknown) => {
+              helpers.setFieldValue(field, value);
+            },
           },
           () => {
             setOpenAssetIndices(new Set([1]));
@@ -843,9 +846,12 @@ function CreateJob() {
                 const result = await helpers.setTouched(touched);
                 return result as void | Record<string, string>;
               },
+              setFieldValue: (field: string, value: unknown) => {
+                helpers.setFieldValue(field, value);
+              },
             },
-            () => {
-              onSubmitOrder(formValues);
+            (values) => {
+              onSubmitOrder(values);
             },
           );
         },
@@ -960,7 +966,7 @@ function CreateJob() {
       <CreateJobContext.Provider value={createJobContextValue}>
         <Formik
           initialValues={initialFormValues}
-          onSubmit={(values, { setErrors, setTouched }) => {
+          onSubmit={(values, { setErrors, setTouched, setFieldValue }) => {
             if (isSubmittingOrderRef.current) return;
 
             const wrappedSetTouched = async (touched: Record<string, boolean>) => {
@@ -969,8 +975,15 @@ function CreateJob() {
             };
             return handleAction(
               "submit",
-              { values, setErrors, setTouched: wrappedSetTouched },
-              () => {
+              {
+                values,
+                setErrors,
+                setTouched: wrappedSetTouched,
+                setFieldValue: (field: string, value: unknown) => {
+                  void setFieldValue(field, value);
+                },
+              },
+              (values) => {
                 const allIndices = sections.slice(1).map((_, i) => i + 1);
                 setOpenAssetIndices(new Set(allIndices));
                 return handleCreateOrder(values, false);
