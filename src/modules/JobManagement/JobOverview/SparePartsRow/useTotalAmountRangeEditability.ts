@@ -45,11 +45,16 @@ const useTotalAmountLimitCheck = (fields: Field[], limits: PriceLimits | undefin
   }, [fieldValueRanges, totalAmountFieldName, minValue, maxValue]);
 };
 
+/** True when the row's own type (fallback: the job's type) is CHARGEABLE. */
+const isChargeableType = (jobType: unknown): boolean =>
+  typeof jobType === "string" && jobType.toUpperCase() === "CHARGEABLE";
+
 /**
- * Price fields of a job spare-parts row. FR / PC rows with a total amount range from the
- * default-parameter API (`unitPriceRange`, used as the total amount limit) unlock step by step (see
- * getRangedTotalAmountEditability) and have their total amount checked against the limits;
- * equal non-zero limits fix the price, so all price fields are disabled; every other row keeps
+ * Price fields of a job spare-parts row. Non-chargeable FR / PC rows with a total amount range from
+ * the default-parameter API (`unitPriceRange`, used as the total amount limit) unlock step by step
+ * (see getRangedTotalAmountEditability) and have their total amount checked against the limits;
+ * equal non-zero limits fix the price, so all price fields are disabled. Chargeable FR / PC rows
+ * ignore the limits: totalAmount is always editable and never range-checked. Every other row keeps
  * `baseEditability`.
  */
 export const useTotalAmountRangeEditability = ({
@@ -61,21 +66,23 @@ export const useTotalAmountRangeEditability = ({
   baseEditability,
 }: TotalAmountRangeParams): PriceFieldEditability => {
   const { validatedTotalAmountMaterialIds, defaultParameterJobSource } = useDiagnosticsContext();
-  const isTotalEntryRow = isTotalEntryPosition(position);
+  // The row's own type is the request's job type (chargeable rows get 0 / 0), as for the
+  // row-type quantity refresh, so both share one cached call.
+  const requestJobType = rowType || values["jobType"];
+  // Chargeable FR / PC totals are free: no limits, no steps.
+  const hasTotalAmountRange = isTotalEntryPosition(position) && !isChargeableType(requestJobType);
   const ranges = useDefaultTotalAmountPriceRanges(
     {
       ...defaultParameterJobSource,
       actionType: values["actionType"],
-      // The row's own type is the request's job type (chargeable rows get 0 / 0), as for the
-      // row-type quantity refresh, so both share one cached call.
-      jobType: rowType || values["jobType"],
+      jobType: requestJobType,
       faultCode: values["faultCode"],
       faultCodeLabourQuantity: values["faultCodeLabourQuantity"],
       exchangeReason: values["exchangeReason"],
     },
-    isTotalEntryRow,
+    hasTotalAmountRange,
   );
-  const limits = isTotalEntryRow ? ranges[position.toUpperCase()] : undefined;
+  const limits = hasTotalAmountRange ? ranges[position.toUpperCase()] : undefined;
   useTotalAmountLimitCheck(fields, limits);
 
   // Equal non-zero limits (e.g. ZA): the price is fixed, the user enters nothing.

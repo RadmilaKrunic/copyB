@@ -2475,10 +2475,7 @@ describe("SparePartsRow FR / PC total amount range", () => {
 
   it("saved FR row with total amount not validated yet: only totalAmount is enabled", () => {
     totalAmountRangesMock.ranges = { FR: RANGE };
-    renderRangedRow(
-      { row0_position: "FR", row0_type: "CHARGEABLE", row0_materialId: "mat-1" },
-      "NET_PRICE",
-    );
+    renderRangedRow({ row0_position: "FR", row0_materialId: "mat-1" }, "NET_PRICE");
 
     expect(screen.getByTestId("field-row0_totalAmount")).toBeEnabled();
     expect(screen.getByTestId("field-row0_unitPrice")).toBeDisabled();
@@ -2512,23 +2509,13 @@ describe("SparePartsRow FR / PC total amount range", () => {
     expect(screen.getByTestId("field-row0_discount")).toBeDisabled();
   });
 
-  it("chargeable FR with 0 / 0 limits follows the same steps", () => {
-    totalAmountRangesMock.ranges = { FR: { lowestLimit: 0, highestLimit: 0 } };
-    renderRangedRow({ row0_position: "FR", row0_type: "CHARGEABLE", row0_materialId: "mat-1" });
-
-    expect(screen.getByTestId("field-row0_totalAmount")).toBeEnabled();
-    expect(screen.getByTestId("field-row0_discount")).toBeDisabled();
-  });
-
   it.each(["FR", "PC"])(
     "%s with equal non-zero limits (fixed price, e.g. ZA): every price field disabled",
     (position) => {
       totalAmountRangesMock.ranges = { [position]: { lowestLimit: 467.96, highestLimit: 467.96 } };
-      renderRangedRow(
-        { row0_position: position, row0_type: "CHARGEABLE", row0_materialId: "mat-1" },
-        "GROSS_PRICE",
-        ["mat-1"],
-      );
+      renderRangedRow({ row0_position: position, row0_materialId: "mat-1" }, "GROSS_PRICE", [
+        "mat-1",
+      ]);
 
       expect(screen.getByTestId("field-row0_unitPrice")).toBeDisabled();
       expect(screen.getByTestId("field-row0_totalAmount")).toBeDisabled();
@@ -2536,6 +2523,51 @@ describe("SparePartsRow FR / PC total amount range", () => {
       expect(screen.getByTestId("field-row0_netAmount")).toBeDisabled();
     },
   );
+
+  describe("chargeable rows ignore the limits", () => {
+    const LIMIT_CASES: [string, DefaultPriceRanges][] = [
+      ["equal non-zero", { FR: { lowestLimit: 467.96, highestLimit: 467.96 } }],
+      ["differing", { FR: RANGE }],
+      ["0 / 0", { FR: { lowestLimit: 0, highestLimit: 0 } }],
+      ["missing", {}],
+    ];
+
+    it.each(LIMIT_CASES)("%s limits: totalAmount enabled on a new row", (_label, ranges) => {
+      totalAmountRangesMock.ranges = ranges;
+      renderRangedRow({ row0_position: "FR", row0_type: "CHARGEABLE" });
+
+      expect(screen.getByTestId("field-row0_totalAmount")).toBeEnabled();
+      expect(screen.getByTestId("field-row0_unitPrice")).toBeDisabled();
+      expect(screen.getByTestId("field-row0_discount")).toBeDisabled();
+      expect(screen.getByTestId("field-row0_netAmount")).toBeDisabled();
+    });
+
+    it.each(LIMIT_CASES)("%s limits: no range check registered", (_label, ranges) => {
+      const valueRanges: Record<string, FieldValueRange> = {};
+      totalAmountRangesMock.ranges = ranges;
+      renderRangedRow(
+        { row0_position: "FR", row0_type: "CHARGEABLE", row0_materialId: "mat-1" },
+        "GROSS_PRICE",
+        [],
+        valueRanges,
+      );
+
+      expect(screen.getByTestId("field-row0_totalAmount")).toBeEnabled();
+      expect(valueRanges).toEqual({});
+    });
+
+    it("PC row typed chargeable via the job type ignores equal non-zero limits", () => {
+      totalAmountRangesMock.ranges = { PC: { lowestLimit: 467.96, highestLimit: 467.96 } };
+      renderRangedRow({
+        row0_position: "PC",
+        row0_type: "",
+        jobType: "chargeable",
+        row0_materialId: "mat-1",
+      });
+
+      expect(screen.getByTestId("field-row0_totalAmount")).toBeEnabled();
+    });
+  });
 
   it("FR with no range from the API keeps totalAmount editable", () => {
     totalAmountRangesMock.ranges = {};
