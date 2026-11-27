@@ -62,6 +62,7 @@ import {
   isRecalculationValueEmpty,
   mergeRecalculationChanges,
   dropRejectedRecalculationChange,
+  getMaterialFieldPath,
   buildHeaderRecalculationChange,
   syncActionTypeChange,
   hasSavedMaterialRow,
@@ -926,6 +927,7 @@ export default function JobOverview() {
           sentChange,
           responseValues,
           validatedDiagnostic?.priceSummaryDetailed,
+          validatedDiagnostic?.materials,
         ),
       );
 
@@ -1747,6 +1749,7 @@ export default function JobOverview() {
         fieldName,
         change: changes[0],
         previousValue: getSummaryChangeServerValue(changes[0], previousSummaryDetailed),
+        materialPath: getMaterialFieldPath(field),
       };
       payload.changes = changes;
       await sendRecalculation(payload);
