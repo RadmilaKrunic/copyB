@@ -37,13 +37,26 @@ import {
   mapExchangeLaborCostTableDataFromFormValues,
   mapGeneralInfo,
   mapLaborCostDetailsToApiPayload,
+  mapFreightPackagingToggleValues,
   mapNotifications,
   mapPricing,
   mapReimbursement,
   shouldShowAddLaborRuleButton,
   updateLaborExchangeSections,
   updateLaborRepairSections,
+  updateFreightSections,
+  updatePackagingSections,
+  FREIGHT_RULE_DEFAULT,
+  PACKAGING_RULE_DEFAULT,
 } from "../ASC.utils";
+import {
+  FreightPackagingEditState,
+  getCostInputValuesFromLimits,
+  getCostRadioValuesFromLimits,
+  isFreightPackagingAllowed,
+  mapCostDetailsToPayload,
+  shouldShowFreightPackagingConfiguration,
+} from "../FreightPackagingConfigurationArea/FreightPackagingFields.utils";
 import Section from "components/generics/Section/GenericSection.types";
 import { MessagesContext } from "contexts/messagescontext";
 import { useActionWithValidation } from "../../../../hooks/useActionWithValidation";
@@ -60,6 +73,7 @@ import { Ranges } from "../../../../api/services/laborCost/laborCost";
 import ExchangeLaborCostModal from "@/components/ui/ExchangeLaborCostModal/ExchangeLaborCostModal";
 import RepairLaborCostMatrixModal from "@/components/ui/RepairLaborCostMatrixModal/RepairLaborCostMatrixModal";
 import { AscIdProvider } from "../AscId.context";
+import type { CountryConfig } from "@/api/services/countryConfiguration/countryConfiguration";
 
 const ASC_SECTION_BY_TAB: Readonly<Record<string, AscSection>> = {
   generalInfo: AscSection.GENERAL_INFO,
@@ -79,6 +93,10 @@ function AscOverview() {
   const { ascId: paramsAscId } = useParams<{ ascId: string }>();
   const user = queryClient.getQueryData<HeaderUserData>(["user"]);
   const ascId = paramsAscId || user?.ascId || "";
+  const countryConfiguration = queryClient.getQueryData<CountryConfig>([
+    "countryConfiguration",
+    user?.countryCode,
+  ]);
 
   const { data: asc, isLoading } = useQuery({
     queryKey: ["ASC", ascId],
@@ -97,6 +115,10 @@ function AscOverview() {
     repair: LABOR_RULE_DEFAULTS.repair,
     exchange: LABOR_RULE_DEFAULTS.exchange,
   });
+  const [selectedFreightRule, setSelectedFreightRule] = useState(FREIGHT_RULE_DEFAULT);
+  const [selectedPackagingRule, setSelectedPackagingRule] = useState(PACKAGING_RULE_DEFAULT);
+  const [freightPackagingEditState, setFreightPackagingEditState] =
+    useState<FreightPackagingEditState>({ freight: false, packaging: false });
 
   const [isExchangeLaborCostModalOpen, setIsExchangeLaborCostModalOpen] = useState(false);
   const [exchangeLaborCostTableDataByRule, setExchangeLaborCostTableDataByRule] = useState<
@@ -135,8 +157,20 @@ function AscOverview() {
     isLoading: isLoadingUIConfig,
     isError: isUIConfigError,
   } = useResourceUIConfiguration(asc?.defaultCountry);
-  const ascOverviewForm =
+  const ascOverviewFormConfig =
     uiConfiguration?.forms.find((form) => form.name === "ASCOverview") || null;
+  const ascOverviewForm = useMemo(() => {
+    if (!ascOverviewFormConfig || shouldShowFreightPackagingConfiguration(countryConfiguration)) {
+      return ascOverviewFormConfig;
+    }
+
+    return {
+      ...ascOverviewFormConfig,
+      sections: ascOverviewFormConfig.sections.filter(
+        (section) => section.name !== "freightAndPackagingConfiguration",
+      ),
+    };
+  }, [ascOverviewFormConfig, countryConfiguration]);
   const location = useLocation();
 
   const initialTab = location.hash.replace("#", "") || ascOverviewForm?.sections[0]?.name || "";
@@ -168,6 +202,12 @@ function AscOverview() {
       allFields,
       mandatoryFieldsMap: mandatoryFields,
     });
+
+  useEffect(() => {
+    if (tabs.length > 0 && !tabs.some((tab) => tab.name === selectedTab)) {
+      setSelectedTab(tabs[0].name);
+    }
+  }, [selectedTab, tabs]);
 
   const handleActionWithValidation = useActionWithValidation({
     allFields,
@@ -269,6 +309,11 @@ function AscOverview() {
         }) || null,
       reimbursementCreateOn: asc.reimbursementCreateOn,
       reimbursementPeriodType: asc.reimbursementPeriodType,
+      ...mapFreightPackagingToggleValues(asc.freightCostDetails, asc.packagingCostDetails),
+      ...getCostRadioValuesFromLimits(asc.freightCostDetails?.limits, "Freight"),
+      ...getCostInputValuesFromLimits(asc.freightCostDetails?.limits, undefined, "Freight"),
+      ...getCostRadioValuesFromLimits(asc.packagingCostDetails?.limits, "Packaging"),
+      ...getCostInputValuesFromLimits(asc.packagingCostDetails?.limits, undefined, "Packaging"),
     };
     return formFieldValues;
   }, []);
@@ -404,8 +449,12 @@ function AscOverview() {
           exchangeLaborCostTableDataByRuleWithCurrentValues,
           activeRepairDataByRule,
         ),
-        freightCostDetails: asc.freightCostDetails,
-        packagingCostDetails: asc.packagingCostDetails,
+        freightCostDetails: mapCostDetailsToPayload(asc.freightCostDetails, formValues, "Freight"),
+        packagingCostDetails: mapCostDetailsToPayload(
+          asc.packagingCostDetails,
+          formValues,
+          "Packaging",
+        ),
       };
 
       if (updatedValues.reimbursementPeriodType === "CUSTOM") {
@@ -447,7 +496,11 @@ function AscOverview() {
 
   const onSettledSaveUpdate = useCallback(() => {
     const section = ascOverviewForm?.sections.find((section) => section.name === selectedTab);
-    if (section && section.name != "internalLaborConfiguration") {
+    if (
+      section &&
+      section.name != "internalLaborConfiguration" &&
+      section.name != "freightAndPackagingConfiguration"
+    ) {
       section.isDisabled = true;
       toggleFieldDisabledState(section);
     }
@@ -514,6 +567,22 @@ function AscOverview() {
     [setSections],
   );
 
+  const updateFreightRule = useCallback(
+    (selectedActionName: string) => {
+      setSelectedFreightRule(selectedActionName);
+      setSections((prevSections) => updateFreightSections(prevSections, selectedActionName));
+    },
+    [setSections],
+  );
+
+  const updatePackagingRule = useCallback(
+    (selectedActionName: string) => {
+      setSelectedPackagingRule(selectedActionName);
+      setSections((prevSections) => updatePackagingSections(prevSections, selectedActionName));
+    },
+    [setSections],
+  );
+
   const laborRuleActionCallbacks = useMemo(
     () => ({
       addLaborExchangeRule: () => {
@@ -552,8 +621,25 @@ function AscOverview() {
       switchLaborExchangeRuleLevel1: () => updateLaborRule("exchange", "level1Exchange"),
       switchLaborExchangeRuleLevel2: () => updateLaborRule("exchange", "level2Exchange"),
       switchLaborExchangeRuleLevel3: () => updateLaborRule("exchange", "level3Exchange"),
+      switchFreightRuleLevel1: () => updateFreightRule("level1Freight"),
+      switchFreightRuleLevel2: () => updateFreightRule("level2Freight"),
+      switchFreightRuleLevel3: () => updateFreightRule("level3Freight"),
+      switchPackagingRuleLevel1: () => updatePackagingRule("level1Packaging"),
+      switchPackagingRuleLevel2: () => updatePackagingRule("level2Packaging"),
+      switchPackagingRuleLevel3: () => updatePackagingRule("level3Packaging"),
+      showFreightPackagingLevelAction: () =>
+        isFreightPackagingAllowed(countryConfiguration, "Freight"),
+      showPackagingLevelAction: () => isFreightPackagingAllowed(countryConfiguration, "Packaging"),
     }),
-    [laborConfigSource, currentExchangeLaborRule, selectedLaborRules.repair, updateLaborRule],
+    [
+      laborConfigSource,
+      currentExchangeLaborRule,
+      selectedLaborRules.repair,
+      updateLaborRule,
+      updateFreightRule,
+      updatePackagingRule,
+      countryConfiguration,
+    ],
   );
 
   const handleExchangeLaborCostSave = useCallback(
@@ -628,6 +714,10 @@ function AscOverview() {
       selectedLaborRepairRule: selectedLaborRules.repair,
       selectedLaborExchangeRule: selectedLaborRules.exchange,
       selectedLaborExchangeAction: selectedLaborRules.exchange,
+      selectedFreightRule,
+      selectedPackagingRule,
+      freightPackagingEditState,
+      setFreightPackagingEditState,
       exchangeLaborCostTableData,
       repairLaborCostMatrixData: repairLaborCostMatrixData ?? undefined,
       actionCallbacks: {
@@ -643,8 +733,12 @@ function AscOverview() {
       onSaveUpdate,
       onCancelUpdate,
       laborRuleActionCallbacks,
+      setFreightPackagingEditState,
       selectedLaborRules.repair,
       selectedLaborRules.exchange,
+      selectedFreightRule,
+      selectedPackagingRule,
+      freightPackagingEditState,
       exchangeLaborCostTableData,
       repairLaborCostMatrixData,
     ],

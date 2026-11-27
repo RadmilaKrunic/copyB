@@ -521,6 +521,100 @@ describe("AscOverview", () => {
         ],
         reimbursementCreateOn: "5",
         reimbursementPeriodType: "WEEKLY",
+        freightCostDetails: {
+          isAllowed: true,
+          limits: [
+            {
+              types: ["WARRANTY", "COMMERCIAL_GOODWILL"],
+              l1: {
+                lowestLimit: 0,
+                highestLimit: 4000,
+                defaultValue: 0,
+                limitType: "CAPPED_AMOUNT",
+              },
+              l2: {
+                lowestLimit: 0,
+                highestLimit: 4000,
+                defaultValue: 0,
+                limitType: "CAPPED_AMOUNT",
+              },
+              l3: {
+                lowestLimit: 0,
+                highestLimit: 4000,
+                defaultValue: 0,
+                limitType: "CAPPED_AMOUNT",
+              },
+            },
+            {
+              types: ["CHARGEABLE"],
+              l1: {
+                lowestLimit: 0,
+                highestLimit: 4000,
+                defaultValue: 0,
+                limitType: "CAPPED_AMOUNT",
+              },
+              l2: {
+                lowestLimit: 0,
+                highestLimit: 4000,
+                defaultValue: 0,
+                limitType: "CAPPED_AMOUNT",
+              },
+              l3: {
+                lowestLimit: 0,
+                highestLimit: 4000,
+                defaultValue: 0,
+                limitType: "CAPPED_AMOUNT",
+              },
+            },
+          ],
+        },
+        packagingCostDetails: {
+          isAllowed: true,
+          limits: [
+            {
+              types: ["WARRANTY", "COMMERCIAL_GOODWILL"],
+              l1: {
+                lowestLimit: 0,
+                highestLimit: 4000,
+                defaultValue: 0,
+                limitType: "CAPPED_AMOUNT",
+              },
+              l2: {
+                lowestLimit: 0,
+                highestLimit: 4000,
+                defaultValue: 0,
+                limitType: "CAPPED_AMOUNT",
+              },
+              l3: {
+                lowestLimit: 0,
+                highestLimit: 4000,
+                defaultValue: 0,
+                limitType: "CAPPED_AMOUNT",
+              },
+            },
+            {
+              types: ["CHARGEABLE"],
+              l1: {
+                lowestLimit: 0,
+                highestLimit: 4000,
+                defaultValue: 0,
+                limitType: "CAPPED_AMOUNT",
+              },
+              l2: {
+                lowestLimit: 0,
+                highestLimit: 4000,
+                defaultValue: 0,
+                limitType: "CAPPED_AMOUNT",
+              },
+              l3: {
+                lowestLimit: 0,
+                highestLimit: 4000,
+                defaultValue: 0,
+                limitType: "CAPPED_AMOUNT",
+              },
+            },
+          ],
+        },
         laborCostMethod: MINIMAL_LABOR_COST_METHOD,
       },
     };
@@ -547,6 +641,24 @@ describe("AscOverview", () => {
       logo: [{ name: "logo.png", type: "image/png", attachmentId: "logo-1" }],
       reimbursementPeriodType: "WEEKLY",
       reimbursementCreateOn: "5",
+      typeOfCostFreightLevel1: "MAXIMUM_COST",
+      typeOfCostFreightLevel2: "MAXIMUM_COST",
+      typeOfCostFreightLevel3: "MAXIMUM_COST",
+      freightCostType_maximumCostMaximumLevel1: 4000,
+      freightCostType_defaultCostMaximumLevel1: 0,
+      freightCostType_maximumCostMaximumLevel2: 4000,
+      freightCostType_defaultCostMaximumLevel2: 0,
+      freightCostType_maximumCostMaximumLevel3: 4000,
+      freightCostType_defaultCostMaximumLevel3: 0,
+      typeOfCostPackagingLevel1: "MAXIMUM_COST",
+      typeOfCostPackagingLevel2: "MAXIMUM_COST",
+      typeOfCostPackagingLevel3: "MAXIMUM_COST",
+      packagingCostType_maximumCostMaximumLevel1: 4000,
+      packagingCostType_defaultCostMaximumLevel1: 0,
+      packagingCostType_maximumCostMaximumLevel2: 4000,
+      packagingCostType_defaultCostMaximumLevel2: 0,
+      packagingCostType_maximumCostMaximumLevel3: 4000,
+      packagingCostType_defaultCostMaximumLevel3: 0,
     });
   });
 
@@ -575,6 +687,16 @@ describe("AscOverview", () => {
   });
 
   it("saves current tab values through mutation payload", async () => {
+    formValuesRef.current = {
+      ...formValuesRef.current,
+      toggleFreightCost: false,
+      typeOfCostFreightLevel1: "MAXIMUM_COST",
+      freightCostType_maximumCostMaximumLevel1: "250",
+      freightCostType_defaultCostMaximumLevel1: "125",
+      togglePackagingCost: true,
+      typeOfCostPackagingLevel1: "FIXED_COST",
+      packagingCostType_defaultCostFixedLevel1: "75",
+    };
     queryStateRef.current = {
       isLoading: false,
       data: {
@@ -592,6 +714,14 @@ describe("AscOverview", () => {
         reimbursementCreateOn: "7",
         reimbursementPeriodType: "WEEKLY",
         address: {},
+        freightCostDetails: {
+          isAllowed: true,
+          limits: [{ types: ["WARRANTY"] }],
+        },
+        packagingCostDetails: {
+          isAllowed: false,
+          limits: [{ types: ["CHARGEABLE"] }],
+        },
         laborCostMethod: MINIMAL_LABOR_COST_METHOD,
       },
     };
@@ -622,6 +752,34 @@ describe("AscOverview", () => {
         countryCode: "TR",
       },
       reimbursementCreateOn: "1",
+      freightCostDetails: {
+        isAllowed: false,
+        limits: [
+          {
+            types: ["WARRANTY"],
+            l1: {
+              lowestLimit: 0,
+              highestLimit: 250,
+              defaultValue: 125,
+              limitType: "CAPPED_AMOUNT",
+            },
+          },
+        ],
+      },
+      packagingCostDetails: {
+        isAllowed: true,
+        limits: [
+          {
+            types: ["CHARGEABLE"],
+            l1: {
+              lowestLimit: 75,
+              highestLimit: 75,
+              defaultValue: 75,
+              limitType: "FIXED_AMOUNT",
+            },
+          },
+        ],
+      },
     });
 
     expect(payload.serviceCenter).not.toHaveProperty("state");

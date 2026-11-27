@@ -96,6 +96,8 @@ describe("PopoverContent", () => {
     countryName: "Turkey",
     active: true,
     description: "Turkey country configuration",
+    isFreightAllowed: true,
+    isPackagingAllowed: true,
     dateFormat: "DD.MM.YYYY",
     currency: "TRY",
     currencySymbol: "₺",

@@ -301,6 +301,34 @@ vi.mock("./ClaimNoteModal/ClaimNoteModal", () => ({
     </div>
   ),
 }));
+vi.mock("components/ui/PurchaseDateModal/PurchaseDateModal", () => ({
+  default: ({
+    jobId,
+    manufacturedDate,
+    onClose,
+    onSaved,
+  }: {
+    jobId: string;
+    manufacturedDate?: string;
+    onClose: () => void;
+    onSaved: () => void;
+  }) => (
+    <div data-testid="purchase-date-modal" data-job-id={jobId} data-manufactured={manufacturedDate}>
+      <button type="button" onClick={onClose}>
+        cancel-date
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          onSaved();
+          onClose();
+        }}
+      >
+        save-date
+      </button>
+    </div>
+  ),
+}));
 vi.mock(
   "modules/JobManagement/JobOverview/AddSpecialMaterialModal/AddSpecialMaterialModal",
   () => ({
@@ -1586,6 +1614,89 @@ describe("ClaimOverview validate action", () => {
 });
 
 describe("ClaimOverview request approval", () => {
+  it("requires a purchase date for a revised claim and waits for the refreshed claim after saving", async () => {
+    h.hasWarrantyOrProServiceItems.mockReturnValue(true);
+    setClaim(
+      makeClaim({
+        claimStatus: "REVISED",
+        job: {
+          asset: {
+            purchaseDate: "",
+            manufacturedDate: "05/2024",
+            attachments: [{ type: "INVOICE" }],
+          },
+        },
+      }),
+    );
+    let finishRefresh = () => {};
+    h.invalidateQueries.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishRefresh = resolve;
+        }),
+    );
+    const { rerender } = renderClaim();
+
+    clickAction("onRequestApproval");
+    const modal = await screen.findByTestId("purchase-date-modal");
+    expect(modal).toHaveAttribute("data-job-id", "J-1");
+    expect(modal).toHaveAttribute("data-manufactured", "05/2024");
+    expect(h.requestApproval).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "cancel-date" }));
+    clickAction("onRequestApproval");
+    expect(await screen.findByTestId("purchase-date-modal")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "save-date" }));
+    expect(h.invalidateQueries).toHaveBeenCalledWith(
+      { queryKey: ["claim", "C-1"] },
+      { throwOnError: true },
+    );
+    clickAction("onRequestApproval");
+    expect(h.requestApproval).not.toHaveBeenCalled();
+
+    setClaim(
+      makeClaim({
+        claimStatus: "REVISED",
+        job: { asset: { purchaseDate: "2024-06-15", attachments: [{ type: "INVOICE" }] } },
+      }),
+    );
+    rerender(
+      <MessagesContext.Provider value={{ messages: [], setMessages: h.setMessages }}>
+        <ClaimOverview />
+      </MessagesContext.Provider>,
+    );
+    await act(async () => {
+      finishRefresh();
+    });
+    clickAction("onRequestApproval");
+    await waitFor(() => expect(h.requestApproval).toHaveBeenCalledTimes(1));
+  });
+
+  it("blocks a revised claim with a missing date even without warranty items", async () => {
+    setClaim(makeClaim({ claimStatus: "REVISED", job: { asset: { purchaseDate: " " } } }));
+    renderClaim();
+
+    clickAction("onRequestApproval");
+    expect(await screen.findByTestId("purchase-date-modal")).toBeInTheDocument();
+    expect(h.requestApproval).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed claim refresh and keeps approval blocked", async () => {
+    setClaim(makeClaim({ claimStatus: "REVISED", job: { asset: {} } }));
+    h.invalidateQueries.mockRejectedValueOnce(new Error("refresh failed"));
+    renderClaim();
+
+    clickAction("onRequestApproval");
+    fireEvent.click(await screen.findByRole("button", { name: "save-date" }));
+    await waitFor(() =>
+      expect(messagesFromSetMessages()).toContainEqual(
+        expect.objectContaining({ type: "error", text: "claimRefreshError" }),
+      ),
+    );
+    clickAction("onRequestApproval");
+    expect(h.requestApproval).not.toHaveBeenCalled();
+  });
+
   it("requests approval and reports success", async () => {
     renderClaim();
 

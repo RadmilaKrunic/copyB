@@ -7,12 +7,46 @@ import {
   mapReimbursement,
   mapNotifications,
   mapLaborCostDetailsToApiPayload,
+  mapFreightPackagingToggleValues,
   mapExchangeLaborCostTableDataFromFormValues,
   updateLaborExchangeSections,
+  updateFreightSections,
+  updatePackagingSections,
 } from "./ASC.utils";
 import { ServiceCenter } from "../../../api/services/serviceCenters/serviceCenters.types";
 
 describe("ASC.utils", () => {
+  describe("mapFreightPackagingToggleValues", () => {
+    it("uses saved ASC values ahead of service-cost defaults", () => {
+      expect(
+        mapFreightPackagingToggleValues(
+          { isAllowed: false },
+          { isAllowed: true },
+          { isAllowed: true },
+          { isAllowed: false },
+        ),
+      ).toEqual({ toggleFreightCost: false, togglePackagingCost: true });
+    });
+
+    it("uses service-cost defaults when saved values are missing", () => {
+      expect(
+        mapFreightPackagingToggleValues(
+          undefined,
+          undefined,
+          { isAllowed: true },
+          { isAllowed: false },
+        ),
+      ).toEqual({ toggleFreightCost: true, togglePackagingCost: false });
+    });
+
+    it("defaults missing values to off", () => {
+      expect(mapFreightPackagingToggleValues(undefined, undefined)).toEqual({
+        toggleFreightCost: false,
+        togglePackagingCost: false,
+      });
+    });
+  });
+
   describe("mapGeneralInfo", () => {
     it("should map general info with all fields", () => {
       const generalInfo = {
@@ -742,6 +776,64 @@ describe("ASC.utils", () => {
       expect(exchangeActions.length).toBe(3);
       expect(exchangeActions[0].mode).toBe("secondary");
       expect(exchangeActions[2].mode).toBe("primary");
+    });
+  });
+
+  describe("freight rules", () => {
+    it("should switch the selected freight level button to primary", () => {
+      const sections = [
+        {
+          name: "freightAndPackagingConfiguration",
+          areas: [
+            {
+              name: "FreightRulesArea",
+              actions: [
+                { name: "level1Freight", mode: "primary" },
+                { name: "level2Freight", mode: "secondary" },
+                { name: "level3Freight", mode: "secondary" },
+              ],
+            },
+          ],
+        },
+      ] as never;
+
+      const updatedSections = updateFreightSections(sections, "level3Freight");
+      const freightActions: Array<{ mode?: string }> = updatedSections[0].areas[0].actions ?? [];
+
+      expect(freightActions.map((action) => action.mode)).toEqual([
+        "secondary",
+        "secondary",
+        "primary",
+      ]);
+    });
+  });
+
+  describe("packaging rules", () => {
+    it("should switch the selected packaging level button to primary", () => {
+      const sections = [
+        {
+          name: "freightAndPackagingConfiguration",
+          areas: [
+            {
+              name: "PackagingRulesArea",
+              actions: [
+                { name: "level1Packaging", mode: "primary" },
+                { name: "level2Packaging", mode: "secondary" },
+                { name: "level3Packaging", mode: "secondary" },
+              ],
+            },
+          ],
+        },
+      ] as never;
+
+      const updatedSections = updatePackagingSections(sections, "level3Packaging");
+      const packagingActions: Array<{ mode?: string }> = updatedSections[0].areas[0].actions ?? [];
+
+      expect(packagingActions.map((action) => action.mode)).toEqual([
+        "secondary",
+        "secondary",
+        "primary",
+      ]);
     });
   });
 });

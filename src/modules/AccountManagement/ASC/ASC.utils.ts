@@ -14,6 +14,11 @@ import Section from "../../../components/generics/Section/GenericSection.types";
 import type { LaborExchangeRow } from "./AscLaborRulesExchangeArea/AscLaborRulesExchangeArea.utils";
 import { LABOR_EXCHANGE_RULES_TO_LEVEL } from "./AscLaborRulesExchangeArea/AscLaborRulesExchangeArea.utils";
 
+export {
+  FREIGHT_RULE_DEFAULT,
+  PACKAGING_RULE_DEFAULT,
+} from "./FreightPackagingConfigurationArea/FreightPackagingFields.utils";
+
 const LABOR_RULE_TARGETS = {
   repair: {
     sectionName: "internalLaborConfiguration",
@@ -65,6 +70,20 @@ export const LABOR_RULE_DEFAULTS = {
   exchange: "level1Exchange",
 };
 
+type CostDetailsToggle = { isAllowed: boolean } | null | undefined;
+
+export const mapFreightPackagingToggleValues = (
+  savedFreightCostDetails: CostDetailsToggle,
+  savedPackagingCostDetails: CostDetailsToggle,
+  defaultFreightCostDetails?: CostDetailsToggle,
+  defaultPackagingCostDetails?: CostDetailsToggle,
+): Record<string, boolean> => ({
+  toggleFreightCost:
+    savedFreightCostDetails?.isAllowed ?? defaultFreightCostDetails?.isAllowed ?? false,
+  togglePackagingCost:
+    savedPackagingCostDetails?.isAllowed ?? defaultPackagingCostDetails?.isAllowed ?? false,
+});
+
 type LaborRepairArea = Section["areas"][number];
 type LaborRuleTarget = typeof LABOR_REPAIR_UPDATE_TARGET | typeof LABOR_EXCHANGE_UPDATE_TARGET;
 
@@ -100,6 +119,42 @@ export const updateLaborExchangeSections = (
 ): Section[] => {
   return updateLaborSections(sections, selectedActionName, LABOR_EXCHANGE_UPDATE_TARGET);
 };
+
+export const updateFreightSections = (sections: Section[], selectedActionName: string): Section[] =>
+  updateCostRuleSections(sections, selectedActionName, "FreightRulesArea");
+
+export const updatePackagingSections = (
+  sections: Section[],
+  selectedActionName: string,
+): Section[] => updateCostRuleSections(sections, selectedActionName, "PackagingRulesArea");
+
+const updateCostRuleSections = (
+  sections: Section[],
+  selectedActionName: string,
+  ruleAreaName: string,
+): Section[] =>
+  sections.map((section) => {
+    if (section.name !== "freightAndPackagingConfiguration") {
+      return section;
+    }
+
+    return {
+      ...section,
+      areas: section.areas.map((area) => {
+        if (area.name !== ruleAreaName) {
+          return area;
+        }
+
+        return {
+          ...area,
+          actions: (area.actions || []).map((action) => ({
+            ...action,
+            mode: action.name === selectedActionName ? "primary" : "secondary",
+          })),
+        };
+      }),
+    };
+  });
 
 const updateLaborSections = (
   sections: Section[],

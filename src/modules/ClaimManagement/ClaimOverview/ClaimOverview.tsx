@@ -91,6 +91,7 @@ import {
 import { useFetchDefaultQuantities } from "api/services/prices/hooks";
 import type { ResolveDefaultQuantities } from "api/services/prices/prices.types";
 import { getBlockedClaimPositions } from "./claimPositionRestrictions";
+import PurchaseDateModal from "components/ui/PurchaseDateModal/PurchaseDateModal";
 
 const SPARE_PARTS_PREFIX = "claims_claimSpareParts#";
 function FormikClaimSync({
@@ -142,6 +143,8 @@ export default function ClaimOverview() {
   const [isClaimNoteModalOpen, setIsClaimNoteModalOpen] = useState(false);
   const [claimNoteModalAction, setClaimNoteModalAction] = useState<string>("");
   const [isClaimEditMode, setIsClaimEditMode] = useState(false);
+  const [isPurchaseDateModalOpen, setIsPurchaseDateModalOpen] = useState(false);
+  const [isRefreshingPurchaseDate, setIsRefreshingPurchaseDate] = useState(false);
   const [showAddSpecialMaterialModal, setShowAddSpecialMaterialModal] = useState(false);
   const [isExplosionDrawingModalOpen, setIsExplosionDrawingModalOpen] = useState(false);
   const [claimFullData, setClaimFullData] = useState<ClaimItem | null>(null);
@@ -812,8 +815,19 @@ export default function ClaimOverview() {
       },
     ) => {
       if (!claimId) return;
+      if (isRefreshingPurchaseDate) return;
 
       await handleActionWithValidation("onRequestApproval", formValues, helpers, async () => {
+        if (currentStatus === "REVISED" && !claimData?.job?.asset?.purchaseDate?.trim()) {
+          scrollToTop();
+          setMessages((prev) => [
+            ...prev,
+            { text: t("claimPurchaseDateRequired"), type: "error", duration: 6000 },
+          ]);
+          if (claimData?.jobId) setIsPurchaseDateModalOpen(true);
+          return;
+        }
+
         const hasWarrantyOrProServiceItem = hasWarrantyOrProServiceItems(
           allFields ?? [],
           formValues,
@@ -886,10 +900,13 @@ export default function ClaimOverview() {
     },
     [
       claimId,
+      currentStatus,
+      isRefreshingPurchaseDate,
       handleActionWithValidation,
       allFields,
       claimFullData?.jobType,
       claimData?.job?.asset?.attachments,
+      claimData?.job?.asset?.purchaseDate,
       claimData?.jobId,
       setMessages,
       t,
@@ -1009,8 +1026,8 @@ export default function ClaimOverview() {
   // arePricesValidated for requestApproval: validated AND no pending changes
   // Use refs so the callback reads the latest values even if state hasn't re-rendered yet
   const claimPricesValidated = useCallback(
-    () => arePricesValidatedRef.current && !hasClaimChangesRef.current,
-    [],
+    () => arePricesValidatedRef.current && !hasClaimChangesRef.current && !isRefreshingPurchaseDate,
+    [isRefreshingPurchaseDate],
   );
 
   const handleGenericAction = useCallback(
@@ -1470,6 +1487,31 @@ export default function ClaimOverview() {
         isOpen={isClaimNoteModalOpen}
         setIsOpen={setIsClaimNoteModalOpen}
       />
+      {isPurchaseDateModalOpen && claimData.jobId && (
+        <PurchaseDateModal
+          jobId={claimData.jobId}
+          isOpen
+          onClose={() => setIsPurchaseDateModalOpen(false)}
+          manufacturedDate={claimData.job?.asset?.manufacturedDate}
+          purpose="claim"
+          onSaved={() => {
+            setIsRefreshingPurchaseDate(true);
+            void queryClient
+              .invalidateQueries({ queryKey: ["claim", claimId] }, { throwOnError: true })
+              .catch((error: unknown) => {
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    text: getApiErrorMessage(error, t, "claimRefreshError"),
+                    type: "error",
+                    duration: 8000,
+                  },
+                ]);
+              })
+              .finally(() => setIsRefreshingPurchaseDate(false));
+          }}
+        />
+      )}
       <AddSpecialMaterialModal
         jobId={claimFullData?.jobId}
         isOpen={showAddSpecialMaterialModal}

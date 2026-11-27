@@ -9,6 +9,7 @@ import type { AllowedPosition } from "api/services/countryConfiguration/countryC
 import type { FieldValueRange } from "./formValidation";
 import { LaborExchangeRow } from "@/modules/AccountManagement/ASC/AscLaborRulesExchangeArea/AscLaborRulesExchangeArea.utils";
 import { RepairCosts } from "@/api/services/serviceCenters/serviceCenters.types";
+import { FreightPackagingEditState } from "@/modules/AccountManagement/ASC/FreightPackagingConfigurationArea/FreightPackagingFields.utils";
 
 export interface ActionCallbackHelpers {
   setFieldValue: (field: string, value: unknown) => void | Promise<unknown>;
@@ -79,6 +80,10 @@ export interface GenericFormContextType {
   allowedPositions?: AllowedPosition[];
   selectedLaborRepairRule?: string | null;
   selectedLaborExchangeRule?: string | null;
+  selectedFreightRule?: string | null;
+  selectedPackagingRule?: string | null;
+  freightPackagingEditState?: FreightPackagingEditState;
+  setFreightPackagingEditState?: React.Dispatch<React.SetStateAction<FreightPackagingEditState>>;
   exchangeLaborCostTableData?: LaborExchangeRow[];
   repairLaborCostMatrixData?: RepairCosts;
 }
@@ -103,6 +108,8 @@ export const GenericFormContext = createContext<GenericFormContextType>({
   allowedPositions: undefined,
   selectedLaborRepairRule: undefined,
   selectedLaborExchangeRule: undefined,
+  selectedFreightRule: undefined,
+  selectedPackagingRule: undefined,
   exchangeLaborCostTableData: undefined,
   repairLaborCostMatrixData: undefined,
 });

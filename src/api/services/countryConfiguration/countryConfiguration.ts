@@ -78,6 +78,8 @@ export interface CountryConfig {
   reimbursementConfig: ReimbursementConfiguration[];
   reimbursementCreateOn: string;
   reimbursementPeriodType: string;
+  isFreightAllowed: boolean;
+  isPackagingAllowed: boolean;
 }
 
 export const getCountryConfig = async (countryCode: string) => {

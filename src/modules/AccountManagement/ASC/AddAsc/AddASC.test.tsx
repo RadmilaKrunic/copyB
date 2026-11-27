@@ -466,6 +466,22 @@ describe("AddASC", () => {
       sparePartLaborUnits_0: "39",
       newToolExchangeLaborUnits_1: "17",
       accessoryLaborUnits_2: "28",
+      toggleFreightCost: true,
+      typeOfCostFreightLevel1: "NO_LIMIT",
+      typeOfCostFreightLevel2: "MAXIMUM_COST",
+      typeOfCostFreightLevel3: "FIXED_COST",
+      freightCostType_defaultCostNoLimitLevel1: "11",
+      freightCostType_maximumCostMaximumLevel2: "120",
+      freightCostType_defaultCostMaximumLevel2: "60",
+      freightCostType_defaultCostFixedLevel3: "33",
+      togglePackagingCost: false,
+      typeOfCostPackagingLevel1: "FIXED_COST",
+      typeOfCostPackagingLevel2: "NO_LIMIT",
+      typeOfCostPackagingLevel3: "MAXIMUM_COST",
+      packagingCostType_defaultCostFixedLevel1: "8",
+      packagingCostType_defaultCostNoLimitLevel2: "16",
+      packagingCostType_maximumCostMaximumLevel3: "90",
+      packagingCostType_defaultCostMaximumLevel3: "45",
     };
 
     queryDataRef.current = {
@@ -591,7 +607,17 @@ describe("AddASC", () => {
     useQueryMock.mockImplementation(({ queryKey }: { queryKey?: unknown[] }) => {
       if (queryKey?.[0] === "laborCostConfig") {
         return {
-          data: { laborCostMethod: queryDataRef.current.countryConfiguration.laborCostMethod },
+          data: {
+            laborCostMethod: queryDataRef.current.countryConfiguration.laborCostMethod,
+            freightCostDetails: {
+              isAllowed: true,
+              limits: [{ types: ["REPAIR"], l1: null, l2: null, l3: null }],
+            },
+            packagingCostDetails: {
+              isAllowed: true,
+              limits: [{ types: ["PACKAGING"], l1: null, l2: null, l3: null }],
+            },
+          },
           isLoading: !formInitStateRef.current.isInitialized,
         };
       }
@@ -672,7 +698,67 @@ describe("AddASC", () => {
       expect(startValidationMock).toHaveBeenCalledWith("submit");
       expect(stopValidationMock).toHaveBeenCalled();
       expect(mapAccountRolesToAPIFormatMock).toHaveBeenCalledWith(["ASC_TECHNICIAN"]);
-      expect(mutateMock).toHaveBeenCalledWith(expect.objectContaining({ isDraft: false }));
+      expect(mutateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isDraft: false,
+          payload: expect.objectContaining({
+            serviceCenter: expect.objectContaining({
+              freightCostDetails: {
+                isAllowed: true,
+                limits: [
+                  {
+                    types: ["REPAIR"],
+                    l1: {
+                      limitType: "ACTUAL_AMOUNT",
+                      lowestLimit: 0,
+                      highestLimit: 99999999,
+                      defaultValue: 11,
+                    },
+                    l2: {
+                      limitType: "CAPPED_AMOUNT",
+                      lowestLimit: 0,
+                      highestLimit: 120,
+                      defaultValue: 60,
+                    },
+                    l3: {
+                      limitType: "FIXED_AMOUNT",
+                      lowestLimit: 33,
+                      highestLimit: 33,
+                      defaultValue: 33,
+                    },
+                  },
+                ],
+              },
+              packagingCostDetails: {
+                isAllowed: false,
+                limits: [
+                  {
+                    types: ["PACKAGING"],
+                    l1: {
+                      limitType: "FIXED_AMOUNT",
+                      lowestLimit: 8,
+                      highestLimit: 8,
+                      defaultValue: 8,
+                    },
+                    l2: {
+                      limitType: "ACTUAL_AMOUNT",
+                      lowestLimit: 0,
+                      highestLimit: 99999999,
+                      defaultValue: 16,
+                    },
+                    l3: {
+                      limitType: "CAPPED_AMOUNT",
+                      lowestLimit: 0,
+                      highestLimit: 90,
+                      defaultValue: 45,
+                    },
+                  },
+                ],
+              },
+            }),
+          }),
+        }),
+      );
       expect(mapLaborCostDetailsToApiPayloadMock).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
@@ -734,6 +820,37 @@ describe("AddASC", () => {
           isDraft: true,
           payload: expect.objectContaining({
             serviceCenter: expect.objectContaining({
+              freightCostDetails: expect.objectContaining({
+                isAllowed: true,
+                limits: [
+                  expect.objectContaining({
+                    l1: expect.objectContaining({ limitType: "ACTUAL_AMOUNT", defaultValue: 11 }),
+                    l2: expect.objectContaining({
+                      limitType: "CAPPED_AMOUNT",
+                      highestLimit: 120,
+                      defaultValue: 60,
+                    }),
+                    l3: expect.objectContaining({ limitType: "FIXED_AMOUNT", defaultValue: 33 }),
+                  }),
+                ],
+              }),
+              packagingCostDetails: expect.objectContaining({
+                isAllowed: false,
+                limits: [
+                  expect.objectContaining({
+                    l1: expect.objectContaining({ limitType: "FIXED_AMOUNT", defaultValue: 8 }),
+                    l2: expect.objectContaining({
+                      limitType: "ACTUAL_AMOUNT",
+                      defaultValue: 16,
+                    }),
+                    l3: expect.objectContaining({
+                      limitType: "CAPPED_AMOUNT",
+                      highestLimit: 90,
+                      defaultValue: 45,
+                    }),
+                  }),
+                ],
+              }),
               laborCostMethod: expect.objectContaining({
                 newToolExchange: expect.objectContaining({
                   reasonMapping: expect.arrayContaining([

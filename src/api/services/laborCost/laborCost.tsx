@@ -41,6 +41,7 @@ export interface ExchangePrices {
   reasonMapping: ReasonMapping[];
 }
 export interface CostLimitValue {
+  limitType: string;
   lowestLimit: number;
   highestLimit: number;
   defaultValue: number;

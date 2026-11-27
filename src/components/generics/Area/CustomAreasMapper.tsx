@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import DocumentTabArea from "components/ui/DocumentTabArea/DocumentTabArea";
 import AccessoryArea from "../../../modules/JobManagement/CreateJob/AssetData/AccessoryArea/AccessoryArea";
 import Area from "./GenericArea.types";
@@ -11,63 +12,87 @@ import ClaimArchivedSparePartsArea from "modules/ClaimManagement/ClaimOverview/C
 import AscReimbursementArea from "../../../modules/AccountManagement/ASC/AscReimbursementArea/AscReimbursementArea";
 import AscLaborRulesRepairArea from "@/modules/AccountManagement/ASC/AscLaborRulesRepairArea/AscLaborRulesRepairArea";
 import AscLaborRulesExchangeArea from "@/modules/AccountManagement/ASC/AscLaborRulesExchangeArea/AscLaborRulesExchangeArea";
+import FreightPackagingCostConfigurationArea from "@/modules/AccountManagement/ASC/FreightPackagingConfigurationArea/FreightPackagingCostConfigurationArea";
+import FreightPackagingFields from "@/modules/AccountManagement/ASC/FreightPackagingConfigurationArea/FreightPackagingFields";
 
-export const getCustomArea = (area: Area) => {
-  if (area.name.includes("accessory")) {
-    const isCreateJobPattern = area.name.includes("assetData#");
-    const isReadOnly = !isCreateJobPattern && area.isDisabled !== false;
-    return <AccessoryArea area={area} readOnly={isReadOnly} />;
-  }
-  if (area.name.includes("claimDocumentList")) {
-    return <DocumentTabArea area={area} entityType="claim" />;
-  }
+interface CustomAreaMatcher {
+  matches: (area: Area) => boolean;
+  render: (area: Area) => ReactNode;
+}
 
-  if (area.name.includes("documentList")) {
-    return <DocumentTabArea area={area} />;
-  }
+const CUSTOM_AREA_MATCHERS: CustomAreaMatcher[] = [
+  {
+    matches: (area) => area.name.includes("accessory"),
+    render: (area) => {
+      const isCreateJobPattern = area.name.includes("assetData#");
+      const isReadOnly = !isCreateJobPattern && area.isDisabled !== false;
+      return <AccessoryArea area={area} readOnly={isReadOnly} />;
+    },
+  },
+  {
+    matches: (area) => area.name.includes("claimDocumentList"),
+    render: (area) => <DocumentTabArea area={area} entityType="claim" />,
+  },
+  {
+    matches: (area) => area.name.includes("documentList"),
+    render: (area) => <DocumentTabArea area={area} />,
+  },
+  {
+    matches: (area) => area.name.includes("claimNotesList"),
+    render: () => <NotesList entityType="claim" />,
+  },
+  {
+    matches: (area) => area.name.includes("notesList"),
+    render: () => <NotesList />,
+  },
+  {
+    matches: (area) => area.name.includes("claimArchivedSpareParts"),
+    render: (area) => <ClaimArchivedSparePartsArea area={area} />,
+  },
+  {
+    matches: (area) => area.name.includes("claimSpareParts"),
+    render: (area) => <ClaimSparePartsArea area={area} />,
+  },
+  {
+    matches: (area) => area.name.includes("diagnosticsSpareParts"),
+    render: (area) => <SparePartsArea area={area} />,
+  },
+  {
+    matches: (area) => area.name.includes("claimDiagnosticsSummary"),
+    render: (area) => <ClaimSummaryArea area={area} />,
+  },
+  {
+    matches: (area) => area.name.includes("diagnosticsSummary"),
+    render: (area) => <SummaryArea area={area} />,
+  },
+  {
+    matches: (area) => area.name.includes("archivedSpareParts"),
+    render: (area) => <ArchivedSparePartsArea area={area} />,
+  },
+  {
+    matches: (area) => area.name.includes("AscReimbursementArea"),
+    render: (area) => <AscReimbursementArea area={area} />,
+  },
+  {
+    matches: (area) => area.name.includes("laborRulesRepair"),
+    render: (area) => <AscLaborRulesRepairArea area={area} />,
+  },
+  {
+    matches: (area) => area.name.includes("laborRulesExchange"),
+    render: (area) => <AscLaborRulesExchangeArea area={area} />,
+  },
+  {
+    matches: (area) =>
+      area.name.includes("freightCostConfiguration") ||
+      area.name.includes("packagingCostConfiguration"),
+    render: (area) => <FreightPackagingCostConfigurationArea area={area} />,
+  },
+  {
+    matches: (area) =>
+      area.name.includes("freightCostType") || area.name.includes("packagingCostType"),
+    render: (area) => <FreightPackagingFields area={area} />,
+  },
+];
 
-  if (area.name.includes("claimNotesList")) {
-    return <NotesList entityType="claim" />;
-  }
-
-  if (area.name.includes("notesList")) {
-    return <NotesList />;
-  }
-
-  if (area.name.includes("claimArchivedSpareParts")) {
-    return <ClaimArchivedSparePartsArea area={area} />;
-  }
-
-  if (area.name.includes("claimSpareParts")) {
-    return <ClaimSparePartsArea area={area} />;
-  }
-
-  if (area.name.includes("diagnosticsSpareParts")) {
-    return <SparePartsArea area={area} />;
-  }
-
-  if (area.name.includes("claimDiagnosticsSummary")) {
-    return <ClaimSummaryArea area={area} />;
-  }
-
-  if (area.name.includes("diagnosticsSummary")) {
-    return <SummaryArea area={area} />;
-  }
-
-  if (area.name.includes("archivedSpareParts")) {
-    return <ArchivedSparePartsArea area={area} />;
-  }
-
-  if (area.name.includes("AscReimbursementArea")) {
-    return <AscReimbursementArea area={area} />;
-  }
-
-  if (area.name.includes("laborRulesRepair")) {
-    return <AscLaborRulesRepairArea area={area} />;
-  }
-  if (area.name.includes("laborRulesExchange")) {
-    return <AscLaborRulesExchangeArea area={area} />;
-  }
-
-  return null;
-};
+export const getCustomArea = (area: Area) =>
+  CUSTOM_AREA_MATCHERS.find((matcher) => matcher.matches(area))?.render(area) ?? null;

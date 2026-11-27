@@ -55,20 +55,21 @@ export interface LaborCostMethod {
   sparePartsExchange: ExchangeCostDetails;
 }
 
-export interface LaborRateLimitRange {
+export interface CostLimitValue {
+  limitType: string;
   lowestLimit: number;
   highestLimit: number;
   defaultValue: number;
 }
-export interface Limits {
+export interface CostLimit {
   types: string[];
-  l1: LaborRateLimitRange | null;
-  l2: LaborRateLimitRange | null;
-  l3: LaborRateLimitRange | null;
+  l1: CostLimitValue | null;
+  l2: CostLimitValue | null;
+  l3: CostLimitValue | null;
 }
 export interface FreightPackagingCostDetails {
   isAllowed: boolean;
-  limits: Limits[];
+  limits: CostLimit[];
 }
 export interface ServiceCenter {
   ascId: string;
@@ -189,6 +190,8 @@ export interface DraftServiceCenter {
     reimbursementCreateOn: string;
     reimbursementPeriodType: string;
     laborCostMethod: LaborCostMethod;
+    freightCostDetails?: FreightPackagingCostDetails;
+    packagingCostDetails?: FreightPackagingCostDetails;
   };
   firstUser: {
     userId: string;

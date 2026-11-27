@@ -156,6 +156,8 @@ const makeCountryConfig = (allowedPositions: AllowedPosition[]): CountryConfig =
   countryName: "South Africa",
   active: true,
   description: "test",
+  isFreightAllowed: true,
+  isPackagingAllowed: true,
   dateFormat: "yyyy-MM-dd",
   currency: "ZAR",
   currencySymbol: "R",

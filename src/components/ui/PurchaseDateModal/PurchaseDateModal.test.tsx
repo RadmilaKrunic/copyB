@@ -148,6 +148,43 @@ describe("PurchaseDateModal", () => {
     expect(screen.getByTestId("purchase-date-submit-button")).toBeDisabled();
   });
 
+  it("uses the claim manufacture date and notifies the caller only after saving", async () => {
+    const onSaved = vi.fn();
+    const { setMessages } = renderComponent({
+      purpose: "claim",
+      manufacturedDate: "07/2024",
+      onSaved,
+    });
+
+    expect(screen.getByText("claimPurchaseDateRequired")).toBeInTheDocument();
+    expect(screen.getByText("saveChanges")).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("datepicker-purchaseDate"), {
+      target: { value: "2024-06-15" },
+    });
+    fireEvent.click(screen.getByTestId("purchase-date-submit-button"));
+    expect(
+      await screen.findByText("purchaseDateMustBeSameOrAfterManufacturedDate (07/2024)."),
+    ).toBeInTheDocument();
+    expect(mockMutate).not.toHaveBeenCalled();
+    expect(onSaved).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByTestId("datepicker-purchaseDate"), {
+      target: { value: "2024-07-15" },
+    });
+    await waitFor(() => expect(screen.getByTestId("purchase-date-submit-button")).toBeEnabled());
+    fireEvent.click(screen.getByTestId("purchase-date-submit-button"));
+    await waitFor(() =>
+      expect(mockMutate).toHaveBeenCalledWith({ jobId: "job-1", purchaseDate: "2024-07-15" }),
+    );
+    act(() => mutationOptions.onSuccess?.());
+    expect(onSaved).toHaveBeenCalledTimes(1);
+    expect(setMessages.mock.calls[0][0]([])).toContainEqual({
+      text: "purchaseDateSavedSuccess",
+      type: "success",
+      duration: 5000,
+    });
+  });
+
   it("invokes onSuccess handler behavior: invalidates query and shows success message", () => {
     const { onClose, setMessages, invalidateSpy } = renderComponent();
     act(() => {

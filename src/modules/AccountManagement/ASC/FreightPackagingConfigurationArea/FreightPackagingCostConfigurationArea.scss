@@ -1,0 +1,52 @@
+.freight-packaging-cost-configuration-area {
+  margin-top: 1rem;
+  background-color: white;
+  height: 64px;
+  padding-top: 16px;
+  padding-bottom: 16px;
+  display: flex;
+  align-items: center;
+}
+
+.freight-packaging-icon {
+  font-size: 32px;
+  margin-left: 20px;
+  margin-right: 20px;
+}
+
+.description-title-freight-packaging {
+  font-weight: bold;
+  margin: 0;
+}
+
+.description-text-freight-packaging {
+  color: #666;
+  margin: 0;
+}
+
+.toggle-field-container-freight-packaging {
+  margin-left: auto;
+  margin-right: 20px;
+  .generic-field-toggle {
+    background-color: transparent;
+  }
+}
+
+.freight-packaging-overview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.freight-packaging-cost-configuration-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  margin-top: 1rem;
+}
+
+.freight-packaging-action-button {
+  width: 100%;
+}

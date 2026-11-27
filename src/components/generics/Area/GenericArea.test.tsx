@@ -99,12 +99,16 @@ describe("GenericArea", () => {
     testField: "",
   };
 
-  const renderWithContext = (area: Area, readOnly = false) => {
+  const renderWithContext = (
+    area: Area,
+    readOnly = false,
+    initialValues: Record<string, unknown> = mockInitialValues,
+  ) => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     return render(
       <QueryClientProvider client={queryClient}>
         <GenericFormContext.Provider value={mockContextValue}>
-          <Formik initialValues={mockInitialValues} onSubmit={vi.fn()}>
+          <Formik initialValues={initialValues} onSubmit={vi.fn()}>
             <GenericArea area={area} readOnly={readOnly} />
           </Formik>
         </GenericFormContext.Provider>
@@ -289,6 +293,46 @@ describe("GenericArea", () => {
   });
 
   describe("Visibility", () => {
+    it.each([
+      { areaName: "FreightRulesArea", toggleField: "toggleFreightCost" },
+      { areaName: "PackagingRulesArea", toggleField: "togglePackagingCost" },
+    ])("hides $areaName when its toggle is off", ({ areaName, toggleField }) => {
+      const area: Area = {
+        name: areaName,
+        label: "",
+        position: 1,
+        fields: [],
+        dependFieldCondition: "",
+        dependentFields: [],
+        actions: [{ name: "level1", onAction: "testAction" }],
+        isSubArea: false,
+      };
+
+      renderWithContext(area, false, { [toggleField]: false });
+
+      expect(screen.queryByTestId("generic-actions")).not.toBeInTheDocument();
+    });
+
+    it.each([
+      { areaName: "FreightRulesArea", toggleField: "toggleFreightCost" },
+      { areaName: "PackagingRulesArea", toggleField: "togglePackagingCost" },
+    ])("shows $areaName when its toggle is on", ({ areaName, toggleField }) => {
+      const area: Area = {
+        name: areaName,
+        label: "",
+        position: 1,
+        fields: [],
+        dependFieldCondition: "",
+        dependentFields: [],
+        actions: [{ name: "level1", onAction: "testAction" }],
+        isSubArea: false,
+      };
+
+      renderWithContext(area, false, { [toggleField]: true });
+
+      expect(screen.getByTestId("generic-actions")).toBeInTheDocument();
+    });
+
     it("renders sub-area when visible", () => {
       vi.mocked(utils.isDependedAndVisible).mockReturnValue(true);
 

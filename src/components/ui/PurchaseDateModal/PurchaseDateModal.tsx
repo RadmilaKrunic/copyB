@@ -23,6 +23,9 @@ interface PurchaseDateModalProps {
   jobId: string;
   isOpen: boolean;
   onClose: () => void;
+  manufacturedDate?: string;
+  onSaved?: () => void;
+  purpose?: "warranty" | "claim";
 }
 
 interface PurchaseDateFormValues {
@@ -46,15 +49,23 @@ const calendarConfig = {
   endOfTheDay: false,
 };
 
-function PurchaseDateModal({ jobId, isOpen, onClose }: Readonly<PurchaseDateModalProps>) {
+function PurchaseDateModal({
+  jobId,
+  isOpen,
+  onClose,
+  manufacturedDate,
+  onSaved,
+  purpose = "warranty",
+}: Readonly<PurchaseDateModalProps>) {
   const { t } = useTranslation("translation", { keyPrefix: "app" });
   const modalRef = useRef<HTMLDialogElement>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { setMessages } = useContext(MessagesContext);
   const analytics = useAnalytics();
-  const manufactureDate = queryClient.getQueryData<JobOverviewItem>(["job", jobId])?.job?.asset
-    ?.manufacturedDate;
+  const manufactureDate =
+    manufacturedDate ??
+    queryClient.getQueryData<JobOverviewItem>(["job", jobId])?.job?.asset?.manufacturedDate;
 
   const purchaseDateMutation = usePostPurchaseDate({
     onSuccess: () => {
@@ -62,8 +73,13 @@ function PurchaseDateModal({ jobId, isOpen, onClose }: Readonly<PurchaseDateModa
       setErrorMessage(null);
       setMessages((prev) => [
         ...prev,
-        { text: t("purchaseDateAppliedSuccess"), type: "success", duration: 5000 },
+        {
+          text: t(purpose === "claim" ? "purchaseDateSavedSuccess" : "purchaseDateAppliedSuccess"),
+          type: "success",
+          duration: 5000,
+        },
       ]);
+      onSaved?.();
       onClose();
       analytics.trackJobSectionSaved({
         ...getCachedJobContext(queryClient, jobId),
@@ -128,8 +144,16 @@ function PurchaseDateModal({ jobId, isOpen, onClose }: Readonly<PurchaseDateModa
           }}
         >
           <div className="modal-header">
-            <div className="modal-title">{t("verifyPurchaseDateModalTitle")}</div>
-            <div className="modal-subtitle">{t("verifyPurchaseDateModalSubtitle")}</div>
+            <div className="modal-title">
+              {t(purpose === "claim" ? "purchaseDate" : "verifyPurchaseDateModalTitle")}
+            </div>
+            <div className="modal-subtitle">
+              {t(
+                purpose === "claim"
+                  ? "claimPurchaseDateRequired"
+                  : "verifyPurchaseDateModalSubtitle",
+              )}
+            </div>
           </div>
 
           <div className="modal-datepicker">
@@ -163,7 +187,7 @@ function PurchaseDateModal({ jobId, isOpen, onClose }: Readonly<PurchaseDateModa
               data-testid="purchase-date-submit-button"
               disabled={!values.purchaseDate || purchaseDateMutation.isPending || !isValid}
             >
-              {t("checkEligibility")}
+              {t(purpose === "claim" ? "saveChanges" : "checkEligibility")}
             </Button>
           </div>
         </Dialog>

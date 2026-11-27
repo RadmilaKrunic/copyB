@@ -39,9 +39,13 @@ import {
 import {
   updateLaborRepairSections,
   updateLaborExchangeSections,
+  updateFreightSections,
+  updatePackagingSections,
   mapLaborCostDetailsToApiPayload,
   mapExchangeLaborCostTableDataFromFormValues,
   LABOR_RULE_DEFAULTS,
+  FREIGHT_RULE_DEFAULT,
+  PACKAGING_RULE_DEFAULT,
   shouldShowAddLaborRuleButton,
   LABOR_EXCHANGE_UPDATE_TARGET,
   LABOR_REPAIR_LEVEL_TO_RULE,
@@ -56,6 +60,11 @@ import type {
 import { AscIdProvider } from "../AscId.context";
 import RepairLaborCostMatrixModal from "@/components/ui/RepairLaborCostMatrixModal/RepairLaborCostMatrixModal";
 import { showLaborRulesMatrix } from "../AscLaborRulesRepairArea/AscLaborRulesRepairArea.utils";
+import {
+  isFreightPackagingAllowed,
+  mapCostDetailsToPayload,
+  shouldShowFreightPackagingConfiguration,
+} from "../FreightPackagingConfigurationArea/FreightPackagingFields.utils";
 
 const getAscSaveType = (isDraft: boolean): SaveType =>
   isDraft ? SaveType.DRAFT : SaveType.CREATED;
@@ -97,6 +106,18 @@ function AddASC() {
     user?.countryCode,
   ]);
   const addASCForm = uiConfigurationForms?.forms.find((form) => form.name === "AddASC") || null;
+  const addASCFormWithVisibleFreightPackaging = useMemo(() => {
+    if (!addASCForm || shouldShowFreightPackagingConfiguration(countryConfiguration)) {
+      return addASCForm;
+    }
+
+    return {
+      ...addASCForm,
+      sections: addASCForm.sections.filter(
+        (section) => section.name !== "freightAndPackagingConfiguration",
+      ),
+    };
+  }, [addASCForm, countryConfiguration]);
 
   const [openedSections, setOpenedSections] = useState<Record<string, boolean>>(() => {
     const state = addASCForm?.sections.reduce<Record<string, boolean>>((acc, section) => {
@@ -118,6 +139,8 @@ function AddASC() {
     repair: LABOR_RULE_DEFAULTS.repair,
     exchange: LABOR_RULE_DEFAULTS.exchange,
   });
+  const [selectedFreightRule, setSelectedFreightRule] = useState(FREIGHT_RULE_DEFAULT);
+  const [selectedPackagingRule, setSelectedPackagingRule] = useState(PACKAGING_RULE_DEFAULT);
 
   const { data: asc } = useQuery({
     queryKey: ["ASC", ascId],
@@ -183,7 +206,7 @@ function AddASC() {
     isInitialized,
     reset,
     setInitialFormValues,
-  } = useFormInitialization(addASCForm);
+  } = useFormInitialization(addASCFormWithVisibleFreightPackaging);
 
   const { validate, validateByAction, startValidation, stopValidation, setCurrentAction } =
     useFormValidation({
@@ -588,8 +611,17 @@ function AddASC() {
               ...repairLaborCostMatrixDataByRule,
             },
           ),
-          freightCostDetails: laborCostConfigResponse?.freightCostDetails,
-          packagingCostDetails: laborCostConfigResponse?.packagingCostDetails,
+          freightCostDetails: mapCostDetailsToPayload(
+            asc?.serviceCenter.freightCostDetails ?? laborCostConfigResponse?.freightCostDetails,
+            formValues,
+            "Freight",
+          ),
+          packagingCostDetails: mapCostDetailsToPayload(
+            asc?.serviceCenter.packagingCostDetails ??
+              laborCostConfigResponse?.packagingCostDetails,
+            formValues,
+            "Packaging",
+          ),
           currency: countryConfiguration?.currency,
           currencySymbol: countryConfiguration?.currencySymbol,
           reimbursementType: "DIRECT_SHIPMENT",
@@ -754,10 +786,35 @@ function AddASC() {
           setOpenedSections((prev) => ({
             ...prev,
             internalLaborConfiguration: false,
-            reimbursement: true,
+            freightAndPackagingConfiguration: true,
           }));
           setCurrentAction("nextSectionLaborConfiguration");
           startValidation("nextSectionLaborConfiguration");
+        },
+      );
+    },
+    [handleAction, setCurrentAction, startValidation],
+  );
+
+  const onNextSectionFreightAndPackagingConfiguration = useCallback(
+    (
+      formValues: Record<string, unknown>,
+      helpers: {
+        setErrors: (errors: FormikErrors<Record<string, unknown>>) => void;
+        setTouched: (touched: Record<string, boolean>) => Promise<void | Record<string, string>>;
+      },
+    ) => {
+      void handleAction(
+        "nextSectionFreightAndPackagingConfiguration",
+        { values: formValues, setErrors: helpers.setErrors, setTouched: helpers.setTouched },
+        () => {
+          setOpenedSections((prev) => ({
+            ...prev,
+            freightAndPackagingConfiguration: false,
+            reimbursement: true,
+          }));
+          setCurrentAction("nextSectionFreightAndPackagingConfiguration");
+          startValidation("nextSectionFreightAndPackagingConfiguration");
         },
       );
     },
@@ -827,6 +884,22 @@ function AddASC() {
     [setSections],
   );
 
+  const updateFreightRule = useCallback(
+    (selectedActionName: string) => {
+      setSelectedFreightRule(selectedActionName);
+      setSections((prevSections) => updateFreightSections(prevSections, selectedActionName));
+    },
+    [setSections],
+  );
+
+  const updatePackagingRule = useCallback(
+    (selectedActionName: string) => {
+      setSelectedPackagingRule(selectedActionName);
+      setSections((prevSections) => updatePackagingSections(prevSections, selectedActionName));
+    },
+    [setSections],
+  );
+
   const laborRuleActionCallbacks = useMemo(
     () => ({
       addLaborExchangeRule: () => {
@@ -865,6 +938,15 @@ function AddASC() {
       switchLaborExchangeRuleLevel1: () => updateLaborRule("exchange", "level1Exchange"),
       switchLaborExchangeRuleLevel2: () => updateLaborRule("exchange", "level2Exchange"),
       switchLaborExchangeRuleLevel3: () => updateLaborRule("exchange", "level3Exchange"),
+      switchFreightRuleLevel1: () => updateFreightRule("level1Freight"),
+      switchFreightRuleLevel2: () => updateFreightRule("level2Freight"),
+      switchFreightRuleLevel3: () => updateFreightRule("level3Freight"),
+      switchPackagingRuleLevel1: () => updatePackagingRule("level1Packaging"),
+      switchPackagingRuleLevel2: () => updatePackagingRule("level2Packaging"),
+      switchPackagingRuleLevel3: () => updatePackagingRule("level3Packaging"),
+      showFreightPackagingLevelAction: () =>
+        isFreightPackagingAllowed(countryConfiguration, "Freight"),
+      showPackagingLevelAction: () => isFreightPackagingAllowed(countryConfiguration, "Packaging"),
     }),
     [
       laborConfigSource,
@@ -872,6 +954,9 @@ function AddASC() {
       currentExchangeLaborRule,
       selectedLaborRules.repair,
       updateLaborRule,
+      updateFreightRule,
+      updatePackagingRule,
+      countryConfiguration,
     ],
   );
 
@@ -929,12 +1014,16 @@ function AddASC() {
       selectedLaborRepairRule: selectedLaborRules.repair,
       selectedLaborExchangeRule: selectedLaborRules.exchange,
       selectedLaborExchangeAction: selectedLaborRules.exchange,
+      selectedFreightRule,
+      selectedPackagingRule,
       exchangeLaborCostTableData,
       repairLaborCostMatrixData: repairLaborCostMatrixData ?? undefined,
       actionCallbacks: {
         onNextSectionPricing: onNextSectionPricing,
         onNextSectionConfiguration: onNextSectionConfiguration,
         onNextSectionLaborConfiguration: onNextSectionLaborConfiguration,
+        onNextSectionFreightAndPackagingConfiguration:
+          onNextSectionFreightAndPackagingConfiguration,
         onNextSectionReimbursement: onNextSectionReimbursement,
         onNextSectionAddAdmin: onNextSectionAddAdmin,
         saveDraft: (
@@ -963,9 +1052,12 @@ function AddASC() {
       onNextSectionReimbursement,
       onNextSectionAddAdmin,
       onNextSectionLaborConfiguration,
+      onNextSectionFreightAndPackagingConfiguration,
       laborRuleActionCallbacks,
       selectedLaborRules.repair,
       selectedLaborRules.exchange,
+      selectedFreightRule,
+      selectedPackagingRule,
       exchangeLaborCostTableData,
       repairLaborCostMatrixData,
     ],

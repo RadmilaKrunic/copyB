@@ -126,6 +126,13 @@ function GenericArea({
     return null;
   }
 
+  if (
+    (area.name === "FreightRulesArea" && formValues.toggleFreightCost !== true) ||
+    (area.name === "PackagingRulesArea" && formValues.togglePackagingCost !== true)
+  ) {
+    return null;
+  }
+
   if (!hasPermission) return null;
 
   const customArea = getCustomArea(area);
