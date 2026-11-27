@@ -16,6 +16,7 @@ import {
   mergeRecalculationChanges,
   buildRecalculationChange,
   dropRejectedRecalculationChange,
+  getMaterialFieldPath,
   getSummaryChangeServerValue,
   isRecalculationValueRejected,
   getValidatedTotalAmountMaterialIds,
@@ -526,6 +527,86 @@ describe("dropRejectedRecalculationChange", () => {
         chargeableSummary({ totalAmount: 1250 }),
       ),
     ).toEqual([quantityChange, laterTotal]);
+  });
+
+  describe("row edits looked up by line id", () => {
+    const frTotalChange = buildRecalculationChange("totalAmount", "FR-1", "45.5");
+    const sentFrTotal = {
+      fieldName: "row1_totalAmount",
+      change: frTotalChange,
+      materialPath: ["price", "totalAmount"],
+    };
+    const laRow = { id: "LA-1", position: "LA", price: { totalAmount: 0 } };
+    const frRow = (totalAmount: unknown) => ({
+      id: "FR-1",
+      position: "FR",
+      price: { totalAmount },
+    });
+
+    it("keeps an accepted edit when the response lists the line at another index", () => {
+      // The form row index maps the edited field to the LA line (0), the FR line came back.
+      expect(
+        dropRejectedRecalculationChange(
+          [frTotalChange],
+          sentFrTotal,
+          { row1_totalAmount: 0 },
+          null,
+          [frRow(45.5), laRow],
+        ),
+      ).toEqual([frTotalChange]);
+    });
+
+    it("removes an edit the line came back without", () => {
+      expect(
+        dropRejectedRecalculationChange([frTotalChange], sentFrTotal, {}, null, [laRow, frRow(12)]),
+      ).toEqual([]);
+    });
+
+    it("keeps an edit when the line or its value is missing from the response", () => {
+      expect(
+        dropRejectedRecalculationChange([frTotalChange], sentFrTotal, {}, null, [laRow]),
+      ).toEqual([frTotalChange]);
+      expect(
+        dropRejectedRecalculationChange([frTotalChange], sentFrTotal, {}, null, [
+          laRow,
+          frRow(null),
+        ]),
+      ).toEqual([frTotalChange]);
+    });
+
+    it("checks the field mapped by index without response materials", () => {
+      expect(
+        dropRejectedRecalculationChange(
+          [frTotalChange],
+          sentFrTotal,
+          { row1_totalAmount: 0 },
+          null,
+        ),
+      ).toEqual([]);
+    });
+  });
+});
+
+describe("getMaterialFieldPath", () => {
+  const field = (attributeMapping: string): Field =>
+    mapFieldToFieldMapping({
+      name: "diagnosticData_diagnosticsSpareParts#0_totalAmount",
+      label: "sparePartsTotalAmount",
+      type: "price",
+      attributeMapping,
+    });
+
+  it("returns the path inside one material", () => {
+    expect(getMaterialFieldPath(field("jobDiagnostic.materials#.price.totalAmount"))).toEqual([
+      "price",
+      "totalAmount",
+    ]);
+    expect(getMaterialFieldPath(field("materials#.quantity"))).toEqual(["quantity"]);
+  });
+
+  it("is empty outside the materials list", () => {
+    expect(getMaterialFieldPath(field("jobDiagnostic.priceSummary.totalAmount"))).toEqual([]);
+    expect(getMaterialFieldPath(field("archivedMaterials#.price.totalAmount"))).toEqual([]);
   });
 });
 

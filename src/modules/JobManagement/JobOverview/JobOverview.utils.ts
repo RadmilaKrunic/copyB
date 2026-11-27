@@ -348,7 +348,22 @@ export interface SentRecalculationChange {
   fieldName: string;
   change: Record<string, unknown>;
   previousValue?: unknown;
+  /** Row edits: path of the edited value inside one material, e.g. ["price", "totalAmount"]. */
+  materialPath?: string[];
 }
+
+/**
+ * Path of a spare-parts row field inside one material of the response (fieldMapping after
+ * `materials#`), e.g. `jobDiagnostic.materials#.price.totalAmount` -> ["price", "totalAmount"].
+ * Empty for fields outside the materials list (summary, header, archived rows).
+ */
+export const getMaterialFieldPath = (field: Field): string[] => {
+  const parentMap = field.fieldMapping?.parentMap ?? [];
+  const map = field.fieldMapping?.map;
+  const materialsIndex = parentMap.indexOf("materials#");
+  if (materialsIndex < 0 || !map) return [];
+  return [...parentMap.slice(materialsIndex + 1), map];
+};
 
 /** Price values compare in cents, so a backend rounding (12.345 -> 12.35) is not a rejection. */
 const toRecalculationCents = (value: unknown): number | null => {
@@ -424,13 +439,41 @@ export const getSummaryChangeServerValue = (
  * with another number than was sent and that number is the value from before the edit (when
  * known): the backend kept its own value.
  */
+const readMaterialPath = (material: unknown, path: string[]): unknown =>
+  path.reduce<unknown>((current, key) => (isRecord(current) ? current[key] : undefined), material);
+
+/**
+ * Row edits: the edited line is found in the response by its id (`change.lineId`), never by the
+ * form row index. The rows are sorted by order / position, the response materials are not (e.g.
+ * the first recalculation after a new diagnostic is validated), so the index can name another
+ * line. A missing line or value is not a rejection. Without response materials or a material
+ * path the field mapped by index is checked.
+ */
+const isSentRowChangeRejected = (
+  sent: SentRecalculationChange,
+  responseValues: Record<string, unknown>,
+  responseMaterials: unknown,
+): boolean => {
+  const path = sent.materialPath ?? [];
+  if (path.length === 0 || !Array.isArray(responseMaterials)) {
+    return isRecalculationValueRejected(sent.change.value, responseValues[sent.fieldName]);
+  }
+  const lineId = sent.change.lineId;
+  if (typeof lineId !== "string" || lineId === "") return false;
+  const line: unknown = responseMaterials.find(
+    (material: unknown) => isRecord(material) && material.id === lineId,
+  );
+  return isRecalculationValueRejected(sent.change.value, readMaterialPath(line, path));
+};
+
 const isSentRecalculationChangeRejected = (
   sent: SentRecalculationChange,
   responseValues: Record<string, unknown>,
   responseSummaryDetailed: unknown,
+  responseMaterials: unknown,
 ): boolean => {
   if (!isSummaryChange(sent.change)) {
-    return isRecalculationValueRejected(sent.change.value, responseValues[sent.fieldName]);
+    return isSentRowChangeRejected(sent, responseValues, responseMaterials);
   }
   const returned = getSummaryChangeServerValue(sent.change, responseSummaryDetailed);
   if (!isRecalculationValueRejected(sent.change.value, returned)) return false;
@@ -442,15 +485,25 @@ const isSentRecalculationChangeRejected = (
  * Removes the sent change from the changes kept for validate-and-save when the recalculate
  * response rejected it, so validate does not send the rejected value again.
  * `responseValues` are the response mapped to form values (field name -> value);
- * `responseSummaryDetailed` is the response's detailed price summary (summary edits).
+ * `responseSummaryDetailed` is the response's detailed price summary (summary edits);
+ * `responseMaterials` the response's raw materials (row edits, looked up by line id).
  */
 export const dropRejectedRecalculationChange = (
   pending: Record<string, unknown>[],
   sent: SentRecalculationChange | null,
   responseValues: Record<string, unknown>,
   responseSummaryDetailed: unknown,
+  responseMaterials?: unknown,
 ): Record<string, unknown>[] => {
-  if (!sent || !isSentRecalculationChangeRejected(sent, responseValues, responseSummaryDetailed)) {
+  if (
+    !sent ||
+    !isSentRecalculationChangeRejected(
+      sent,
+      responseValues,
+      responseSummaryDetailed,
+      responseMaterials,
+    )
+  ) {
     return pending;
   }
   return pending.filter((change) => change !== sent.change);

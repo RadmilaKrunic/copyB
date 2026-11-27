@@ -80,6 +80,7 @@ import {
 import {
   buildRecalculationChange,
   dropRejectedRecalculationChange,
+  getMaterialFieldPath,
   getSummaryChangeServerValue,
   getTotalSummaryTypeValues,
   isPriceSummaryMissing,
@@ -237,6 +238,7 @@ export default function ClaimOverview() {
             sentChange,
             responseValues,
             data.claimPriceSummaryDetailed,
+            data.materials,
           ),
         );
       }
@@ -765,6 +767,7 @@ export default function ClaimOverview() {
         change: changes[0],
         // Server summary before a summary edit: tells a rejected edit from a rounded one.
         previousValue: getSummaryChangeServerValue(changes[0], claimData.claimPriceSummaryDetailed),
+        materialPath: getMaterialFieldPath(field),
       };
       recalculateClaimPrices(formValues, changes);
     },
