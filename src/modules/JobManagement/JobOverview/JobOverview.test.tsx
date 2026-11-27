@@ -3933,6 +3933,50 @@ describe("JobOverview onRecalculatePrices", () => {
     expect(payload.changes).toEqual([expect.objectContaining({ type: "unitPrice", value: 7 })]);
   });
 
+  it("sends the edit of the field blurred by the Validate click", async () => {
+    mockDiagnosticMaterials([{ id: "M-1", order: 1, partNumber: "PN-1" }]);
+    renderWithMessages();
+    // Validate is clicked while the price field has focus: the click runs on the render before
+    // the field's blur action records the edit.
+    const onValidateBeforeBlur = callbacks().onValidate as (values: AnyRecord) => Promise<void>;
+
+    recalculate("row0_unitPrice", 45);
+    await act(async () => {
+      await onValidateBeforeBlur(formikValues());
+    });
+
+    await waitFor(() => expect(validateAndSaveMutateMock).toHaveBeenCalledTimes(1));
+    const { payload } = validateAndSaveMutateMock.mock.calls[0][0] as { payload: AnyRecord };
+    expect(payload.changes).toEqual([
+      expect.objectContaining({ type: "unitPrice", lineId: "M-1", value: 45 }),
+    ]);
+  });
+
+  it("validates only after the recalculation in flight has settled", async () => {
+    mockDiagnosticMaterials([{ id: "M-1", order: 1, partNumber: "PN-1" }]);
+    renderWithMessages();
+    let finishRecalculation: () => void = () => undefined;
+    recalculatePricesMutateMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishRecalculation = resolve;
+        }),
+    );
+
+    recalculate("row0_unitPrice", 45);
+    fireEvent.click(screen.getByRole("button", { name: "Validate" }));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(validateAndSaveMutateMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      finishRecalculation();
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(validateAndSaveMutateMock).toHaveBeenCalledTimes(1));
+  });
+
   it("drops a change from validate-and-save when recalculate returns the previous value", async () => {
     mockDiagnosticMaterials([{ id: "M-1", order: 1, partNumber: "PN-1" }]);
     renderWithMessages();

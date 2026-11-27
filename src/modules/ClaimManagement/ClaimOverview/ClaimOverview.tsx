@@ -180,7 +180,7 @@ export default function ClaimOverview() {
       arePricesValidatedRef.current = true;
       setArePricesValidated(true);
       hasClaimChangesRef.current = false;
-      setRecalculatedPricesChanges([]);
+      recalculatedPricesChangesRef.current = [];
       scrollToTop();
       setMessages((prev) => [
         ...prev,
@@ -232,14 +232,12 @@ export default function ClaimOverview() {
           allFields ?? [],
           formValuesRef.current,
         );
-        setRecalculatedPricesChanges((prev) =>
-          dropRejectedRecalculationChange(
-            prev,
-            sentChange,
-            responseValues,
-            data.claimPriceSummaryDetailed,
-            data.materials,
-          ),
+        recalculatedPricesChangesRef.current = dropRejectedRecalculationChange(
+          recalculatedPricesChangesRef.current,
+          sentChange,
+          responseValues,
+          data.claimPriceSummaryDetailed,
+          data.materials,
         );
       }
       arePricesValidatedRef.current = false;
@@ -342,9 +340,9 @@ export default function ClaimOverview() {
   const hasClaimChangesRef = useRef(false);
   // Row edits sent to recalculate since the last validate; validate sends them too
   // (same as job diagnostics), deduped per line + field.
-  const [recalculatedPricesChanges, setRecalculatedPricesChanges] = useState<
-    Record<string, unknown>[]
-  >([]);
+  // A ref, not state: Validate clicked while a row field has focus runs on the render before
+  // that field's blur records its edit, so state read in onValidateClaim would miss it.
+  const recalculatedPricesChangesRef = useRef<Record<string, unknown>[]>([]);
   // The row edit last sent to recalculate; its response may reject it (see onSuccess).
   const sentRecalculationChangeRef = useRef<SentRecalculationChange | null>(null);
   // Marks recalculation errors on the row fields from outside the Formik render.
@@ -669,7 +667,7 @@ export default function ClaimOverview() {
     ) => {
       if (!claimId || !allFields || !claimData) return;
       const payload = buildClaimPayload(formValues, claimFullData || {});
-      payload.changes = recalculatedPricesChanges;
+      payload.changes = recalculatedPricesChangesRef.current;
       claimForceRebuildRef.current = true;
       skipFormResetRef.current = true;
 
@@ -692,7 +690,6 @@ export default function ClaimOverview() {
       claimHasSyncedRef,
       handleActionWithValidation,
       validateClaimPricesMutation,
-      recalculatedPricesChanges,
     ],
   );
 
@@ -761,7 +758,10 @@ export default function ClaimOverview() {
         return;
       }
       const changes = [buildRecalculationChange(originalName, lineId, value)];
-      setRecalculatedPricesChanges((prev) => mergeRecalculationChanges(prev, changes));
+      recalculatedPricesChangesRef.current = mergeRecalculationChanges(
+        recalculatedPricesChangesRef.current,
+        changes,
+      );
       sentRecalculationChangeRef.current = {
         fieldName,
         change: changes[0],

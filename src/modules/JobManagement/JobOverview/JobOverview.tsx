@@ -198,9 +198,11 @@ export default function JobOverview() {
   // Last validate / save response had no price summary: show the total row with zeros.
   const [isZeroSummaryShown, setIsZeroSummaryShown] = useState(false);
   const [jobFullData, setJobFullData] = useState<JobOverviewItem | undefined>(undefined);
-  const [recalculatedPricesChanges, setRecalculatedPricesChanges] = useState<
-    Record<string, unknown>[]
-  >([]);
+  // Edits sent to recalculate since the last validate-and-save; validate sends them as `changes`.
+  // A ref, not state: Validate clicked while a price field has focus runs on the render before
+  // that field's blur records its edit (the blur action runs after an await), so state read in
+  // onValidate would still be the empty list.
+  const recalculatedPricesChangesRef = useRef<Record<string, unknown>[]>([]);
   // The edit last sent to recalculate; its response may reject it (see onSuccess).
   const sentRecalculationChangeRef = useRef<SentRecalculationChange | null>(null);
   // Recalculate request in flight, settled once its response is applied (or it failed).
@@ -884,7 +886,7 @@ export default function JobOverview() {
           duration: 3000,
         },
       ]);
-      setRecalculatedPricesChanges([]);
+      recalculatedPricesChangesRef.current = [];
       await queryClient.refetchQueries({ queryKey: ["job", jobId] });
       emitJobFlowEvent((payload) => analytics.trackDiagnosticValidated(payload));
     },
@@ -921,14 +923,12 @@ export default function JobOverview() {
       // that change must not be sent again with validate-and-save.
       const sentChange = sentRecalculationChangeRef.current;
       sentRecalculationChangeRef.current = null;
-      setRecalculatedPricesChanges((prev) =>
-        dropRejectedRecalculationChange(
-          prev,
-          sentChange,
-          responseValues,
-          validatedDiagnostic?.priceSummaryDetailed,
-          validatedDiagnostic?.materials,
-        ),
+      recalculatedPricesChangesRef.current = dropRejectedRecalculationChange(
+        recalculatedPricesChangesRef.current,
+        sentChange,
+        responseValues,
+        validatedDiagnostic?.priceSummaryDetailed,
+        validatedDiagnostic?.materials,
       );
 
       if (data.errorMessages && data.errorMessages.length > 0) {
@@ -1079,8 +1079,10 @@ export default function JobOverview() {
   // A changed action type goes into the validate-and-save changes (no recalculate: the rows are
   // rebuilt without prices); changing it back to the saved one removes it again.
   useEffect(() => {
-    setRecalculatedPricesChanges((prev) =>
-      syncActionTypeChange(prev, savedActionType, currentActionType),
+    recalculatedPricesChangesRef.current = syncActionTypeChange(
+      recalculatedPricesChangesRef.current,
+      savedActionType,
+      currentActionType,
     );
   }, [savedActionType, currentActionType]);
 
@@ -1744,7 +1746,10 @@ export default function JobOverview() {
           value,
         ),
       ];
-      setRecalculatedPricesChanges((prev) => mergeRecalculationChanges(prev, changes));
+      recalculatedPricesChangesRef.current = mergeRecalculationChanges(
+        recalculatedPricesChangesRef.current,
+        changes,
+      );
       sentRecalculationChangeRef.current = {
         fieldName,
         change: changes[0],
@@ -1759,7 +1764,6 @@ export default function JobOverview() {
       jobData?.order?.countryCode,
       previousSummaryDetailed,
       sendRecalculation,
-      setRecalculatedPricesChanges,
       validateByAction,
     ],
   );
@@ -1788,18 +1792,15 @@ export default function JobOverview() {
       const payload = buildDiagnosticPayload(formValues, currentAllFields);
       payload.countryCode = jobData?.order?.countryCode;
       const changes = [buildHeaderRecalculationChange(field, value)];
-      setRecalculatedPricesChanges((prev) => mergeRecalculationChanges(prev, changes));
+      recalculatedPricesChangesRef.current = mergeRecalculationChanges(
+        recalculatedPricesChangesRef.current,
+        changes,
+      );
       sentRecalculationChangeRef.current = null;
       payload.changes = changes;
       await sendRecalculation(payload);
     },
-    [
-      buildDiagnosticPayload,
-      jobData?.order?.countryCode,
-      sendRecalculation,
-      setRecalculatedPricesChanges,
-      validateByAction,
-    ],
+    [buildDiagnosticPayload, jobData?.order?.countryCode, sendRecalculation, validateByAction],
   );
 
   // Deleting a spare-parts row or restoring one from archived recalculates prices with an empty
@@ -1841,6 +1842,9 @@ export default function JobOverview() {
         // Wait for blur event to propagate and Formik to update
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
+      // The blur may have sent the field's edit to recalculate: validate after its response, so
+      // a rejected edit is dropped and the recalculation cannot overwrite the validated prices.
+      while (recalculationInFlightRef.current !== null) await recalculationInFlightRef.current;
 
       const payload = buildDiagnosticPayload(formValues, currentAllFields);
       // Action or job type changed: existing line ids no longer apply, so send rows as new.
@@ -1855,7 +1859,7 @@ export default function JobOverview() {
           id: null,
         }));
       }
-      payload.changes = recalculatedPricesChanges;
+      payload.changes = recalculatedPricesChangesRef.current;
       if (helpers) {
         await handleActionWithValidation("validate", formValues, helpers, () =>
           validateAndSaveMutation.mutate({ jobId, payload }),
@@ -1869,7 +1873,6 @@ export default function JobOverview() {
       validateAndSaveMutation,
       buildDiagnosticPayload,
       handleActionWithValidation,
-      recalculatedPricesChanges,
       jobFullData?.diagnostic?.actionType,
       jobFullData?.diagnostic?.jobType,
       currentActionType,
