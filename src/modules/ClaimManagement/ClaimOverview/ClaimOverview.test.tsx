@@ -1154,6 +1154,23 @@ describe("ClaimOverview onRecalculatePrices field action", () => {
     expect(h.updatePrices.mock.calls[1][0].payload.changes).toEqual([]);
   });
 
+  it("sends the edit of the field blurred by the Validate click", async () => {
+    setup();
+    // Validate is clicked while the row field has focus: the click runs on the render before
+    // the field's blur action records the edit.
+    const onValidateBeforeBlur = h.captured.generic.actionCallbacks.onValidate;
+
+    recalc(`${ROW}quantity`, 3);
+    act(() => {
+      onValidateBeforeBlur({}, undefined);
+    });
+
+    await waitFor(() => expect(h.updatePrices).toHaveBeenCalledTimes(1));
+    expect(h.updatePrices.mock.calls[0][0].payload.changes).toEqual([
+      { type: "quantity", lineId: "SP_1_WARRANTY", value: 3, scope: null },
+    ]);
+  });
+
   it("does not send a change with validate when recalculate returns the previous value", async () => {
     setup();
 
